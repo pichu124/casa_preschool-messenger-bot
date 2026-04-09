@@ -256,25 +256,27 @@ async def handle_telegram_webhook(request: Request):
             logger.warning(f"No pending escalation for msg_id={original_msg_id}, trying to parse from message")
 
             # Extract customer ID and question from the escalation message
+            import re
             customer_id = None
             customer_name = "Khách hàng"
             question = ""
-            for line in original_text.split("\n"):
-                if "ID:" in line:
-                    customer_id = line.split("ID:")[-1].strip()
-                if "Khách hàng:" in line:
-                    customer_name = line.split("Khách hàng:")[-1].strip()
-                if "Câu hỏi:" in line:
-                    # Question is on this line or the next
-                    question = line.split("Câu hỏi:")[-1].strip()
 
-            # Get question from next line after "Câu hỏi:" if it was empty
-            if not question:
-                lines = original_text.split("\n")
-                for i, line in enumerate(lines):
-                    if "Câu hỏi:" in line and i + 1 < len(lines):
-                        question = lines[i + 1].strip()
-                        break
+            # Parse ID (after "ID:" or "🆔 ID:")
+            id_match = re.search(r"ID:\s*(\d+)", original_text)
+            if id_match:
+                customer_id = id_match.group(1)
+
+            # Parse customer name (after "Khách hàng:" or "👤 Khách hàng:")
+            name_match = re.search(r"Khách hàng:\s*(.+)", original_text)
+            if name_match:
+                customer_name = name_match.group(1).strip()
+
+            # Parse question (after "Câu hỏi:" - could be on same or next line)
+            q_match = re.search(r"Câu hỏi:\s*\n?(.*?)(?:\n\n|\n🕐|\n💬|$)", original_text, re.DOTALL)
+            if q_match:
+                question = q_match.group(1).strip()
+
+            logger.info(f"Parsed from message: customer_id={customer_id}, name={customer_name}, question={question[:50]}")
 
             if not customer_id or not question:
                 await send_telegram_reply(chat_id, reply_msg_id, "❌ Không tìm thấy thông tin khách hàng. Hãy reply đúng tin nhắn escalation.")
@@ -292,7 +294,12 @@ async def handle_telegram_webhook(request: Request):
         formatted_reply = await ai_engine.format_admin_reply(admin_text, question)
 
         # 2. Send to customer on Facebook Messenger
-        await send_message(customer_id, formatted_reply)
+        try:
+            await send_message(customer_id, formatted_reply)
+        except Exception as send_err:
+            logger.error(f"Failed to send to Messenger (customer_id={customer_id}): {send_err}")
+            await send_telegram_reply(chat_id, reply_msg_id, f"❌ Không gửi được cho khách (ID: {customer_id}). Lỗi: {send_err}")
+            return {"status": "messenger_error"}
 
         # 3. Classify Q&A with AI (category, keywords, similar questions)
         classification = await ai_engine.classify_qa(question, admin_text)

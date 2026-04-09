@@ -387,6 +387,23 @@
       ],
       "answer": "trường sẽ sắp xếp cô giáo phù hợp nhất với lứa tuổi của các bạn",
       "keywords": []
+    },
+    {
+      "category": "Hoạt động ngoại khóa",
+      "questions": [
+        "Trường có dạy võ taekwondo không?",
+        "Trường có tổ chức lớp võ thuật nào không?",
+        "Lớp học ngoại khóa nào đang được tổ chức tại trường?",
+        "Có lớp học năng khiếu nào vào cuối tuần không?"
+      ],
+      "answer": "hiện tại chưa có, nhưng trường có tổ chức lớp vẽ và nhảy hiện đại cho các bạn vào sáng thứ 7",
+      "keywords": [
+        "võ taekwondo",
+        "lớp vẽ",
+        "nhảy hiện đại",
+        "hoạt động ngoại khóa",
+        "thứ 7"
+      ]
     }
   ]
 }

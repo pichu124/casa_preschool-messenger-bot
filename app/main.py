@@ -1,4 +1,5 @@
 import logging
+import re
 from collections import defaultdict
 
 from fastapi import FastAPI, Request, HTTPException, Query
@@ -256,7 +257,6 @@ async def handle_telegram_webhook(request: Request):
             logger.warning(f"No pending escalation for msg_id={original_msg_id}, trying to parse from message")
 
             # Extract customer ID and question from the escalation message
-            import re
             customer_id = None
             customer_name = "Khách hàng"
             question = ""

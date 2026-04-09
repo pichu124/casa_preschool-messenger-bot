@@ -236,29 +236,58 @@ async def handle_telegram_webhook(request: Request):
     """Handle admin replies from Telegram group."""
     data = await request.json()
     message = data.get("message", {})
-
-    # Only process replies to bot messages
-    reply = message.get("reply_to_message")
-    if not reply:
-        return {"status": "ignored"}
-
-    # Check if this is a reply to an escalation message
-    original_msg_id = reply.get("message_id")
-    escalation = get_pending_escalation(original_msg_id)
-    if not escalation:
-        return {"status": "no_escalation_found"}
-
-    admin_text = message.get("text", "")
-    if not admin_text:
-        return {"status": "no_text"}
-
-    customer_id = escalation["customer_id"]
-    customer_name = escalation["customer_name"]
-    question = escalation["question"]
-    chat_id = message["chat"]["id"]
-    reply_msg_id = message["message_id"]
+    chat_id = message.get("chat", {}).get("id")
+    reply_msg_id = message.get("message_id")
 
     try:
+        # Only process replies to bot messages
+        reply = message.get("reply_to_message")
+        if not reply:
+            return {"status": "ignored"}
+
+        original_msg_id = reply.get("message_id")
+        logger.info(f"Telegram reply to msg_id={original_msg_id}")
+
+        # Check if this is a reply to an escalation message
+        escalation = get_pending_escalation(original_msg_id)
+        if not escalation:
+            # Try to parse customer info from the original bot message text
+            original_text = reply.get("text", "")
+            logger.warning(f"No pending escalation for msg_id={original_msg_id}, trying to parse from message")
+
+            # Extract customer ID and question from the escalation message
+            customer_id = None
+            customer_name = "Khách hàng"
+            question = ""
+            for line in original_text.split("\n"):
+                if "ID:" in line:
+                    customer_id = line.split("ID:")[-1].strip()
+                if "Khách hàng:" in line:
+                    customer_name = line.split("Khách hàng:")[-1].strip()
+                if "Câu hỏi:" in line:
+                    # Question is on this line or the next
+                    question = line.split("Câu hỏi:")[-1].strip()
+
+            # Get question from next line after "Câu hỏi:" if it was empty
+            if not question:
+                lines = original_text.split("\n")
+                for i, line in enumerate(lines):
+                    if "Câu hỏi:" in line and i + 1 < len(lines):
+                        question = lines[i + 1].strip()
+                        break
+
+            if not customer_id or not question:
+                await send_telegram_reply(chat_id, reply_msg_id, "❌ Không tìm thấy thông tin khách hàng. Hãy reply đúng tin nhắn escalation.")
+                return {"status": "no_escalation_found"}
+        else:
+            customer_id = escalation["customer_id"]
+            customer_name = escalation["customer_name"]
+            question = escalation["question"]
+
+        admin_text = message.get("text", "")
+        if not admin_text:
+            return {"status": "no_text"}
+
         # 1. Format admin reply politely via AI
         formatted_reply = await ai_engine.format_admin_reply(admin_text, question)
 
@@ -284,18 +313,17 @@ async def handle_telegram_webhook(request: Request):
             f"✅ Đã gửi cho khách hàng ({customer_name}) và lưu vào Q&A database.\n📁 Danh mục: {category}\n🔑 Keywords: {', '.join(keywords)}"
         )
 
-        # 6. Mark escalation as resolved
-        resolve_escalation(original_msg_id)
+        # 7. Mark escalation as resolved
+        if escalation:
+            resolve_escalation(original_msg_id)
 
         logger.info(f"Admin replied to escalation for {customer_name}: {admin_text[:100]}")
         return {"status": "ok"}
 
     except Exception as e:
         logger.error(f"Error handling admin reply: {e}", exc_info=True)
-        await send_telegram_reply(
-            chat_id, reply_msg_id,
-            f"❌ Lỗi: {str(e)}"
-        )
+        if chat_id and reply_msg_id:
+            await send_telegram_reply(chat_id, reply_msg_id, f"❌ Lỗi: {str(e)}")
         return {"status": "error", "detail": str(e)}
 
 

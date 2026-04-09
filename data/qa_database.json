@@ -404,6 +404,22 @@
         "hoạt động ngoại khóa",
         "thứ 7"
       ]
+    },
+    {
+      "category": "Chương trình học",
+      "questions": [
+        "Trường có dạy bơi không?",
+        "Trường có tổ chức hoạt động ngoại khóa nào không?",
+        "Lịch học vào thứ 7 như thế nào?",
+        "Trường có dạy môn năng khiếu nào không?"
+      ],
+      "answer": "hiện tại chưa có, nhưng trường có tổ chức lớp vẽ và nhảy hiện đại cho các bạn vào sáng thứ 7",
+      "keywords": [
+        "dạy bơi",
+        "lớp vẽ",
+        "nhảy hiện đại",
+        "thứ 7"
+      ]
     }
   ]
 }

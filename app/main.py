@@ -22,7 +22,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Preschool Messenger Bot", version="1.0.0")
+APP_VERSION = "1.1.0"
+app = FastAPI(title="Preschool Messenger Bot", version=APP_VERSION)
 
 # Initialize Q&A database and AI engine
 qa_db = QADatabase(settings.QA_DATABASE_PATH)
@@ -44,6 +45,7 @@ ESCALATION_MESSAGE = (
 async def health_check():
     return {
         "status": "ok",
+        "version": APP_VERSION,
         "qa_pairs": len(qa_db.qa_pairs),
         "ai_models": settings.AI_MODEL_ORDER,
     }

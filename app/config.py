@@ -15,6 +15,9 @@ class Settings:
     TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
     TELEGRAM_WEBHOOK_SECRET: str = os.getenv("TELEGRAM_WEBHOOK_SECRET", "casa-bot-secret-2024")
 
+    # GitHub auto-sync
+    GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
+
     # AI Model API Keys
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")

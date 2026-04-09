@@ -161,6 +161,25 @@ async def reload_qa():
     return {"status": "reloaded", "qa_pairs": len(qa_db.qa_pairs)}
 
 
+@app.get("/qa-database")
+async def get_qa_database():
+    """View all Q&A pairs including learned ones."""
+    return {
+        "total": len(qa_db.qa_pairs),
+        "qa_pairs": qa_db.qa_pairs,
+    }
+
+
+@app.get("/qa-learned")
+async def get_qa_learned():
+    """View only Q&A pairs learned from admin replies."""
+    learned = [p for p in qa_db.qa_pairs if p.get("category") == "Học từ admin"]
+    return {
+        "total": len(learned),
+        "learned_pairs": learned,
+    }
+
+
 @app.post("/import-excel")
 async def import_excel(file_path: str):
     """Import Q&A from Excel file."""

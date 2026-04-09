@@ -76,13 +76,15 @@ class QADatabase:
         with open(self.path, "w", encoding="utf-8") as f:
             json.dump({"qa_pairs": self.qa_pairs}, f, ensure_ascii=False, indent=2)
 
-    async def add_qa_pair(self, category: str, question: str, answer: str):
+    async def add_qa_pair(self, category: str, questions: str | list[str], answer: str, keywords: list[str] | None = None):
         """Add a new Q&A pair, save locally, and sync to GitHub."""
+        if isinstance(questions, str):
+            questions = [questions]
         self.qa_pairs.append({
             "category": category,
-            "questions": [question],
+            "questions": questions,
             "answer": answer,
-            "keywords": [],
+            "keywords": keywords or [],
         })
         self.save()
 

@@ -300,3 +300,38 @@ class AIEngine:
 
         # Fallback: return admin answer as-is
         return admin_answer
+
+    async def classify_qa(self, question: str, answer: str) -> dict:
+        """Use AI to classify a Q&A pair with category, keywords, and similar questions."""
+        classify_prompt = (
+            "Bạn là hệ thống phân loại Q&A cho trường mầm non. "
+            "Cho một cặp câu hỏi và trả lời, hãy phân tích và trả về JSON với format chính xác sau:\n"
+            '{"category": "Tên danh mục ngắn gọn (VD: Chương trình học, Chính sách trường, Học phí, Đội ngũ giáo viên, Cơ sở vật chất, Ăn uống, Xe đưa đón...)", '
+            '"keywords": ["từ khóa 1", "từ khóa 2", "từ khóa 3"], '
+            '"similar_questions": ["Câu hỏi tương tự 1?", "Câu hỏi tương tự 2?"]}\n\n'
+            "CHỈ trả về JSON, KHÔNG giải thích thêm."
+        )
+        user_msg = f"Câu hỏi: {question}\nCâu trả lời: {answer}"
+
+        for model_name in settings.AI_MODEL_ORDER:
+            model_name = model_name.strip()
+            provider = self._get_provider(model_name)
+            if not provider:
+                continue
+            try:
+                result = await provider.generate(classify_prompt, user_msg, [])
+                # Extract JSON from response
+                result = result.strip()
+                if result.startswith("```"):
+                    result = result.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+                return json.loads(result)
+            except (json.JSONDecodeError, Exception) as e:
+                logger.warning(f"Classify with {model_name} failed: {e}")
+                continue
+
+        # Fallback
+        return {
+            "category": "Khác",
+            "keywords": [],
+            "similar_questions": [],
+        }

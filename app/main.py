@@ -265,16 +265,23 @@ async def handle_telegram_webhook(request: Request):
         # 2. Send to customer on Facebook Messenger
         await send_message(customer_id, formatted_reply)
 
-        # 3. Save new Q&A to database + Excel
-        await qa_db.add_qa_pair("Học từ admin", question, admin_text)
+        # 3. Classify Q&A with AI (category, keywords, similar questions)
+        classification = await ai_engine.classify_qa(question, admin_text)
+        category = classification.get("category", "Khác")
+        keywords = classification.get("keywords", [])
+        similar_questions = classification.get("similar_questions", [])
 
-        # 4. Rebuild AI context so it knows the new Q&A
+        # 4. Save new Q&A to database with proper classification
+        all_questions = [question] + similar_questions
+        await qa_db.add_qa_pair(category, all_questions, admin_text, keywords)
+
+        # 5. Rebuild AI context so it knows the new Q&A
         _rebuild_ai_context()
 
-        # 5. Confirm in Telegram
+        # 6. Confirm in Telegram
         await send_telegram_reply(
             chat_id, reply_msg_id,
-            f"✅ Đã gửi cho khách hàng ({customer_name}) và lưu vào Q&A database."
+            f"✅ Đã gửi cho khách hàng ({customer_name}) và lưu vào Q&A database.\n📁 Danh mục: {category}\n🔑 Keywords: {', '.join(keywords)}"
         )
 
         # 6. Mark escalation as resolved

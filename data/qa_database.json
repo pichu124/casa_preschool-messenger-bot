@@ -406,19 +406,19 @@
       ]
     },
     {
-      "category": "Chương trình học",
+      "category": "Cơ sở vật chất",
       "questions": [
-        "Trường có dạy bơi không?",
-        "Trường có tổ chức hoạt động ngoại khóa nào không?",
-        "Lịch học vào thứ 7 như thế nào?",
-        "Trường có dạy môn năng khiếu nào không?"
+        "trường có dự định mở cơ sở mới ở Hoàn Kiếm không ạ?",
+        "Trường có kế hoạch mở cơ sở mới tại khu vực nào trong tương lai không?",
+        "Năm sau trường có mở thêm cơ sở mới không?",
+        "Trường có thông tin gì về việc mở rộng cơ sở không?"
       ],
-      "answer": "hiện tại chưa có, nhưng trường có tổ chức lớp vẽ và nhảy hiện đại cho các bạn vào sáng thứ 7",
+      "answer": "chưa có dự định trong năm nay",
       "keywords": [
-        "dạy bơi",
-        "lớp vẽ",
-        "nhảy hiện đại",
-        "thứ 7"
+        "cơ sở mới",
+        "Hoàn Kiếm",
+        "dự định mở",
+        "năm nay"
       ]
     }
   ]

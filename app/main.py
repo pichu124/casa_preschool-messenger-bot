@@ -240,6 +240,12 @@ async def handle_telegram_webhook(request: Request):
     chat_id = message.get("chat", {}).get("id")
     reply_msg_id = message.get("message_id")
 
+    # Parse all variables before try block so they exist in except
+    customer_id = None
+    customer_name = "Khách hàng"
+    question = ""
+    admin_text = ""
+
     try:
         # Only process replies to bot messages
         reply = message.get("reply_to_message")
@@ -247,48 +253,40 @@ async def handle_telegram_webhook(request: Request):
             return {"status": "ignored"}
 
         original_msg_id = reply.get("message_id")
-        logger.info(f"Telegram reply to msg_id={original_msg_id}")
+        admin_text = message.get("text", "")
+        if not admin_text:
+            return {"status": "no_text"}
+
+        logger.info(f"Telegram reply to msg_id={original_msg_id}, text={admin_text[:50]}")
 
         # Check if this is a reply to an escalation message
         escalation = get_pending_escalation(original_msg_id)
-        if not escalation:
-            # Try to parse customer info from the original bot message text
+        if escalation:
+            customer_id = escalation.get("customer_id")
+            customer_name = escalation.get("customer_name", "Khách hàng")
+            question = escalation.get("question", "")
+        else:
+            # Parse customer info from the original bot message text
             original_text = reply.get("text", "")
-            logger.warning(f"No pending escalation for msg_id={original_msg_id}, trying to parse from message")
+            logger.warning(f"No pending escalation for msg_id={original_msg_id}, parsing from message")
 
-            # Extract customer ID and question from the escalation message
-            customer_id = None
-            customer_name = "Khách hàng"
-            question = ""
-
-            # Parse ID (after "ID:" or "🆔 ID:")
             id_match = re.search(r"ID:\s*(\d+)", original_text)
             if id_match:
                 customer_id = id_match.group(1)
 
-            # Parse customer name (after "Khách hàng:" or "👤 Khách hàng:")
             name_match = re.search(r"Khách hàng:\s*(.+)", original_text)
             if name_match:
                 customer_name = name_match.group(1).strip()
 
-            # Parse question (after "Câu hỏi:" - could be on same or next line)
             q_match = re.search(r"Câu hỏi:\s*\n?(.*?)(?:\n\n|\n🕐|\n💬|$)", original_text, re.DOTALL)
             if q_match:
                 question = q_match.group(1).strip()
 
-            logger.info(f"Parsed from message: customer_id={customer_id}, name={customer_name}, question={question[:50]}")
+        logger.info(f"Escalation data: customer_id={customer_id}, name={customer_name}, question={question[:50]}")
 
-            if not customer_id or not question:
-                await send_telegram_reply(chat_id, reply_msg_id, "❌ Không tìm thấy thông tin khách hàng. Hãy reply đúng tin nhắn escalation.")
-                return {"status": "no_escalation_found"}
-        else:
-            customer_id = escalation["customer_id"]
-            customer_name = escalation["customer_name"]
-            question = escalation["question"]
-
-        admin_text = message.get("text", "")
-        if not admin_text:
-            return {"status": "no_text"}
+        if not customer_id or not question:
+            await send_telegram_reply(chat_id, reply_msg_id, "❌ Không tìm thấy thông tin khách hàng. Hãy reply đúng tin nhắn escalation.")
+            return {"status": "no_escalation_found"}
 
         # 1. Format admin reply politely via AI
         formatted_reply = await ai_engine.format_admin_reply(admin_text, question)

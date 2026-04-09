@@ -44,7 +44,7 @@ async def push_qa_to_github(qa_pairs: list[dict]):
             api_url,
             headers=headers,
             json={
-                "message": "Auto-update Q&A database from admin reply",
+                "message": "[skip deploy] Auto-update Q&A database from admin reply",
                 "content": encoded,
                 "sha": current_sha,
                 "branch": BRANCH,

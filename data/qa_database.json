@@ -514,6 +514,22 @@
         "có còn dạy",
         "giáo viên"
       ]
+    },
+    {
+      "category": "Đội ngũ giáo viên",
+      "questions": [
+        "cô Ly còn dạy ở trường không",
+        "Cô Ly hiện tại có còn dạy tại trường không?",
+        "Tình trạng giảng dạy của cô Ly hiện nay như thế nào?",
+        "Cô Ly có tiếp tục công tác tại trường hay không?"
+      ],
+      "answer": "còn",
+      "keywords": [
+        "cô Ly",
+        "dạy",
+        "vẫn còn",
+        "giáo viên"
+      ]
     }
   ]
 }

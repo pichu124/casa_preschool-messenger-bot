@@ -499,6 +499,21 @@
         "có còn dạy",
         "giáo viên"
       ]
+    },
+    {
+      "category": "Đội ngũ giáo viên",
+      "questions": [
+        "cô Hằng còn dạy ở trường không",
+        "Cô Hằng có còn dạy ở trường không?",
+        "Cô Hằng đã nghỉ dạy chưa?",
+        "Tình trạng hiện tại của cô Hằng?"
+      ],
+      "answer": "còn",
+      "keywords": [
+        "cô Hằng",
+        "có còn dạy",
+        "giáo viên"
+      ]
     }
   ]
 }

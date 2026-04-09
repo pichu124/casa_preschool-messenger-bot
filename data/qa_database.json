@@ -436,6 +436,21 @@
         "cơ sở Mỹ Đình",
         "nghỉ"
       ]
+    },
+    {
+      "category": "Đội ngũ giáo viên",
+      "questions": [
+        "thầy james còn dạy ở trường không?",
+        "Thầy James có còn dạy tại trường không?",
+        "Thầy James đã rời trường bao lâu rồi?",
+        "Thầy James hiện tại có dạy lớp nào không?"
+      ],
+      "answer": "thầy đã nghỉ được 3 tháng rồi",
+      "keywords": [
+        "thầy James",
+        "nghỉ dạy",
+        "thời gian nghỉ"
+      ]
     }
   ]
 }

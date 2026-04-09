@@ -13,6 +13,7 @@ class Settings:
     # Admin escalation via Telegram
     TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
     TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
+    TELEGRAM_WEBHOOK_SECRET: str = os.getenv("TELEGRAM_WEBHOOK_SECRET", "casa-bot-secret-2024")
 
     # AI Model API Keys
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")

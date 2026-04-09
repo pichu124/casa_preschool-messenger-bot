@@ -265,3 +265,32 @@ class AIEngine:
             should_escalate=True,
             model_used="none",
         )
+
+    async def format_admin_reply(self, admin_answer: str, original_question: str) -> str:
+        """Use AI to format an admin's raw reply into a polite customer response."""
+        format_prompt = (
+            "Bạn là nhân viên tư vấn trường mầm non Casa. "
+            "Admin đã cung cấp câu trả lời cho câu hỏi của phụ huynh. "
+            "Hãy viết lại câu trả lời sao cho lịch sự, thân thiện, có dấu tiếng Việt, "
+            "xưng 'em', gọi phụ huynh là 'mẹ/ba/chị/anh', dùng 'ạ' cuối câu. "
+            "Giữ nguyên ý nghĩa, không thêm thông tin mới."
+        )
+        user_msg = (
+            f"Câu hỏi của phụ huynh: {original_question}\n"
+            f"Câu trả lời từ admin: {admin_answer}\n\n"
+            f"Hãy viết lại câu trả lời cho phụ huynh:"
+        )
+
+        for model_name in settings.AI_MODEL_ORDER:
+            model_name = model_name.strip()
+            provider = self._get_provider(model_name)
+            if not provider:
+                continue
+            try:
+                return await provider.generate(format_prompt, user_msg, [])
+            except Exception as e:
+                logger.warning(f"Format reply with {model_name} failed: {e}")
+                continue
+
+        # Fallback: return admin answer as-is
+        return admin_answer

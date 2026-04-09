@@ -76,6 +76,44 @@ class QADatabase:
         with open(self.path, "w", encoding="utf-8") as f:
             json.dump({"qa_pairs": self.qa_pairs}, f, ensure_ascii=False, indent=2)
 
+    def add_qa_pair(self, category: str, question: str, answer: str):
+        """Add a new Q&A pair and save to JSON + Excel log."""
+        self.qa_pairs.append({
+            "category": category,
+            "questions": [question],
+            "answer": answer,
+            "keywords": [],
+        })
+        self.save()
+        self._append_to_learned_excel(category, question, answer)
+        logger.info(f"Added new Q&A: [{category}] {question[:50]}...")
+
+    def _append_to_learned_excel(self, category: str, question: str, answer: str):
+        """Append a learned Q&A to the Excel log file."""
+        from datetime import datetime
+
+        excel_path = "data/qa_learned.xlsx"
+        path = Path(excel_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        if path.exists():
+            wb = openpyxl.load_workbook(excel_path)
+            ws = wb.active
+        else:
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Learned Q&A"
+            ws.append(["Timestamp", "Category", "Question", "Answer"])
+
+        ws.append([
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            category,
+            question,
+            answer,
+        ])
+        wb.save(excel_path)
+        wb.close()
+
     def build_context(self) -> str:
         """Build a context string from all Q&A pairs for the AI prompt."""
         if not self.qa_pairs:

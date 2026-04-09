@@ -294,12 +294,7 @@ async def handle_telegram_webhook(request: Request):
         formatted_reply = await ai_engine.format_admin_reply(admin_text, question)
 
         # 2. Send to customer on Facebook Messenger
-        try:
-            await send_message(customer_id, formatted_reply)
-        except Exception as send_err:
-            logger.error(f"Failed to send to Messenger (customer_id={customer_id}): {send_err}")
-            await send_telegram_reply(chat_id, reply_msg_id, f"❌ Không gửi được cho khách (ID: {customer_id}). Lỗi: {send_err}")
-            return {"status": "messenger_error"}
+        await send_message(customer_id, formatted_reply)
 
         # 3. Classify Q&A with AI (category, keywords, similar questions)
         classification = await ai_engine.classify_qa(question, admin_text)
@@ -314,13 +309,7 @@ async def handle_telegram_webhook(request: Request):
         # 5. Rebuild AI context so it knows the new Q&A
         _rebuild_ai_context()
 
-        # 6. Confirm in Telegram
-        await send_telegram_reply(
-            chat_id, reply_msg_id,
-            f"✅ Đã gửi cho khách hàng ({customer_name}) và lưu vào Q&A database.\n📁 Danh mục: {category}\n🔑 Keywords: {', '.join(keywords)}"
-        )
-
-        # 7. Mark escalation as resolved
+        # 6. Mark escalation as resolved
         if escalation:
             resolve_escalation(original_msg_id)
 
@@ -329,8 +318,6 @@ async def handle_telegram_webhook(request: Request):
 
     except Exception as e:
         logger.error(f"Error handling admin reply: {e}", exc_info=True)
-        if chat_id and reply_msg_id:
-            await send_telegram_reply(chat_id, reply_msg_id, f"❌ Lỗi: {str(e)}")
         return {"status": "error", "detail": str(e)}
 
 

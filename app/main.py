@@ -266,7 +266,7 @@ async def handle_telegram_webhook(request: Request):
         await send_message(customer_id, formatted_reply)
 
         # 3. Save new Q&A to database + Excel
-        qa_db.add_qa_pair("Học từ admin", question, admin_text)
+        await qa_db.add_qa_pair("Học từ admin", question, admin_text)
 
         # 4. Rebuild AI context so it knows the new Q&A
         _rebuild_ai_context()

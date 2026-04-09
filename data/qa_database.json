@@ -451,6 +451,21 @@
         "nghỉ dạy",
         "thời gian nghỉ"
       ]
+    },
+    {
+      "category": "Đội ngũ giáo viên",
+      "questions": [
+        "cô angel còn dạy ở trường không",
+        "Cô Angel hiện đang dạy lớp nào?",
+        "Cô Angel có còn dạy ở trường mầm non không?",
+        "Lớp Tokyo do cô giáo nào phụ trách?"
+      ],
+      "answer": "có, cô đang dạy lớp tokyo",
+      "keywords": [
+        "cô Angel",
+        "dạy lớp Tokyo",
+        "giáo viên"
+      ]
     }
   ]
 }

@@ -420,6 +420,23 @@
         "dự định mở",
         "năm nay"
       ]
+    },
+    {
+      "category": "Hoạt động ngoại khóa",
+      "questions": [
+        "Trường có dạy bơi không?",
+        "Trường có tổ chức lớp học bơi không?",
+        "Lịch học bơi cho trẻ như thế nào?",
+        "Chi phí tham gia lớp bơi là bao nhiêu?",
+        "Trẻ có bắt buộc tham gia lớp bơi không?"
+      ],
+      "answer": "test reply from admin",
+      "keywords": [
+        "bơi",
+        "bơi lội",
+        "hoạt động thể chất",
+        "bể bơi"
+      ]
     }
   ]
 }

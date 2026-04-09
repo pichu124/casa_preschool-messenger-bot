@@ -466,6 +466,24 @@
         "dạy lớp Tokyo",
         "giáo viên"
       ]
+    },
+    {
+      "category": "Đội ngũ giáo viên",
+      "questions": [
+        "cô rose còn dạy ở trường không",
+        "Cô Rose đã chuyển trường chưa?",
+        "Cô Rose còn dạy lớp nào không?",
+        "Cô Rose nghỉ việc khi nào?",
+        "Ai sẽ thay thế cô Rose?"
+      ],
+      "answer": "không còn",
+      "keywords": [
+        "cô Rose",
+        "dạy",
+        "nghỉ việc",
+        "thôi việc",
+        "không còn"
+      ]
     }
   ]
 }

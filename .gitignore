@@ -1,0 +1,8 @@
+.env
+*.tmp.*
+__pycache__/
+*.pyc
+.claude/
+data/escalation_log.json
+/tmp/
+*.log

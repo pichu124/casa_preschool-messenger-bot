@@ -484,6 +484,21 @@
         "thôi việc",
         "không còn"
       ]
+    },
+    {
+      "category": "Đội ngũ giáo viên",
+      "questions": [
+        "cô Dung còn dạy ở trường không",
+        "Cô Dung hiện tại có còn dạy ở trường không?",
+        "Giáo viên cô Dung còn làm việc tại trường không?",
+        "Cô Dung đã nghỉ dạy chưa?"
+      ],
+      "answer": "còn",
+      "keywords": [
+        "cô Dung",
+        "có còn dạy",
+        "giáo viên"
+      ]
     }
   ]
 }

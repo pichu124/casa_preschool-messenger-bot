@@ -65,13 +65,16 @@ async def verify_webhook(
 async def handle_webhook(request: Request):
     """Handle incoming messages from Facebook Messenger."""
     body = await request.body()
+    logger.info(f"Webhook POST received, body length: {len(body)}")
 
     # Verify signature
     signature = request.headers.get("X-Hub-Signature-256", "")
     if settings.FB_APP_SECRET and not verify_webhook_signature(body, signature):
+        logger.error(f"Invalid signature: {signature[:20]}...")
         raise HTTPException(status_code=403, detail="Invalid signature")
 
     data = await request.json()
+    logger.info(f"Webhook data: object={data.get('object')}")
 
     if data.get("object") != "page":
         return {"status": "ignored"}

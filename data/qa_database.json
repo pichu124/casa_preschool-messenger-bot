@@ -422,20 +422,19 @@
       ]
     },
     {
-      "category": "Hoạt động ngoại khóa",
+      "category": "Đội ngũ giáo viên",
       "questions": [
-        "Trường có dạy bơi không?",
-        "Trường có tổ chức lớp học bơi không?",
-        "Lịch học bơi cho trẻ như thế nào?",
-        "Chi phí tham gia lớp bơi là bao nhiêu?",
-        "Trẻ có bắt buộc tham gia lớp bơi không?"
+        "Cô Nguyễn Thị Lan còn dạy ở cơ sở Mỹ Đình không ạ",
+        "Cô Nguyễn Thị Lan hiện đang dạy ở cơ sở nào?",
+        "Cô Nguyễn Thị Lan đã nghỉ việc chưa?",
+        "Ai là giáo viên dạy ở cơ sở Mỹ Đình hiện nay?"
       ],
-      "answer": "test reply from admin",
+      "answer": "cô đã nghỉ được một năm rồi",
       "keywords": [
-        "bơi",
-        "bơi lội",
-        "hoạt động thể chất",
-        "bể bơi"
+        "cô Nguyễn Thị Lan",
+        "dạy",
+        "cơ sở Mỹ Đình",
+        "nghỉ"
       ]
     }
   ]

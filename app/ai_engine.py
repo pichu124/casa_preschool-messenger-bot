@@ -230,10 +230,13 @@ class AIEngine:
         """Try each model in the fallback chain until one succeeds."""
         history = conversation_history or []
 
-        # Wrap user message with a reminder to enforce Vietnamese with diacritics
+        # Wrap user message with enforcement reminders
         wrapped_message = (
             f"[Phụ huynh hỏi]: {user_message}\n\n"
-            f"[NHẮC NHỞ: Trả lời bằng tiếng Việt CÓ DẤU, xưng 'em', gọi phụ huynh là 'mẹ/ba/chị/anh', dùng 'ạ' cuối câu, KHÔNG gọi 'bạn', KHÔNG xưng 'tôi']"
+            f"[NHẮC NHỞ QUAN TRỌNG]:\n"
+            f"- Trả lời bằng tiếng Việt CÓ DẤU, xưng 'em', gọi 'mẹ/ba/chị/anh', dùng 'ạ'\n"
+            f"- Nếu câu hỏi này HỎI VỀ THÔNG TIN KHÔNG CÓ trong Q&A database (tên giáo viên cụ thể, ngày sự kiện, lịch trình, kế hoạch mở rộng, dịch vụ không được đề cập...) → BẮT BUỘC trả lời chính xác chuỗi [ESCALATE] và KHÔNG nói gì thêm.\n"
+            f"- KHÔNG BAO GIỜ tự suy đoán hoặc bịa thông tin. Chỉ dùng thông tin CÓ TRONG Q&A."
         )
 
         for model_name in settings.AI_MODEL_ORDER:

@@ -530,6 +530,21 @@
         "vẫn còn",
         "giáo viên"
       ]
+    },
+    {
+      "category": "Đội ngũ giáo viên",
+      "questions": [
+        "cô Linh còn dạy ở trường không",
+        "Cô Linh hiện tại có đang dạy ở trường không?",
+        "Liệu cô Linh còn tiếp tục giảng dạy tại trường hay không?",
+        "Tình trạng giảng dạy của cô Linh tại trường hiện nay như thế nào?"
+      ],
+      "answer": "còn",
+      "keywords": [
+        "cô Linh",
+        "giáo viên",
+        "có còn dạy"
+      ]
     }
   ]
 }

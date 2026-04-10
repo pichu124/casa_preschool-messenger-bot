@@ -2,7 +2,7 @@ import logging
 import re
 from collections import defaultdict
 
-from fastapi import FastAPI, Request, HTTPException, Query
+from fastapi import FastAPI, Request, HTTPException, Query, BackgroundTasks
 from fastapi.responses import PlainTextResponse
 
 from app.config import settings
@@ -22,7 +22,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.3.0"
 app = FastAPI(title="Preschool Messenger Bot", version=APP_VERSION)
 
 # Initialize Q&A database and AI engine
@@ -30,9 +30,13 @@ qa_db = QADatabase(settings.QA_DATABASE_PATH)
 ai_engine = AIEngine(qa_context=qa_db.build_context())
 
 # Simple in-memory conversation history (user_id -> list of messages)
-# In production, use Redis or a database
 conversation_history: dict[str, list[dict]] = defaultdict(list)
 MAX_HISTORY = 10  # Keep last N messages per user
+
+# Dedup: track processed message IDs to prevent duplicates
+_processed_fb_mids: set[str] = set()
+_processed_tg_mids: set[int] = set()
+MAX_DEDUP_SIZE = 500
 
 ESCALATION_MESSAGE = (
     "Dạ, cảm ơn ba/mẹ đã liên hệ với trường ạ! "
@@ -65,10 +69,14 @@ async def verify_webhook(
 
 
 @app.post("/webhook")
-async def handle_webhook(request: Request):
-    """Handle incoming messages from Facebook Messenger."""
+async def handle_webhook(request: Request, background_tasks: BackgroundTasks):
+    """Handle incoming messages from Facebook Messenger.
+
+    Returns 200 immediately and processes messages in background
+    to prevent Facebook from retrying (which causes duplicate replies
+    when Render wakes up from sleep).
+    """
     body = await request.body()
-    logger.info(f"Webhook POST received, body length: {len(body)}")
 
     # Verify signature
     signature = request.headers.get("X-Hub-Signature-256", "")
@@ -77,7 +85,6 @@ async def handle_webhook(request: Request):
         raise HTTPException(status_code=403, detail="Invalid signature")
 
     data = await request.json()
-    logger.info(f"Webhook data: object={data.get('object')}")
 
     if data.get("object") != "page":
         return {"status": "ignored"}
@@ -91,12 +98,22 @@ async def handle_webhook(request: Request):
             if not sender_id or not text:
                 continue
 
-            # Don't respond to echo messages (sent by the page itself)
+            # Don't respond to echo messages
             if message.get("is_echo"):
                 continue
 
-            # Process message in background-like fashion
-            await process_message(sender_id, text)
+            # Dedup: skip if already processed
+            mid = message.get("mid", "")
+            if mid and mid in _processed_fb_mids:
+                logger.info(f"Skipping duplicate FB message: {mid}")
+                continue
+            if mid:
+                _processed_fb_mids.add(mid)
+                if len(_processed_fb_mids) > MAX_DEDUP_SIZE:
+                    _processed_fb_mids.clear()
+
+            # Process in background so webhook returns 200 immediately
+            background_tasks.add_task(process_message, sender_id, text)
 
     return {"status": "ok"}
 
@@ -254,6 +271,16 @@ async def handle_telegram_webhook(request: Request):
         if not reply:
             return {"status": "ignored"}
 
+        # Dedup: skip if already processed
+        tg_mid = message.get("message_id", 0)
+        if tg_mid and tg_mid in _processed_tg_mids:
+            logger.info(f"Skipping duplicate TG message: {tg_mid}")
+            return {"status": "duplicate"}
+        if tg_mid:
+            _processed_tg_mids.add(tg_mid)
+            if len(_processed_tg_mids) > MAX_DEDUP_SIZE:
+                _processed_tg_mids.clear()
+
         original_msg_id = reply.get("message_id")
         admin_text = message.get("text", "")
         if not admin_text:
@@ -287,7 +314,6 @@ async def handle_telegram_webhook(request: Request):
         logger.info(f"Escalation data: customer_id={customer_id}, name={customer_name}, question={question[:50]}")
 
         if not customer_id or not question:
-            await send_telegram_reply(chat_id, reply_msg_id, "❌ Không tìm thấy thông tin khách hàng. Hãy reply đúng tin nhắn escalation.")
             return {"status": "no_escalation_found"}
 
         # 1. Format admin reply politely via AI

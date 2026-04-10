@@ -262,21 +262,34 @@ class AIEngine:
         self,
         user_message: str,
         conversation_history: list[dict] | None = None,
+        customer_context: str = "",
     ) -> AIResponse:
-        """Try each model in the fallback chain until one succeeds."""
+        """Try each model in the fallback chain until one succeeds.
+
+        customer_context: optional string with known customer info to inject into prompt.
+        """
         history = conversation_history or []
 
-        # Detect first-time message (no prior conversation)
-        is_first_message = len(history) == 0
+        # Detect first-time message (no prior conversation AND no prior profile)
+        is_returning_customer = bool(customer_context)
+        is_first_message = len(history) == 0 and not is_returning_customer
         first_marker = "[FIRST_MESSAGE] " if is_first_message else ""
-        conversation_hint = (
-            "- Đây là TIN NHẮN ĐẦU TIÊN của phụ huynh. Hãy chào ấm áp, giới thiệu ngắn, trả lời ngắn gọn và hỏi thêm về bé.\n"
-            if is_first_message else
-            "- Đây là tin nhắn tiếp theo trong cuộc trò chuyện. KHÔNG chào lại 'em chào mẹ', đi thẳng vào trả lời. Tham chiếu thông tin bé đã biết nếu có.\n"
-        )
+
+        if is_first_message:
+            conversation_hint = "- Đây là TIN NHẮN ĐẦU TIÊN của phụ huynh (khách mới). Hãy chào ấm áp, giới thiệu ngắn, trả lời ngắn gọn và hỏi thêm về bé.\n"
+        elif is_returning_customer and len(history) == 0:
+            conversation_hint = "- Đây là phụ huynh CŨ quay lại sau một thời gian. Hãy chào lại ấm áp và nhắc đến thông tin bé đã biết (VD: 'Dạ chào mẹ Bông ạ! Lâu rồi không gặp mẹ, bé Bông giờ khoẻ không ạ?'). KHÔNG hỏi lại thông tin đã biết.\n"
+        else:
+            conversation_hint = "- Đây là tin nhắn tiếp theo trong cuộc trò chuyện. KHÔNG chào lại 'em chào mẹ', đi thẳng vào trả lời. Tham chiếu thông tin bé đã biết nếu có.\n"
+
+        # Inject customer context if available
+        context_section = ""
+        if customer_context:
+            context_section = f"\n{customer_context}\n"
 
         # Wrap user message with enforcement reminders
         wrapped_message = (
+            f"{context_section}"
             f"[Phụ huynh hỏi]: {first_marker}{user_message}\n\n"
             f"[NHẮC NHỞ QUAN TRỌNG]:\n"
             f"{conversation_hint}"
@@ -318,6 +331,57 @@ class AIEngine:
             should_escalate=True,
             model_used="none",
         )
+
+    async def extract_customer_info(self, user_message: str, existing_profile: dict | None = None) -> dict:
+        """Extract customer/kid information from user message.
+
+        Returns dict with keys (only non-empty ones are included):
+        kid_name, kid_age, kid_gender, parent_name, address, phone,
+        interested_program, interested_campus, concerns, kid_traits
+        """
+        existing_context = ""
+        if existing_profile:
+            existing_context = f"\nThông tin đã biết: {json.dumps(existing_profile, ensure_ascii=False)}\n"
+
+        extract_prompt = (
+            "Bạn là hệ thống trích xuất thông tin từ tin nhắn phụ huynh gửi trường mầm non. "
+            "Phân tích tin nhắn và trả về JSON với các trường sau (CHỈ thêm trường khi tin nhắn CÓ đề cập rõ ràng, KHÔNG đoán):\n"
+            '- "kid_name": tên bé (VD: "Bông", "Minh")\n'
+            '- "kid_age": tuổi bé (VD: "3 tuổi", "18 tháng")\n'
+            '- "kid_gender": "bé trai" hoặc "bé gái"\n'
+            '- "parent_name": tên phụ huynh\n'
+            '- "address": địa chỉ\n'
+            '- "phone": số điện thoại\n'
+            '- "interested_program": "song ngữ" / "quốc tế" / "Montessori"\n'
+            '- "interested_campus": "Chùa Láng" / "Mỹ Đình" / "Kim Mã"\n'
+            '- "concerns": list các mối quan tâm (VD: ["học phí", "an toàn", "ăn uống"])\n'
+            '- "kid_traits": list tính cách/đặc điểm bé (VD: ["nhút nhát", "hiếu động", "biếng ăn"])\n\n'
+            "CHỈ trả về JSON object. Nếu tin nhắn không chứa thông tin mới nào, trả về {}. "
+            "KHÔNG giải thích, KHÔNG markdown code block."
+        )
+        user_msg = f"Tin nhắn phụ huynh: {user_message}{existing_context}"
+
+        for model_name in settings.AI_MODEL_ORDER:
+            model_name = model_name.strip()
+            provider = self._get_provider(model_name)
+            if not provider:
+                continue
+            try:
+                result = await provider.generate(extract_prompt, user_msg, [])
+                # Clean up response
+                result = result.strip()
+                if result.startswith("```"):
+                    result = result.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+                    if result.startswith("json"):
+                        result = result[4:].strip()
+                parsed = json.loads(result)
+                # Filter out empty values
+                return {k: v for k, v in parsed.items() if v}
+            except (json.JSONDecodeError, Exception) as e:
+                logger.warning(f"Extract customer info with {model_name} failed: {e}")
+                continue
+
+        return {}
 
     async def format_admin_reply(self, admin_answer: str, original_question: str) -> str:
         """Use AI to format an admin's raw reply into a polite customer response."""

@@ -160,18 +160,45 @@ def _extract_images(text: str) -> tuple[str, list[str]]:
     return text, images
 
 
-def _guess_category(text: str, answer: str) -> str:
-    """Try to guess which Q&A category matched based on answer text."""
-    if not answer:
+def _guess_category(question: str, answer: str = "") -> str:
+    """Guess the Q&A category by matching the user's question against keywords + questions in database.
+
+    Returns the best matching category, or empty string if no match.
+    """
+    if not question:
         return ""
+
+    q_lower = question.lower()
+    best_score = 0
+    best_category = ""
+
     for pair in qa_db.qa_pairs:
-        pair_answer = pair.get("answer", "")
-        # Fuzzy match: check if a chunk of the pair answer appears in response
-        if pair_answer and len(pair_answer) > 20:
-            chunk = pair_answer[:30]
-            if chunk in answer:
-                return pair.get("category", "")
-    return ""
+        category = pair.get("category", "")
+        if not category:
+            continue
+        score = 0
+
+        # Match against keywords (each match = 2 points)
+        for kw in pair.get("keywords", []):
+            if kw and kw.lower() in q_lower:
+                score += 2
+
+        # Match against stored questions (substring match = 3 points)
+        for stored_q in pair.get("questions", []):
+            if not stored_q:
+                continue
+            stored_lower = stored_q.lower()
+            # Count common significant words (length > 3)
+            q_words = set(w for w in q_lower.split() if len(w) > 3)
+            stored_words = set(w for w in stored_lower.split() if len(w) > 3)
+            common = q_words & stored_words
+            score += len(common)
+
+        if score > best_score:
+            best_score = score
+            best_category = category
+
+    return best_category if best_score >= 2 else ""
 
 
 async def process_message(sender_id: str, text: str):
@@ -211,7 +238,7 @@ async def process_message(sender_id: str, text: str):
         else:
             # Parse images from AI response
             clean_text, image_urls = _extract_images(response.text)
-            category = _guess_category(text, clean_text)
+            category = _guess_category(text)
 
             if clean_text:
                 await send_message(sender_id, clean_text)

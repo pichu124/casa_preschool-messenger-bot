@@ -93,6 +93,109 @@ async def list_customers(secret: str = ""):
     }
 
 
+@app.get("/customers/export")
+async def export_customers(secret: str = ""):
+    """Export customer profiles to Excel file."""
+    if secret != settings.TELEGRAM_WEBHOOK_SECRET:
+        raise HTTPException(status_code=403, detail="Invalid secret")
+
+    import io
+    import openpyxl
+    from fastapi.responses import StreamingResponse
+    from datetime import datetime
+
+    profiles = customer_memory.get_all_profiles()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Khách hàng Casa"
+
+    # Header
+    headers = [
+        "Customer ID",
+        "Tên phụ huynh",
+        "Tên bé",
+        "Tuổi bé",
+        "Giới tính bé",
+        "SĐT",
+        "Địa chỉ",
+        "Hệ quan tâm",
+        "Cơ sở quan tâm",
+        "Mối quan tâm",
+        "Tính cách bé",
+        "Lần đầu nhắn",
+        "Lần cuối nhắn",
+        "Số tin nhắn",
+    ]
+    ws.append(headers)
+
+    # Make header bold
+    from openpyxl.styles import Font, PatternFill
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="667EEA", end_color="667EEA", fill_type="solid")
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+
+    # Data rows
+    for customer_id, profile in profiles.items():
+        concerns = profile.get("concerns", [])
+        if isinstance(concerns, list):
+            concerns = ", ".join(concerns)
+
+        traits = profile.get("kid_traits", [])
+        if isinstance(traits, list):
+            traits = ", ".join(traits)
+
+        # Format timestamps
+        first_seen = profile.get("first_seen", "")
+        last_seen = profile.get("last_seen", "")
+        try:
+            if first_seen:
+                first_seen = datetime.fromisoformat(first_seen).strftime("%d/%m/%Y %H:%M")
+            if last_seen:
+                last_seen = datetime.fromisoformat(last_seen).strftime("%d/%m/%Y %H:%M")
+        except Exception:
+            pass
+
+        ws.append([
+            customer_id,
+            profile.get("parent_name", ""),
+            profile.get("kid_name", ""),
+            profile.get("kid_age", ""),
+            profile.get("kid_gender", ""),
+            profile.get("phone", ""),
+            profile.get("address", ""),
+            profile.get("interested_program", ""),
+            profile.get("interested_campus", ""),
+            concerns,
+            traits,
+            first_seen,
+            last_seen,
+            profile.get("message_count", 0),
+        ])
+
+    # Auto-width columns
+    for col_idx, col_letter in enumerate([c.column_letter for c in ws[1]], 1):
+        max_length = max(
+            (len(str(ws.cell(row=r, column=col_idx).value or "")) for r in range(1, ws.max_row + 1)),
+            default=15,
+        )
+        ws.column_dimensions[col_letter].width = min(max_length + 2, 40)
+
+    # Save to buffer
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    filename = f"casa_customers_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @app.post("/analytics/reset")
 async def analytics_reset(secret: str = ""):
     """Delete all analytics data. Requires secret to prevent abuse."""

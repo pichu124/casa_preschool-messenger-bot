@@ -10,11 +10,13 @@ from app.qa_database import QADatabase
 from app.ai_engine import AIEngine
 from app.messenger import (
     send_message,
+    send_image,
     send_typing_indicator,
     get_user_profile,
     verify_webhook_signature,
 )
 from app.escalation import escalate_to_admin, get_pending_escalation, resolve_escalation, send_telegram_reply
+from app import analytics
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,7 +24,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.4.0"
 app = FastAPI(title="Preschool Messenger Bot", version=APP_VERSION)
 
 # Initialize Q&A database and AI engine
@@ -53,6 +55,29 @@ async def health_check():
         "qa_pairs": len(qa_db.qa_pairs),
         "ai_models": settings.AI_MODEL_ORDER,
     }
+
+
+@app.get("/dashboard")
+async def dashboard():
+    """Serve analytics dashboard HTML."""
+    from pathlib import Path
+    from fastapi.responses import HTMLResponse
+    dashboard_path = Path(__file__).parent / "dashboard.html"
+    if dashboard_path.exists():
+        return HTMLResponse(dashboard_path.read_text(encoding="utf-8"))
+    raise HTTPException(status_code=404, detail="Dashboard not found")
+
+
+@app.get("/analytics/stats")
+async def analytics_stats():
+    """Return analytics statistics as JSON."""
+    return analytics.get_stats()
+
+
+@app.get("/analytics/messages")
+async def analytics_messages(limit: int = 20):
+    """Return recent messages as JSON."""
+    return analytics.get_recent_messages(limit=limit)
 
 
 @app.get("/webhook")
@@ -118,6 +143,37 @@ async def handle_webhook(request: Request, background_tasks: BackgroundTasks):
     return {"status": "ok"}
 
 
+IMAGES_PATTERN = re.compile(r"\[IMAGES:([^\]]+)\]")
+
+
+def _extract_images(text: str) -> tuple[str, list[str]]:
+    """Parse [IMAGES:url1,url2] token from response text.
+
+    Returns (clean_text, list_of_urls).
+    """
+    images = []
+    match = IMAGES_PATTERN.search(text)
+    if match:
+        raw = match.group(1)
+        images = [url.strip() for url in raw.split(",") if url.strip()]
+        text = IMAGES_PATTERN.sub("", text).strip()
+    return text, images
+
+
+def _guess_category(text: str, answer: str) -> str:
+    """Try to guess which Q&A category matched based on answer text."""
+    if not answer:
+        return ""
+    for pair in qa_db.qa_pairs:
+        pair_answer = pair.get("answer", "")
+        # Fuzzy match: check if a chunk of the pair answer appears in response
+        if pair_answer and len(pair_answer) > 20:
+            chunk = pair_answer[:30]
+            if chunk in answer:
+                return pair.get("category", "")
+    return ""
+
+
 async def process_message(sender_id: str, text: str):
     """Process an incoming message and respond."""
     try:
@@ -127,6 +183,7 @@ async def process_message(sender_id: str, text: str):
         # Get user profile for personalization
         profile = await get_user_profile(sender_id)
         user_name = profile.get("first_name", "ban")
+        full_name = f"{profile.get('first_name', '')} {profile.get('last_name', '')}".strip()
 
         # Get conversation history for this user
         history = conversation_history[sender_id]
@@ -142,16 +199,40 @@ async def process_message(sender_id: str, text: str):
             f"-> Model: {response.model_used}, Escalate: {response.should_escalate}"
         )
 
+        category = ""
         if response.should_escalate or not response.text:
             # Escalate to admin
             await escalate_to_admin(
                 customer_id=sender_id,
-                customer_name=f"{profile.get('first_name', '')} {profile.get('last_name', '')}".strip(),
+                customer_name=full_name,
                 question=text,
             )
             await send_message(sender_id, ESCALATION_MESSAGE)
         else:
-            await send_message(sender_id, response.text)
+            # Parse images from AI response
+            clean_text, image_urls = _extract_images(response.text)
+            category = _guess_category(text, clean_text)
+
+            if clean_text:
+                await send_message(sender_id, clean_text)
+            for img_url in image_urls:
+                try:
+                    await send_image(sender_id, img_url)
+                except Exception as img_err:
+                    logger.error(f"Failed to send image {img_url}: {img_err}")
+
+        # Log analytics
+        try:
+            analytics.log_message(
+                user_id=sender_id,
+                user_name=full_name or user_name,
+                question=text,
+                model_used=response.model_used,
+                escalated=response.should_escalate,
+                category=category,
+            )
+        except Exception as log_err:
+            logger.warning(f"Analytics logging failed: {log_err}")
 
         # Update conversation history
         history.append({"role": "user", "content": text})

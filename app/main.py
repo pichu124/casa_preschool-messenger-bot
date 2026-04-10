@@ -80,6 +80,18 @@ async def analytics_messages(limit: int = 20):
     return analytics.get_recent_messages(limit=limit)
 
 
+@app.post("/analytics/reset")
+async def analytics_reset(secret: str = ""):
+    """Delete all analytics data. Requires secret to prevent abuse."""
+    if secret != settings.TELEGRAM_WEBHOOK_SECRET:
+        raise HTTPException(status_code=403, detail="Invalid secret")
+    from pathlib import Path
+    path = Path(settings.ANALYTICS_LOG_PATH)
+    if path.exists():
+        path.unlink()
+    return {"status": "reset", "message": "Analytics data cleared"}
+
+
 @app.get("/webhook")
 async def verify_webhook(
     hub_mode: str = Query(None, alias="hub.mode"),

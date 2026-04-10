@@ -37,5 +37,8 @@ class Settings:
     # Q&A Database path
     QA_DATABASE_PATH: str = os.getenv("QA_DATABASE_PATH", "data/qa_database.json")
 
+    # Analytics log path
+    ANALYTICS_LOG_PATH: str = os.getenv("ANALYTICS_LOG_PATH", "data/analytics.jsonl")
+
 
 settings = Settings()

@@ -104,7 +104,11 @@ class QADatabase:
             category = pair.get("category", "")
             questions = pair.get("questions", [])
             answer = pair.get("answer", "")
+            images = pair.get("images", [])
             q_text = " / ".join(questions)
-            lines.append(f"{i}. [{category}] Q: {q_text}\n   A: {answer}")
+            entry = f"{i}. [{category}] Q: {q_text}\n   A: {answer}"
+            if images:
+                entry += f"\n   Images: {','.join(images)}"
+            lines.append(entry)
 
         return "\n\n".join(lines)

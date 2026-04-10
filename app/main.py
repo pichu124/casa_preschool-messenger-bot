@@ -17,6 +17,7 @@ from app.messenger import (
 )
 from app.escalation import escalate_to_admin, get_pending_escalation, resolve_escalation, send_telegram_reply
 from app import analytics
+from app import customer_memory
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,7 +25,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-APP_VERSION = "1.4.0"
+APP_VERSION = "1.5.0"
 app = FastAPI(title="Preschool Messenger Bot", version=APP_VERSION)
 
 # Initialize Q&A database and AI engine
@@ -78,6 +79,18 @@ async def analytics_stats():
 async def analytics_messages(limit: int = 20):
     """Return recent messages as JSON."""
     return analytics.get_recent_messages(limit=limit)
+
+
+@app.get("/customers")
+async def list_customers(secret: str = ""):
+    """List all customer profiles. Requires secret."""
+    if secret != settings.TELEGRAM_WEBHOOK_SECRET:
+        raise HTTPException(status_code=403, detail="Invalid secret")
+    profiles = customer_memory.get_all_profiles()
+    return {
+        "total": len(profiles),
+        "customers": profiles,
+    }
 
 
 @app.post("/analytics/reset")
@@ -227,15 +240,21 @@ async def process_message(sender_id: str, text: str):
         # Get conversation history for this user
         history = conversation_history[sender_id]
 
-        # Get AI response
+        # Load customer profile (persisted across sessions)
+        existing_profile = customer_memory.get_profile(sender_id)
+        customer_context = customer_memory.format_profile_for_prompt(existing_profile)
+
+        # Get AI response with customer context
         response = await ai_engine.get_response(
             user_message=text,
             conversation_history=history,
+            customer_context=customer_context,
         )
 
         logger.info(
             f"User {sender_id} ({user_name}): {text[:100]} "
-            f"-> Model: {response.model_used}, Escalate: {response.should_escalate}"
+            f"-> Model: {response.model_used}, Escalate: {response.should_escalate}, "
+            f"HasProfile: {bool(existing_profile)}"
         )
 
         category = ""
@@ -272,6 +291,19 @@ async def process_message(sender_id: str, text: str):
             )
         except Exception as log_err:
             logger.warning(f"Analytics logging failed: {log_err}")
+
+        # Extract and save customer info (best effort, don't block)
+        try:
+            extracted = await ai_engine.extract_customer_info(text, existing_profile)
+            if extracted or not existing_profile:
+                # Always update to track last_seen and message_count, even if no new info
+                if full_name and "parent_name" not in extracted and not existing_profile.get("parent_name"):
+                    extracted["parent_name"] = full_name
+                await customer_memory.update_profile(sender_id, extracted)
+                if extracted:
+                    logger.info(f"Updated profile for {sender_id}: {list(extracted.keys())}")
+        except Exception as extract_err:
+            logger.warning(f"Customer info extraction failed: {extract_err}")
 
         # Update conversation history
         history.append({"role": "user", "content": text})
@@ -346,9 +378,14 @@ async def test_chat(body: TestMessage):
     """Test AI response without Facebook (for development/debugging)."""
     history = conversation_history[body.user_id]
 
+    # Load customer profile for test
+    existing_profile = customer_memory.get_profile(body.user_id)
+    customer_context = customer_memory.format_profile_for_prompt(existing_profile)
+
     response = await ai_engine.get_response(
         user_message=body.message,
         conversation_history=history,
+        customer_context=customer_context,
     )
 
     history.append({"role": "user", "content": body.message})
@@ -357,10 +394,22 @@ async def test_chat(body: TestMessage):
     if len(history) > MAX_HISTORY * 2:
         conversation_history[body.user_id] = history[-MAX_HISTORY * 2:]
 
+    # Extract and save profile (same as process_message)
+    try:
+        logger.info(f"[test-chat] Calling extract_customer_info for {body.user_id}")
+        extracted = await ai_engine.extract_customer_info(body.message, existing_profile)
+        logger.info(f"[test-chat] Extracted: {extracted}")
+        if extracted or not existing_profile:
+            updated = await customer_memory.update_profile(body.user_id, extracted)
+            logger.info(f"[test-chat] Profile after update: {updated}")
+    except Exception as e:
+        logger.warning(f"Extract failed in test-chat: {e}", exc_info=True)
+
     return {
         "response": response.text,
         "model_used": response.model_used,
         "should_escalate": response.should_escalate,
+        "profile": customer_memory.get_profile(body.user_id),
     }
 
 

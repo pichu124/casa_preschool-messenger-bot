@@ -534,16 +534,16 @@
     {
       "category": "Đội ngũ giáo viên",
       "questions": [
-        "cô Linh còn dạy ở trường không",
-        "Cô Linh hiện tại có đang dạy ở trường không?",
-        "Liệu cô Linh còn tiếp tục giảng dạy tại trường hay không?",
-        "Tình trạng giảng dạy của cô Linh tại trường hiện nay như thế nào?"
+        "Thầy cô là giáo viên đến từ đâu ạ",
+        "Giáo viên trường có người nước ngoài không?",
+        "Thầy cô giáo trường có xuất thân từ đâu?",
+        "Đội ngũ giáo viên có đa quốc tịch không?"
       ],
-      "answer": "còn",
+      "answer": "Nhiều nước",
       "keywords": [
-        "cô Linh",
         "giáo viên",
-        "có còn dạy"
+        "đến từ",
+        "nước ngoài"
       ]
     }
   ]

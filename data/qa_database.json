@@ -1,549 +1,1263 @@
 {
   "qa_pairs": [
     {
-      "category": "Montessori",
+      "category": "Ăn uống",
       "questions": [
-        "Tỷ lệ cô trò là bao nhiêu?",
-        "Mỗi lớp có bao nhiêu cô?",
-        "Sĩ số lớp bao nhiêu?"
+        "Bữa ăn ở trường có giúp trẻ rèn kỹ năng tự lập không?"
       ],
-      "answer": "Lớp 0 - 3 có 23 - 25 bé và có 4 cô, lớp 3 - 6 tuổi có 25 - 27 bạn có 3 cô ạ.",
+      "answer": "Có. Tại Casa, giờ ăn cũng là một “giờ học” nhẹ nhàng: trẻ được khuyến khích tự xúc, tự uống, ngồi ăn trật tự, chờ đến lượt, dùng lời nói lịch sự và dọn dẹp sau bữa ăn theo tinh thần Montessori.",
       "keywords": [
-        "tỷ lệ",
-        "cô trò",
-        "sĩ số",
-        "bao nhiêu cô",
-        "bao nhiêu bé"
-      ]
-    },
-    {
-      "category": "Đội ngũ giáo viên",
-      "questions": [
-        "Giáo viên nước ngoài có bằng cấp sư phạm hay Montessori không?",
-        "Giáo viên có được đào tạo Montessori không?"
-      ],
-      "answer": "Mỗi giáo viên vào Casa đều được đào tạo lại theo triết lý Montessori và quy trình vận hành của Casa nên mẹ yên tâm khi giáo viên vào lớp dạy đều đã được đào tạo bài bản và kỹ càng.",
-      "keywords": [
-        "giáo viên",
-        "bằng cấp",
-        "sư phạm",
-        "montessori",
-        "đào tạo"
-      ]
-    },
-    {
-      "category": "Đội ngũ giáo viên",
-      "questions": [
-        "Giáo viên Việt Nam có nói được tiếng Anh không?",
-        "Cô giáo VN có biết tiếng Anh không?"
-      ],
-      "answer": "Các giáo viên có thể giao tiếp căn bản bằng tiếng Anh. Tuy nhiên việc dạy tiếng Anh sẽ do giáo viên nước ngoài phụ trách.",
-      "keywords": [
-        "giáo viên",
-        "tiếng anh",
-        "GVVN",
-        "nói tiếng anh"
-      ]
-    },
-    {
-      "category": "Chương trình học",
-      "questions": [
-        "So sánh khác nhau giữa song ngữ và quốc tế?",
-        "Song ngữ và quốc tế khác nhau chỗ nào?",
-        "Hệ song ngữ và quốc tế khác gì nhau?"
-      ],
-      "answer": "Hệ song ngữ sẽ có 1 giáo viên nước ngoài ở cơ sở và giảng dạy theo giờ ở mỗi lớp. Lớp 0 - 3 là 1-1.5h/ngày, lớp 3 - 6 là 2-2.5h/ngày. Hệ quốc tế các con sẽ có 1 giáo viên nước ngoài ở trong lớp cả ngày từ 8h30 - 17h00 để giảng dạy và chăm sóc các con.",
-      "keywords": [
-        "song ngữ",
-        "quốc tế",
-        "khác nhau",
-        "so sánh"
-      ]
-    },
-    {
-      "category": "Chương trình học",
-      "questions": [
-        "Con học quốc tế xong có bị loạn ngôn ngữ không?",
-        "Học tiếng Anh nhiều có bị loạn ngôn ngữ không?"
-      ],
-      "answer": "Ở Casa các con sẽ có các giờ được học tiếng Việt, việc sử dụng ngôn ngữ Anh - Việt sẽ linh hoạt trên từng bạn học sinh để đảm bảo các con cân bằng được 2 ngôn ngữ.",
-      "keywords": [
-        "loạn ngôn ngữ",
-        "quốc tế",
-        "tiếng việt",
-        "tiếng anh"
-      ]
-    },
-    {
-      "category": "Chương trình học",
-      "questions": [
-        "Mỗi ngày con có bao nhiêu tiết tiếng Anh?",
-        "Con được học tiếng Anh bao lâu mỗi ngày?"
-      ],
-      "answer": "Thông thường buổi sáng con sẽ có giờ vòng tròn và giờ Montessori được học tiếng Anh khoảng 2.5h, buổi chiều sẽ khoảng 1-1.5h. Tuy nhiên, các con luôn có giáo viên nước ngoài ở trong lớp nên trong các sinh hoạt như ăn uống, vui chơi con đều giao tiếp được tiếng Anh. Việc học tiếng Anh ở Casa không chỉ ở trong giờ học mà còn học cả ở những giờ sinh hoạt khác nên các con nói tiếng Anh theo phản xạ nhiều.",
-      "keywords": [
-        "tiết tiếng anh",
-        "bao nhiêu tiết",
-        "giờ tiếng anh",
-        "học tiếng anh"
-      ]
-    },
-    {
-      "category": "Chương trình học",
-      "questions": [
-        "Tiêu chuẩn đầu ra của trường là gì?",
-        "Con ra trường biết được những gì?"
-      ],
-      "answer": "Hàng năm, các bạn lớp tiền tiểu học đều tham gia đánh giá ở các trường tiểu học liên kết và đạt kết quả rất cao. Hầu hết các con đều có thể giao tiếp tiếng Anh, thuyết trình đơn giản, đọc từ hoặc câu đơn giản, những bạn xuất sắc có thể đọc được câu chuyện dài. Về toán thì đa phần các con sẽ tính toán thuần thục ở phạm vi 10, tiếng Việt các con sẽ được học hết bảng chữ cái, ghép vần để đọc từ đơn. Ngoài ra ở lớp 3 - 5 tuổi, các con sẽ có bài đánh giá định kỳ để cập nhật về lộ trình học của con sao cho phù hợp.",
-      "keywords": [
-        "đầu ra",
-        "tiêu chuẩn",
-        "ra trường",
-        "kết quả"
-      ]
-    },
-    {
-      "category": "Chương trình học",
-      "questions": [
-        "Mỗi năm có nhiều bạn đỗ các trường chất lượng cao không?",
-        "Tỷ lệ đỗ trường CLC bao nhiêu?"
-      ],
-      "answer": "Dạ sẽ tùy cơ sở. Thông thường cơ sở Mỹ Đình, Hoàng Kiếm sẽ tham gia nhiều và tỷ lệ đỗ 80-90%, cơ sở Km các bạn sẽ thường học trường công nhưng các con cũng được ở các lớp chọn và luôn có kết quả học tập khá tốt.",
-      "keywords": [
-        "đỗ",
-        "trường CLC",
-        "chất lượng cao",
-        "tỷ lệ đỗ"
-      ]
-    },
-    {
-      "category": "Chương trình học",
-      "questions": [
-        "Trường có STEAM không?",
-        "Có dạy STEAM không?"
-      ],
-      "answer": "Dạ trong Montessori các con được học cả nghệ thuật, khám phá khoa học, toán… cũng đã bao gồm trong chương trình STEAM ạ.",
-      "keywords": [
-        "steam",
-        "khoa học",
-        "nghệ thuật"
-      ]
-    },
-    {
-      "category": "Chính sách, quy định trường",
-      "questions": [
-        "Giờ đón muộn là mấy giờ?",
-        "Đón muộn có tính phí không?"
-      ],
-      "answer": "Dạ là 5h30 ạ. Sau 5h30 nhà trường sẽ tính phí đón muộn. Nếu ngày nào mình cũng đón muộn thì có thể đăng ký theo tháng, 500k/tháng ạ.",
-      "keywords": [
-        "đón muộn",
-        "mấy giờ",
-        "phí đón muộn"
-      ]
-    },
-    {
-      "category": "Chính sách, quy định trường",
-      "questions": [
-        "Sáng các cô đón từ 7h không?",
-        "Gửi con sớm được không?",
-        "Đón sớm mấy giờ?"
-      ],
-      "answer": "Nếu mình cần gửi con sớm thì nhà trường sẽ liên hệ hiệu trưởng cơ sở và sắp xếp lịch đón sớm cho nhà mình, phí đón sớm là 500k/tháng ạ.",
-      "keywords": [
-        "đón sớm",
-        "gửi sớm",
-        "7h",
-        "sáng"
-      ]
-    },
-    {
-      "category": "Chính sách, quy định trường",
-      "questions": [
-        "Nhà trường có xe bus không?",
-        "Có xe đưa đón không?",
-        "Trường có xe đưa đón học sinh không?"
-      ],
-      "answer": "Chị cho em xin địa chỉ nhà mình để em check tuyến xe nhé. Nhà trường có dịch vụ xe bus đưa đón theo tuyến cố định.",
-      "keywords": [
-        "xe bus",
-        "xe đưa đón",
-        "đưa đón"
-      ]
-    },
-    {
-      "category": "Chính sách, quy định trường",
-      "questions": [
-        "Nhà trường có cho xem camera không?",
-        "Có xem camera online không?"
-      ],
-      "answer": "Dạ mình có thể xem tại văn phòng trường ạ. Vì để đảm bảo tính bảo mật thông tin các con và sự riêng tư của các con nên nhà trường sẽ không online camera, tuy nhiên các cô sẽ thường xuyên cập nhật tình hình con qua apps liên lạc để ba mẹ yên tâm ạ.",
-      "keywords": [
-        "camera",
-        "xem camera",
-        "online",
-        "giám sát"
-      ]
-    },
-    {
-      "category": "Chính sách, quy định trường",
-      "questions": [
-        "Nếu nghỉ giữa chừng thì tiền học được hoàn không?",
-        "Có hoàn học phí không?"
-      ],
-      "answer": "Dạ học phí quý được hoàn 60%, học phí 6 tháng hoàn 70% và học phí 12 tháng hoàn 80% ạ. Tuy nhiên cần báo trước 30 ngày nhé.",
-      "keywords": [
-        "hoàn học phí",
-        "nghỉ giữa chừng",
-        "hoàn tiền"
-      ]
-    },
-    {
-      "category": "Chính sách, quy định trường",
-      "questions": [
-        "Có được bảo lưu cho con không?",
-        "Bảo lưu học phí như thế nào?"
-      ],
-      "answer": "Mình được bảo lưu ạ. Cần báo trước 30 ngày cho nhà trường, mình không được bảo lưu tháng tết và tháng hè. Nếu học phí mình không còn thì phí bảo lưu là 3 triệu, sau mình được trừ vào học phí cho con khi quay lại. Nếu học phí còn thì không cần đóng thêm ạ.",
-      "keywords": [
-        "bảo lưu",
-        "tạm nghỉ"
-      ]
-    },
-    {
-      "category": "Chính sách, quy định trường",
-      "questions": [
-        "Con nghỉ ốm được trừ tiền học không?",
-        "Nghỉ ốm có được hoàn phí không?"
-      ],
-      "answer": "Nếu mình nghỉ từ 30 ngày trở lên và có giấy bệnh viện thì nhà trường hoàn cho mẹ 70% ạ.",
-      "keywords": [
-        "nghỉ ốm",
-        "trừ tiền",
-        "ốm",
-        "bệnh"
-      ]
-    },
-    {
-      "category": "Chính sách, quy định trường",
-      "questions": [
-        "Đón con thì phải gửi xe à?",
-        "Đến đón con như thế nào?"
-      ],
-      "answer": "Mình đến sảnh để 5 - 10 phút được ạ, còn nếu không tiện lên trường thì gọi cho cô dẫn con ra ạ.",
-      "keywords": [
-        "đón con",
-        "gửi xe",
-        "sảnh"
-      ]
-    },
-    {
-      "category": "Chính sách, quy định trường",
-      "questions": [
-        "Cho con học thử được không?",
-        "Có chương trình học thử không?",
-        "Muốn cho con đi thử"
-      ],
-      "answer": "Trường có chương trình học thử 1 tuần. Em tặng mình 1 tuần học thử trước, nếu sau 1 tuần mình thấy phù hợp thì mình đăng ký cho con ạ.",
-      "keywords": [
-        "học thử",
-        "thử",
-        "trải nghiệm"
-      ]
-    },
-    {
-      "category": "Chính sách, quy định trường",
-      "questions": [
-        "Không mua đồng phục được không?",
-        "Có bắt buộc mua đồng phục không?"
-      ],
-      "answer": "Dạ đây là quy định của nhà trường ạ, để con không bị tủi thân nếu thấy bạn khác mặc. Tuy nhiên nhà trường đang có voucher ưu đãi nên gần như mình không mất phí đồng phục đâu ạ.",
-      "keywords": [
-        "đồng phục",
-        "mua đồng phục"
-      ]
-    },
-    {
-      "category": "Chính sách, quy định trường",
-      "questions": [
-        "Con đi học khóc cô có bế không?",
-        "Con mới đi học khóc thì sao?",
-        "Con khóc khi đi học"
-      ],
-      "answer": "Mỗi tuần bên em chỉ nhận 1 bạn mới nên con luôn được 1 cô đi theo chăm sóc và hướng dẫn con nên mình yên tâm ạ. Con sẽ có cảm giác an toàn khi đến trường.",
-      "keywords": [
-        "khóc",
-        "bế",
-        "mới đi học",
-        "nhập học"
-      ]
-    },
-    {
-      "category": "Chính sách, quy định trường",
-      "questions": [
-        "Con 12 tháng có nhận không?",
-        "Bao nhiêu tháng thì nhận?",
-        "Tuổi tối thiểu để nhập học?"
-      ],
-      "answer": "Dạ 12 tháng thì con còn hơi nhỏ ạ, nếu con 15 tháng mà biết đi thì các cô sẽ cân nhắc để nhận con sớm ạ.",
-      "keywords": [
-        "12 tháng",
-        "15 tháng",
-        "tuổi nhận",
-        "nhỏ quá"
-      ]
-    },
-    {
-      "category": "Chính sách ưu đãi",
-      "questions": [
-        "Ưu đãi học phí như thế nào?",
-        "Có giảm giá học phí không?",
-        "Chương trình ưu đãi?"
-      ],
-      "answer": "Tùy vào chương trình học để tư vấn cụ thể ạ, em sẽ tính ra con số học phí cuối cùng phù hợp nhất cho gia đình mình.",
-      "keywords": [
-        "ưu đãi",
-        "giảm giá",
-        "khuyến mãi",
-        "học phí"
-      ]
-    },
-    {
-      "category": "Chính sách ưu đãi",
-      "questions": [
-        "Gom nhóm được giảm không?",
-        "Đi theo nhóm có ưu đãi không?",
-        "Giới thiệu bạn có được gì không?"
-      ],
-      "answer": "Tùy chương trình ạ. Ngoài ra mình có thể giới thiệu phụ huynh mới, mỗi phụ huynh được giới thiệu thêm em xin tặng mình voucher 3 triệu ạ.",
-      "keywords": [
-        "gom nhóm",
-        "giảm",
-        "giới thiệu",
-        "voucher"
+        "bữa",
+        "giúp",
+        "trẻ",
+        "rèn",
+        "năng"
       ]
     },
     {
       "category": "Ăn uống",
       "questions": [
-        "Con chưa ăn cơm được thì có cháo không?",
-        "Con chưa ăn thô được thì sao?",
-        "Thực đơn cho bé nhỏ?"
+        "Con chưa ăn cơm tốt thì trường có hỗ trợ cháo không?"
       ],
-      "answer": "Dạ các cô sẽ tập cho con ăn thô, và bếp có chuẩn bị thêm cháo cho con ạ. Thường 1 - 2 tuần là con ăn thô tốt hơn ạ.",
+      "answer": "Có. Với những bé chưa ăn cơm tốt, nhà trường và bếp sẽ hỗ trợ thêm món phù hợp như cháo trong giai đoạn đầu, đồng thời tập cho con ăn thô dần để con thích nghi nhẹ nhàng hơn.",
       "keywords": [
-        "cháo",
-        "ăn cơm",
-        "ăn thô",
-        "thực đơn"
+        "chưa",
+        "cơm",
+        "tốt",
+        "trợ",
+        "cháo"
+      ]
+    },
+    {
+      "category": "Ăn uống",
+      "questions": [
+        "Món ăn có được điều chỉnh theo độ tuổi của trẻ không?"
+      ],
+      "answer": "Có. Nhà bếp ưu tiên cách nấu giúp trẻ dễ ăn, dễ tiêu hóa; món ăn được điều chỉnh độ mềm, độ cắt nhỏ và cách trình bày phù hợp với từng lứa tuổi để trẻ ăn an toàn và hào hứng hơn.",
+      "keywords": [
+        "món",
+        "điều",
+        "chỉnh",
+        "theo",
+        "tuổi"
+      ]
+    },
+    {
+      "category": "Ăn uống",
+      "questions": [
+        "Nguồn thực phẩm của trường có đảm bảo không?"
+      ],
+      "answer": "Casa chú trọng nguồn thực phẩm rõ ràng, tươi sạch, ưu tiên theo mùa và hạn chế thực phẩm chế biến sẵn. Món ăn cũng được chế biến theo hướng dễ ăn, dễ tiêu hóa và phù hợp với trẻ mầm non.",
+      "keywords": [
+        "nguồn",
+        "thực",
+        "phẩm",
+        "đảm",
+        "bảo"
+      ]
+    },
+    {
+      "category": "Ăn uống",
+      "questions": [
+        "Thực đơn của Casa được xây dựng theo nguyên tắc nào?"
+      ],
+      "answer": "Casa xây dựng thực đơn theo nguyên tắc đa dạng – cân đối – phù hợp độ tuổi. Bữa ăn được phối hợp đủ nhóm chất và hướng tới hỗ trợ chiều cao, cân nặng, sức đề kháng cũng như sự phát triển vận động – trí não của trẻ.",
+      "keywords": [
+        "thực",
+        "đơn",
+        "casa",
+        "xây",
+        "dựng"
+      ]
+    },
+    {
+      "category": "Ăn uống",
+      "questions": [
+        "Tiền ăn được tính và hoàn như thế nào?"
+      ],
+      "answer": "Tiền ăn được thu theo quý và tính theo số ngày ăn thực tế. Nếu trẻ nghỉ học và phụ huynh báo trước 7:00 sáng qua app LittleLives hoặc email của cơ sở, tiền ăn của ngày nghỉ sẽ được trừ vào quý tiếp theo.",
+      "keywords": [
+        "tiền",
+        "tính",
+        "hoàn"
+      ]
+    },
+    {
+      "category": "Chính sách ưu đãi",
+      "questions": [
+        "Casa có cam kết ổn định học phí không?"
+      ],
+      "answer": "Có. Hệ thống Casa dei Bambini cam kết duy trì mức học phí cơ bản không thay đổi trong suốt thời gian trẻ học tại trường.",
+      "keywords": [
+        "casa",
+        "cam",
+        "kết",
+        "định",
+        "học"
+      ]
+    },
+    {
+      "category": "Chính sách ưu đãi",
+      "questions": [
+        "Có chương trình giới thiệu phụ huynh mới không?"
+      ],
+      "answer": "Có. Với cơ sở Chùa Láng và Mỹ Đình, phụ huynh giới thiệu thành công một gia đình mới nhập học sẽ nhận voucher 3.000.000đ; voucher có thể tặng phụ huynh khác hoặc khấu trừ vào kỳ học phí tiếp theo.",
+      "keywords": [
+        "chương",
+        "trình",
+        "giới",
+        "thiệu",
+        "phụ"
+      ]
+    },
+    {
+      "category": "Chính sách ưu đãi",
+      "questions": [
+        "Nhà trường có chính sách ưu đãi xe buýt không?"
+      ],
+      "answer": "Có. Với hệ Quốc tế, bé thứ 2, 3 trong gia đình đăng ký sử dụng dịch vụ xe buýt được giảm 30% phí xe buýt. Ở hệ Song ngữ, tuyến và mức phí được xây dựng theo nhu cầu thực tế của phụ huynh.",
+      "keywords": [
+        "chính",
+        "sách",
+        "đãi",
+        "buýt"
+      ]
+    },
+    {
+      "category": "Chính sách ưu đãi",
+      "questions": [
+        "Nhà trường có ưu đãi cho gia đình có nhiều con cùng học không?"
+      ],
+      "answer": "Có. Casa có chính sách ưu đãi cho anh/chị/em ruột cùng theo học. Mức ưu đãi cụ thể phụ thuộc hệ đào tạo và cơ sở.",
+      "keywords": [
+        "đãi",
+        "gia",
+        "đình",
+        "nhiều",
+        "cùng"
+      ]
+    },
+    {
+      "category": "Chính sách ưu đãi",
+      "questions": [
+        "Nhà trường đang áp dụng những ưu đãi học phí nào?"
+      ],
+      "answer": "Casa có các chính sách ưu đãi theo từng hệ/cơ sở. Phổ biến nhất là ưu đãi khi đóng học phí 6 tháng hoặc 12 tháng, ưu đãi cho anh/chị/em ruột cùng theo học và một số ưu đãi riêng theo từng cơ sở. Ngoài ra có ưu đãi riêng cho từng đợt. Mẹ cho em số điện thoại để em tư vẫn kỹ hơn cho mình nha",
+      "keywords": [
+        "đang",
+        "dụng",
+        "những",
+        "đãi",
+        "học"
+      ]
+    },
+    {
+      "category": "Chính sách ưu đãi",
+      "questions": [
+        "Ưu đãi có được cộng dồn không?"
+      ],
+      "answer": "Có nhưng có giới hạn. Ở hệ Quốc tế, ưu đãi không áp dụng cộng dồn quá 2 chính sách trong một kỳ phí; tổng ưu đãi không vượt quá 10% khi đóng 6 tháng và 15% khi đóng 12 tháng. Ở hệ Song ngữ, tổng ưu đãi không vượt quá 15%.",
+      "keywords": [
+        "đãi",
+        "cộng",
+        "dồn"
+      ]
+    },
+    {
+      "category": "Chính sách ưu đãi",
+      "questions": [
+        "Ưu đãi học phí của hệ Quốc tế là gì?"
+      ],
+      "answer": "Với hệ Quốc tế, học phí cơ bản được giảm 4% khi đóng 6 tháng và 10% khi đóng 12 tháng. Phụ huynh là cư dân tòa nhà được giảm 5% học phí cơ bản; bé thứ 2, 3 là anh/chị/em ruột cùng theo học được giảm 10% học phí cơ bản.",
+      "keywords": [
+        "đãi",
+        "học",
+        "phí",
+        "quốc"
+      ]
+    },
+    {
+      "category": "Chính sách ưu đãi",
+      "questions": [
+        "Ưu đãi học phí của hệ Song ngữ là gì?"
+      ],
+      "answer": "Với hệ Song ngữ, học phí cơ bản được giảm 4% khi đóng 6 tháng và 7% khi đóng 12 tháng. Trường hợp anh/chị/em ruột cùng theo học tại cơ sở được giảm 5% học phí cơ bản.",
+      "keywords": [
+        "đãi",
+        "học",
+        "phí",
+        "song",
+        "ngữ"
+      ]
+    },
+    {
+      "category": "Chính sách, quy định trường",
+      "questions": [
+        "Casa nhận trẻ từ mấy tháng tuổi?"
+      ],
+      "answer": "Chương trình của Casa được thiết kế cho trẻ từ khoảng 18 tháng đến 6 tuổi. Trường hợp nhỏ hơn, phụ huynh nên trao đổi trực tiếp với cơ sở để được tư vấn theo khả năng vận động và mức độ sẵn sàng của bé.",
+      "keywords": [
+        "casa",
+        "nhận",
+        "trẻ",
+        "mấy",
+        "tháng"
+      ]
+    },
+    {
+      "category": "Chính sách, quy định trường",
+      "questions": [
+        "Con nghỉ ốm dài ngày có được giảm trừ học phí không?"
+      ],
+      "answer": "Có. Nếu trẻ nghỉ liên tiếp từ 1 tháng trở lên đến tối đa 6 tháng và có xác nhận của cơ sở y tế hợp pháp, nhà trường miễn giảm 70% học phí cơ bản trong thời gian nghỉ ốm.",
+      "keywords": [
+        "nghỉ",
+        "dài",
+        "ngày",
+        "giảm",
+        "trừ"
+      ]
+    },
+    {
+      "category": "Chính sách, quy định trường",
+      "questions": [
+        "Giờ đón muộn của trường là mấy giờ?"
+      ],
+      "answer": "Phí trông muộn được áp dụng từ 17h30. Các mốc thu phí phổ biến là 17h30–17h59, 18h00–18h14, 18h15–18h29 và sau 18h30 sẽ tính theo block 1 giờ.",
+      "keywords": [
+        "giờ",
+        "đón",
+        "muộn",
+        "mấy"
+      ]
+    },
+    {
+      "category": "Chính sách, quy định trường",
+      "questions": [
+        "Nhà trường có chương trình học thử không?"
+      ],
+      "answer": "Có. Casa có chương trình “bé làm khách” theo tuần; thời gian tối thiểu 1 tuần và tối đa 2 tuần. Đây là cách để phụ huynh quan sát mức độ phù hợp của con với môi trường trước khi đăng ký chính thức.",
+      "keywords": [
+        "chương",
+        "trình",
+        "học",
+        "thử"
+      ]
+    },
+    {
+      "category": "Chính sách, quy định trường",
+      "questions": [
+        "Nhà trường có xe buýt không?"
+      ],
+      "answer": "Có. Ở hệ Quốc tế, Casa có biểu phí xe buýt theo bán kính tuyến. Ở hệ Song ngữ, nhà trường sẽ xây dựng tuyến dựa trên nhu cầu thực tế và thông báo mức phí – lộ trình sau khi khảo sát.",
+      "keywords": [
+        "buýt"
+      ]
+    },
+    {
+      "category": "Chính sách, quy định trường",
+      "questions": [
+        "Nếu bé mới đi học và còn khóc nhiều thì nhà trường hỗ trợ ra sao?"
+      ],
+      "answer": "Casa chú trọng giai đoạn thích nghi đầu vào. Giáo viên sẽ đồng hành, hỗ trợ cảm xúc, giúp bé cảm thấy an toàn và dần quen với nề nếp lớp học thay vì thúc ép bé phải hòa nhập ngay.",
+      "keywords": [
+        "mới",
+        "học",
+        "còn",
+        "khóc",
+        "nhiều"
+      ]
+    },
+    {
+      "category": "Chính sách, quy định trường",
+      "questions": [
+        "Nếu bé nhập học giữa tháng thì học phí được tính thế nào?"
+      ],
+      "answer": "Nếu nhập học giữa tháng, học phí tháng đầu tiên sẽ được tính theo số ngày thực tế đi học. Mức tính theo ngày sẽ khác nhau tùy hệ đào tạo và độ tuổi.",
+      "keywords": [
+        "nhập",
+        "học",
+        "giữa",
+        "tháng",
+        "phí"
+      ]
+    },
+    {
+      "category": "Chính sách, quy định trường",
+      "questions": [
+        "Nếu gia đình cần gửi con sớm thì sao?"
+      ],
+      "answer": "Trường hợp cần gửi sớm, phụ huynh nên trao đổi trực tiếp với cơ sở để được sắp xếp phù hợp. Việc hỗ trợ đón sớm sẽ phụ thuộc vào điều kiện vận hành thực tế của từng cơ sở.",
+      "keywords": [
+        "gia",
+        "đình",
+        "cần",
+        "gửi",
+        "sớm"
+      ]
+    },
+    {
+      "category": "Chính sách, quy định trường",
+      "questions": [
+        "Nếu nghỉ học giữa chừng thì học phí có được hoàn không?"
+      ],
+      "answer": "Có thể được xem xét hoàn một phần học phí cơ bản nếu phụ huynh nộp đơn xin nghỉ trước tối thiểu 30 ngày. Mức hoàn học phí cơ bản còn lại (tròn tháng) là 60% nếu đóng theo quý, 70% nếu đóng 6 tháng và 80% nếu đóng 12 tháng.",
+      "keywords": [
+        "nghỉ",
+        "học",
+        "giữa",
+        "chừng",
+        "phí"
+      ]
+    },
+    {
+      "category": "Chính sách, quy định trường",
+      "questions": [
+        "Phụ huynh có được bảo lưu cho con không?"
+      ],
+      "answer": "Có. Casa áp dụng bảo lưu tối thiểu 1 tháng và tối đa 6 tháng nếu phụ huynh nộp đơn trực tiếp tại văn phòng trước tối thiểu 30 ngày. Trong thời gian bảo lưu có áp dụng phí bảo lưu theo chính sách từng hệ.",
+      "keywords": [
+        "phụ",
+        "huynh",
+        "bảo",
+        "lưu"
+      ]
+    },
+    {
+      "category": "Chính sách, quy định trường",
+      "questions": [
+        "Phụ huynh có được xem camera không?"
+      ],
+      "answer": "Để đảm bảo bảo mật thông tin và sự riêng tư của trẻ, Casa không cung cấp camera online. Phụ huynh có thể xem camera tại văn phòng trường; bên cạnh đó, các cô thường xuyên cập nhật tình hình của con qua ứng dụng liên lạc.",
+      "keywords": [
+        "phụ",
+        "huynh",
+        "xem",
+        "camera"
+      ]
+    },
+    {
+      "category": "Chính sách, quy định trường",
+      "questions": [
+        "Thời hạn thanh toán học phí như thế nào?"
+      ],
+      "answer": "Biểu học phí thường được gửi vào đầu quý. Phụ huynh cần thanh toán trong 5 ngày làm việc đầu tiên của quý hoặc trong vòng 5 ngày kể từ khi nhận thông báo; quá hạn sẽ áp dụng phí nộp muộn theo chính sách.",
+      "keywords": [
+        "thời",
+        "hạn",
+        "thanh",
+        "toán",
+        "học"
+      ]
+    },
+    {
+      "category": "Chính sách, quy định trường",
+      "questions": [
+        "Đồng phục có bắt buộc không?"
+      ],
+      "answer": "Có. Học sinh mới nhập học cần mua set đồng phục theo quy định của nhà trường; phụ huynh có thể mua bổ sung khi cần. Một số sản phẩm là tối thiểu để phục vụ quá trình học tập, dã ngoại và hoạt động thể thao.",
+      "keywords": [
+        "đồng",
+        "phục",
+        "bắt",
+        "buộc"
       ]
     },
     {
       "category": "Dã ngoại",
       "questions": [
-        "Lịch đi dã ngoại của con như thế nào?",
-        "Trường có tổ chức dã ngoại không?"
+        "Chi phí dã ngoại có nằm trong chương trình học không?"
       ],
-      "answer": "Trường có tổ chức các chuyến dã ngoại định kỳ cho các con. Chi tiết lịch dã ngoại phụ huynh vui lòng liên hệ trực tiếp với nhà trường để được cập nhật thông tin mới nhất ạ.",
+      "answer": "Phí học liệu và hoạt động ngoại khóa được sử dụng để tổ chức các hoạt động ngoại khóa, sự kiện và dã ngoại nằm trong chương trình năm học. Với những chương trình lớn hoặc hoạt động phát sinh chi phí vượt ngoài khoản phí này, nhà trường sẽ thông báo trước và thu trên cơ sở đăng ký tham gia hoặc cơ chế thu hộ – chi hộ.",
       "keywords": [
-        "dã ngoại",
-        "đi chơi",
-        "ngoại khóa"
+        "chi",
+        "phí",
+        "ngoại",
+        "nằm",
+        "trong"
+      ]
+    },
+    {
+      "category": "Dã ngoại",
+      "questions": [
+        "Lịch dã ngoại của con diễn ra như thế nào?"
+      ],
+      "answer": "Casa tổ chức dã ngoại với tần suất khoảng 2 tháng/lần, tương đương 6 chuyến/năm. Lịch năm học và thông tin từng chuyến đi sẽ được nhà trường gửi tới phụ huynh theo kế hoạch.",
+      "keywords": [
+        "lịch",
+        "ngoại",
+        "diễn"
+      ]
+    },
+    {
+      "category": "Dã ngoại",
+      "questions": [
+        "Mục tiêu của các chuyến dã ngoại là gì?"
+      ],
+      "answer": "Dã ngoại giúp trẻ bước ra khỏi lớp học để quan sát và trải nghiệm thực tế. Thông qua các chuyến đi, trẻ mở rộng hiểu biết, rèn tính tự lập, kỹ năng xã hội, khả năng giao tiếp và ý thức an toàn nơi công cộng.",
+      "keywords": [
+        "mục",
+        "tiêu",
+        "chuyến",
+        "ngoại"
+      ]
+    },
+    {
+      "category": "Dã ngoại",
+      "questions": [
+        "Nhà trường đảm bảo an toàn cho trẻ trong các chuyến dã ngoại như thế nào?"
+      ],
+      "answer": "Casa coi dã ngoại là cơ hội để trẻ học kỹ năng an toàn nơi công cộng như xếp hàng, chờ lượt, đi theo nhóm và làm theo hướng dẫn. Các hoạt động được chuẩn bị theo chủ đề và có giáo viên đồng hành trong suốt hành trình.",
+      "keywords": [
+        "đảm",
+        "bảo",
+        "toàn",
+        "trẻ",
+        "trong"
+      ]
+    },
+    {
+      "category": "Dã ngoại",
+      "questions": [
+        "Những địa điểm dã ngoại của Casa thường gắn với nội dung gì?"
+      ],
+      "answer": "Các chuyến đi thường gắn với chủ đề học tập như thiên nhiên, trang trại, bảo tàng, văn hóa hoặc các không gian trải nghiệm thực hành. Mục tiêu là giúp trẻ học bằng quan sát, tương tác và đặt câu hỏi trực tiếp với thế giới xung quanh.",
+      "keywords": [
+        "những",
+        "địa",
+        "điểm",
+        "ngoại",
+        "casa"
+      ]
+    },
+    {
+      "category": "Đội ngũ giáo viên",
+      "questions": [
+        "Casa có đầu tư cho việc phát triển đội ngũ giáo viên không?"
+      ],
+      "answer": "Có. Ban chuyên môn của Casa tham gia xây dựng chương trình, dự giờ – góp ý, sinh hoạt chuyên môn và đào tạo thường xuyên để nâng cao chất lượng đội ngũ và sự thống nhất trong phương pháp giảng dạy.",
+      "keywords": [
+        "casa",
+        "đầu",
+        "việc",
+        "phát",
+        "triển"
+      ]
+    },
+    {
+      "category": "Đội ngũ giáo viên",
+      "questions": [
+        "Giáo viên Việt Nam có giao tiếp tiếng Anh được không?"
+      ],
+      "answer": "Có. Giáo viên Việt Nam tại Casa có thể giao tiếp căn bản bằng tiếng Anh. Tuy nhiên, việc giảng dạy tiếng Anh chuyên sâu vẫn do giáo viên nước ngoài phụ trách.",
+      "keywords": [
+        "giáo",
+        "viên",
+        "việt",
+        "nam",
+        "giao"
+      ]
+    },
+    {
+      "category": "Đội ngũ giáo viên",
+      "questions": [
+        "Giáo viên của Casa có được đào tạo Montessori không?"
+      ],
+      "answer": "Có. Giáo viên tại Casa được đào tạo và bồi dưỡng thường xuyên về phương pháp Montessori, kỹ năng quan sát – dẫn dắt trẻ, quản lý lớp học tích cực và giao tiếp đồng hành cùng phụ huynh.",
+      "keywords": [
+        "giáo",
+        "viên",
+        "casa",
+        "đào",
+        "tạo"
+      ]
+    },
+    {
+      "category": "Đội ngũ giáo viên",
+      "questions": [
+        "Giáo viên nước ngoài có phù hợp với trẻ mầm non không?"
+      ],
+      "answer": "Có. Giáo viên nước ngoài tại Casa không chỉ có phát âm chuẩn và chuyên môn tốt mà còn hiểu tâm lý lứa tuổi mầm non, biết thiết kế hoạt động sinh động, gần gũi và nhiều tương tác để trẻ dễ tiếp nhận.",
+      "keywords": [
+        "giáo",
+        "viên",
+        "nước",
+        "ngoài",
+        "phù"
+      ]
+    },
+    {
+      "category": "Đội ngũ giáo viên",
+      "questions": [
+        "Giáo viên nước ngoài tại Casa có bằng cấp chuyên môn không?"
+      ],
+      "answer": "Có. Đội ngũ giáo viên nước ngoài của Casa có các chứng chỉ giảng dạy quốc tế như CELTA, TESOL hoặc TEFL cùng bằng cử nhân/thạc sĩ liên quan; đồng thời được đào tạo thêm để phù hợp với môi trường mầm non và định hướng của Casa.",
+      "keywords": [
+        "giáo",
+        "viên",
+        "nước",
+        "ngoài",
+        "tại"
+      ]
+    },
+    {
+      "category": "Đội ngũ giáo viên",
+      "questions": [
+        "Tỷ lệ cô – trò tại Casa như thế nào?"
+      ],
+      "answer": "Theo tài liệu tư vấn hiện có, lớp 0–3 tuổi thường khoảng 23–25 bé với 4 cô; lớp 3–6 tuổi khoảng 25–27 bé với 3 cô. Phụ huynh có thể hỏi thêm cơ sở để cập nhật sĩ số thực tế tại thời điểm đăng ký.",
+      "keywords": [
+        "trò",
+        "tại",
+        "casa"
+      ]
+    },
+    {
+      "category": "Đội ngũ giáo viên",
+      "questions": [
+        "Vai trò của giáo viên Montessori tại Casa là gì?"
+      ],
+      "answer": "Trong lớp Montessori, giáo viên không phải là người giảng dạy áp đặt mà là người quan sát, chuẩn bị môi trường, kết nối trẻ với giáo cụ và hỗ trợ đúng thời điểm để trẻ phát triển tự nhiên, độc lập và có kỷ luật nội tại.",
+      "keywords": [
+        "vai",
+        "trò",
+        "giáo",
+        "viên",
+        "montessori"
+      ]
+    },
+    {
+      "category": "Đội ngũ giáo viên",
+      "questions": [
+        "Điểm mạnh của đội ngũ giáo viên Casa là gì?"
+      ],
+      "answer": "Đội ngũ giáo viên và nhân sự Casa được định hướng phát triển đồng đều cả chuyên môn, kỹ năng sư phạm và phẩm chất nghề nghiệp. Nhà trường đặc biệt coi trọng lòng yêu trẻ, sự kiên nhẫn, tinh thần trách nhiệm, tính chính trực và thái độ làm việc chuyên nghiệp.",
+      "keywords": [
+        "điểm",
+        "mạnh",
+        "đội",
+        "ngũ",
+        "giáo"
+      ]
+    },
+    {
+      "category": "Cơ sở vật chất",
+      "questions": [
+        "Casa có những không gian học tập – trải nghiệm nào nổi bật?"
+      ],
+      "answer": "Bên cạnh lớp học Montessori, Casa còn tổ chức nhiều không gian và hoạt động hỗ trợ như thư viện, gym, khoa học, âm nhạc, nấu ăn, nghệ thuật và các hoạt động trải nghiệm theo chủ đề để trẻ phát triển toàn diện.",
+      "keywords": [
+        "casa",
+        "những",
+        "gian",
+        "học",
+        "tập"
+      ]
+    },
+    {
+      "category": "Cơ sở vật chất",
+      "questions": [
+        "Casa hiện có bao nhiêu cơ sở?"
+      ],
+      "answer": "Hiện Casa có 3 cơ sở tại Hà Nội: Chùa Láng, Mỹ Đình và Kim Mã. Mỗi cơ sở được đầu tư bài bản về môi trường, đội ngũ và tiêu chuẩn vận hành.",
+      "keywords": [
+        "casa",
+        "hiện"
+      ]
+    },
+    {
+      "category": "Cơ sở vật chất",
+      "questions": [
+        "Không gian của trường có phù hợp với trẻ mầm non không?"
+      ],
+      "answer": "Có. Casa định hướng xây dựng môi trường an toàn, thân thiện, thẩm mỹ cao và phù hợp độ tuổi; từ giá kệ, giáo cụ đến không gian lớp học đều hướng tới việc giúp trẻ tự lập và phát triển cảm xúc – tư duy ổn định.",
+      "keywords": [
+        "gian",
+        "phù",
+        "hợp",
+        "trẻ",
+        "mầm"
+      ]
+    },
+    {
+      "category": "Cơ sở vật chất",
+      "questions": [
+        "Môi trường lớp học tại Casa có gì đặc biệt?"
+      ],
+      "answer": "Các lớp học tại Casa được chuẩn bị kỹ lưỡng, gọn gàng, trật tự và giàu tính thẩm mỹ. Giáo cụ được sắp xếp khoa học, phù hợp tầm với và khả năng của trẻ để khuyến khích trẻ tự lựa chọn, tự làm việc và học tập chủ động.",
+      "keywords": [
+        "môi",
+        "lớp",
+        "học",
+        "tại",
+        "casa"
+      ]
+    },
+    {
+      "category": "Cơ sở vật chất",
+      "questions": [
+        "Nhà trường có chia sẻ hình ảnh cơ sở vật chất cho phụ huynh không?"
+      ],
+      "answer": "Có. Trong quá trình tư vấn, nhà trường có thể gửi hình ảnh, video hoặc mời phụ huynh tham quan cơ sở để phụ huynh cảm nhận trực tiếp môi trường học tập của con.",
+      "keywords": [
+        "chia",
+        "hình",
+        "ảnh",
+        "vật",
+        "chất"
+      ]
+    },
+    {
+      "category": "Cơ sở vật chất",
+      "questions": [
+        "Phí phát triển trường được sử dụng cho những hạng mục nào?"
+      ],
+      "answer": "Phí phát triển trường được dùng để đầu tư, duy tu, nâng cấp cơ sở vật chất, trang thiết bị phục vụ hoạt động chăm sóc – giáo dục trẻ; đồng thời phục vụ công tác nâng cao chất lượng chuyên môn và bồi dưỡng đội ngũ.",
+      "keywords": [
+        "phí",
+        "phát",
+        "triển",
+        "dụng",
+        "những"
+      ]
+    },
+    {
+      "category": "Đảm bảo sự an toàn của trẻ",
+      "questions": [
+        "Casa có quan tâm đến phòng chống dịch bệnh và vệ sinh an toàn sức khỏe không?"
+      ],
+      "answer": "Có. Casa xem việc bảo vệ sức khỏe và phòng chống dịch bệnh là một cam kết thường xuyên để phụ huynh yên tâm gửi con trong môi trường học tập bình an và an toàn.",
+      "keywords": [
+        "casa",
+        "quan",
+        "tâm",
+        "phòng",
+        "chống"
+      ]
+    },
+    {
+      "category": "Đảm bảo sự an toàn của trẻ",
+      "questions": [
+        "Casa đảm bảo an toàn cho trẻ theo định hướng nào?"
+      ],
+      "answer": "An toàn tại Casa không chỉ là quy trình mà là một phần của môi trường được chuẩn bị kỹ lưỡng mỗi ngày. Nhà trường hướng đến một không gian an toàn – yêu thương – có giới hạn rõ ràng để trẻ vừa được bảo vệ vừa hình thành ý thức tự bảo vệ bản thân.",
+      "keywords": [
+        "casa",
+        "đảm",
+        "bảo",
+        "toàn",
+        "trẻ"
+      ]
+    },
+    {
+      "category": "Đảm bảo sự an toàn của trẻ",
+      "questions": [
+        "Các giờ học trải nghiệm như science, cooking, gym có được kiểm soát an toàn không?"
+      ],
+      "answer": "Có. Các hoạt động trải nghiệm tại Casa được tổ chức theo nội dung phù hợp lứa tuổi, với giáo cụ/dụng cụ được chuẩn bị trước và luôn có giáo viên hướng dẫn, quan sát để đảm bảo an toàn trong quá trình trẻ thao tác.",
+      "keywords": [
+        "giờ",
+        "học",
+        "trải",
+        "nghiệm",
+        "science"
+      ]
+    },
+    {
+      "category": "Đảm bảo sự an toàn của trẻ",
+      "questions": [
+        "Khi trẻ mới nhập học còn khóc hoặc chưa quen trường, Casa hỗ trợ thế nào?"
+      ],
+      "answer": "Casa chú trọng sự an toàn cảm xúc của trẻ trong giai đoạn thích nghi. Giáo viên đồng hành sát sao, giúp trẻ cảm thấy được yêu thương, được lắng nghe và dần yên tâm tham gia các hoạt động trong lớp.",
+      "keywords": [
+        "trẻ",
+        "mới",
+        "nhập",
+        "học",
+        "còn"
+      ]
+    },
+    {
+      "category": "Đảm bảo sự an toàn của trẻ",
+      "questions": [
+        "Nhà trường có chú trọng phòng chống tai nạn thương tích không?"
+      ],
+      "answer": "Có. Trong chương trình học, Casa lồng ghép các nội dung về kỹ năng an toàn và phòng chống tai nạn thương tích như một phần quan trọng của giáo dục kỹ năng sống cho trẻ.",
+      "keywords": [
+        "chú",
+        "trọng",
+        "phòng",
+        "chống",
+        "tai"
+      ]
+    },
+    {
+      "category": "Đảm bảo sự an toàn của trẻ",
+      "questions": [
+        "Trẻ có được học kỹ năng an toàn tại trường không?"
+      ],
+      "answer": "Có. Casa có các hoạt động và giờ học kỹ năng an toàn giúp trẻ nhận biết tình huống nguy hiểm thường gặp, biết cách phản ứng phù hợp và hình thành nền tảng tự bảo vệ bản thân trong đời sống hằng ngày.",
+      "keywords": [
+        "trẻ",
+        "học",
+        "năng",
+        "toàn",
+        "tại"
       ]
     },
     {
       "category": "Vệ sinh",
       "questions": [
-        "Thời gian thay bỉm, vệ sinh cho trẻ như thế nào?",
-        "Có phân biệt nhà vệ sinh nam nữ không?"
+        "Casa rèn cho trẻ kỹ năng vệ sinh cá nhân như thế nào?"
       ],
-      "answer": "Chi tiết về chế độ vệ sinh và chăm sóc trẻ, phụ huynh vui lòng liên hệ trực tiếp với nhà trường để được tư vấn cụ thể ạ.",
+      "answer": "Trong môi trường Montessori, trẻ được rèn các kỹ năng chăm sóc bản thân như rửa tay, đánh răng, tự mặc quần áo, đi vệ sinh và giữ gìn đồ dùng cá nhân phù hợp với từng độ tuổi.",
       "keywords": [
+        "casa",
+        "rèn",
+        "trẻ",
+        "năng",
+        "sinh"
+      ]
+    },
+    {
+      "category": "Vệ sinh",
+      "questions": [
+        "Giờ ăn có gắn với nề nếp vệ sinh không?"
+      ],
+      "answer": "Có. Trong giờ ăn, trẻ không chỉ ăn uống mà còn được rèn nề nếp như rửa tay, ngồi ăn trật tự, sử dụng dụng cụ phù hợp và dọn dẹp sau bữa ăn.",
+      "keywords": [
+        "giờ",
+        "gắn",
+        "nếp",
+        "sinh"
+      ]
+    },
+    {
+      "category": "Vệ sinh",
+      "questions": [
+        "Khi trẻ nghỉ học, nhà trường cần phụ huynh thông báo như thế nào để xử lý phần tiền ăn?"
+      ],
+      "answer": "Để được trừ tiền ăn của ngày nghỉ, phụ huynh cần báo nghỉ trước 7:00 sáng qua app LittleLives hoặc email của cơ sở.",
+      "keywords": [
+        "trẻ",
+        "nghỉ",
+        "học",
+        "cần",
+        "phụ"
+      ]
+    },
+    {
+      "category": "Vệ sinh",
+      "questions": [
+        "Môi trường lớp học có chú trọng vệ sinh và trật tự không?"
+      ],
+      "answer": "Có. Môi trường Montessori tại Casa được chuẩn bị gọn gàng, trật tự và sạch sẽ. Trẻ cũng được hướng dẫn cách giữ gìn không gian học tập, cất đồ đúng chỗ và chăm sóc môi trường xung quanh.",
+      "keywords": [
+        "môi",
+        "lớp",
+        "học",
+        "chú",
+        "trọng"
+      ]
+    },
+    {
+      "category": "Vệ sinh",
+      "questions": [
+        "Việc thay bỉm và hỗ trợ đi vệ sinh cho trẻ được thực hiện ra sao?"
+      ],
+      "answer": "Casa chăm sóc vệ sinh cho trẻ theo nhu cầu thực tế và giai đoạn phát triển của từng bé, đồng thời từng bước hướng dẫn để trẻ hình thành kỹ năng tự phục vụ và nề nếp vệ sinh cá nhân.",
+      "keywords": [
+        "việc",
+        "thay",
         "bỉm",
-        "vệ sinh",
-        "thay bỉm",
-        "nhà vệ sinh"
+        "trợ",
+        "sinh"
       ]
     },
     {
-      "category": "Cơ sở vật chất",
+      "category": "Montessori",
       "questions": [
-        "Cho xin hình ảnh trường?",
-        "Phí phát triển trường bao gồm những gì?",
-        "Cơ sở vật chất trường như thế nào?"
+        "Casa có dạy STEAM không?"
       ],
-      "answer": "Để xem hình ảnh trường và thông tin chi tiết về cơ sở vật chất, phụ huynh có thể đặt lịch tham quan trực tiếp tại trường ạ. Em sẽ sắp xếp lịch tham quan phù hợp cho mình.",
+      "answer": "Theo định hướng của Casa, nhiều nội dung vốn đã được tích hợp trong Montessori như khoa học, toán, nghệ thuật, khám phá và hoạt động thực hành. Vì vậy, phụ huynh có thể hiểu Casa phát triển trẻ theo hướng tích hợp, giàu trải nghiệm và tư duy khám phá.",
       "keywords": [
-        "hình ảnh",
-        "cơ sở vật chất",
-        "phí phát triển",
-        "tham quan"
-      ]
-    },
-    {
-      "category": "Học từ admin",
-      "questions": [
-        "nếu đăng ký vào trường thì có thể chọn lớp giáo viên nước ngoài theo mong muốn phụ huynh được không?"
-      ],
-      "answer": "trường sẽ sắp xếp cô giáo phù hợp nhất với lứa tuổi của các bạn",
-      "keywords": []
-    },
-    {
-      "category": "Hoạt động ngoại khóa",
-      "questions": [
-        "Trường có dạy võ taekwondo không?",
-        "Trường có tổ chức lớp võ thuật nào không?",
-        "Lớp học ngoại khóa nào đang được tổ chức tại trường?",
-        "Có lớp học năng khiếu nào vào cuối tuần không?"
-      ],
-      "answer": "hiện tại chưa có, nhưng trường có tổ chức lớp vẽ và nhảy hiện đại cho các bạn vào sáng thứ 7",
-      "keywords": [
-        "võ taekwondo",
-        "lớp vẽ",
-        "nhảy hiện đại",
-        "hoạt động ngoại khóa",
-        "thứ 7"
-      ]
-    },
-    {
-      "category": "Cơ sở vật chất",
-      "questions": [
-        "trường có dự định mở cơ sở mới ở Hoàn Kiếm không ạ?",
-        "Trường có kế hoạch mở cơ sở mới tại khu vực nào trong tương lai không?",
-        "Năm sau trường có mở thêm cơ sở mới không?",
-        "Trường có thông tin gì về việc mở rộng cơ sở không?"
-      ],
-      "answer": "chưa có dự định trong năm nay",
-      "keywords": [
-        "cơ sở mới",
-        "Hoàn Kiếm",
-        "dự định mở",
-        "năm nay"
-      ]
-    },
-    {
-      "category": "Đội ngũ giáo viên",
-      "questions": [
-        "Cô Nguyễn Thị Lan còn dạy ở cơ sở Mỹ Đình không ạ",
-        "Cô Nguyễn Thị Lan hiện đang dạy ở cơ sở nào?",
-        "Cô Nguyễn Thị Lan đã nghỉ việc chưa?",
-        "Ai là giáo viên dạy ở cơ sở Mỹ Đình hiện nay?"
-      ],
-      "answer": "cô đã nghỉ được một năm rồi",
-      "keywords": [
-        "cô Nguyễn Thị Lan",
+        "casa",
         "dạy",
-        "cơ sở Mỹ Đình",
-        "nghỉ"
+        "steam"
       ]
     },
     {
-      "category": "Đội ngũ giáo viên",
+      "category": "Montessori",
       "questions": [
-        "thầy james còn dạy ở trường không?",
-        "Thầy James có còn dạy tại trường không?",
-        "Thầy James đã rời trường bao lâu rồi?",
-        "Thầy James hiện tại có dạy lớp nào không?"
+        "Casa có những lĩnh vực học tập nào trong Montessori?"
       ],
-      "answer": "thầy đã nghỉ được 3 tháng rồi",
+      "answer": "Casa triển khai 5 lĩnh vực cốt lõi của Montessori gồm: Thực hành cuộc sống, Giác quan, Ngôn ngữ, Toán học và Văn hóa. Các lĩnh vực này giúp trẻ phát triển toàn diện cả tư duy, kỹ năng, cảm xúc và nhận thức về thế giới.",
       "keywords": [
-        "thầy James",
-        "nghỉ dạy",
-        "thời gian nghỉ"
+        "casa",
+        "những",
+        "lĩnh",
+        "vực",
+        "học"
       ]
     },
     {
-      "category": "Đội ngũ giáo viên",
+      "category": "Montessori",
       "questions": [
-        "cô angel còn dạy ở trường không",
-        "Cô Angel hiện đang dạy lớp nào?",
-        "Cô Angel có còn dạy ở trường mầm non không?",
-        "Lớp Tokyo do cô giáo nào phụ trách?"
+        "Chương trình Montessori tại Casa có cá nhân hóa cho từng trẻ không?"
       ],
-      "answer": "có, cô đang dạy lớp tokyo",
+      "answer": "Có. Casa xây dựng kế hoạch học tập cá nhân dựa trên quan sát hằng ngày, thời kỳ nhạy cảm, mức độ độc lập, khả năng tập trung và hứng thú hiện tại của từng trẻ.",
       "keywords": [
-        "cô Angel",
-        "dạy lớp Tokyo",
-        "giáo viên"
+        "chương",
+        "trình",
+        "montessori",
+        "tại",
+        "casa"
       ]
     },
     {
-      "category": "Đội ngũ giáo viên",
+      "category": "Montessori",
       "questions": [
-        "cô rose còn dạy ở trường không",
-        "Cô Rose đã chuyển trường chưa?",
-        "Cô Rose còn dạy lớp nào không?",
-        "Cô Rose nghỉ việc khi nào?",
-        "Ai sẽ thay thế cô Rose?"
+        "Giáo viên Montessori đóng vai trò gì trong lớp học?"
       ],
-      "answer": "không còn",
+      "answer": "Giáo viên Montessori là người chuẩn bị môi trường, quan sát tiến trình của trẻ, hướng dẫn khi cần thiết và bảo vệ sự tập trung của lớp học thay vì giảng dạy áp đặt.",
       "keywords": [
-        "cô Rose",
+        "giáo",
+        "viên",
+        "montessori",
+        "đóng",
+        "vai"
+      ]
+    },
+    {
+      "category": "Montessori",
+      "questions": [
+        "Lớp học Montessori ở Casa có trộn độ tuổi không?"
+      ],
+      "answer": "Có. Môi trường lớp ghép/trộn tuổi giúp trẻ nhỏ học qua quan sát anh chị lớn; trẻ lớn học cách hướng dẫn, hợp tác và phát triển kỹ năng xã hội, lãnh đạo và sự đồng cảm.",
+      "keywords": [
+        "lớp",
+        "học",
+        "montessori",
+        "casa",
+        "trộn"
+      ]
+    },
+    {
+      "category": "Montessori",
+      "questions": [
+        "Montessori khác gì so với phương pháp giáo dục truyền thống?"
+      ],
+      "answer": "Điểm khác biệt cốt lõi là trẻ học chủ động thay vì nghe giảng thụ động. Trong Montessori, giáo viên là người hướng dẫn; lớp học có thể trộn độ tuổi; trẻ được làm việc theo tốc độ riêng, dùng giáo cụ trực quan và rèn kỷ luật nội tại thông qua tự do trong khuôn khổ.",
+      "keywords": [
+        "montessori",
+        "khác",
+        "phương",
+        "pháp",
+        "giáo"
+      ]
+    },
+    {
+      "category": "Montessori",
+      "questions": [
+        "Phương pháp Montessori tại Casa được triển khai theo tinh thần nào?"
+      ],
+      "answer": "Casa kiên định với triết lý Montessori nguyên bản: lấy trẻ làm trung tâm, tôn trọng nhịp phát triển riêng, khuyến khích trẻ tự do lựa chọn trong một môi trường được chuẩn bị kỹ lưỡng và phù hợp với từng giai đoạn phát triển.",
+      "keywords": [
+        "phương",
+        "pháp",
+        "montessori",
+        "tại",
+        "casa"
+      ]
+    },
+    {
+      "category": "Montessori",
+      "questions": [
+        "Thời gian Montessori Work trong ngày diễn ra như thế nào?"
+      ],
+      "answer": "Montessori Work là khoảng thời gian quan trọng để trẻ làm việc cá nhân với giáo cụ theo nhịp độ riêng. Theo tài liệu chương trình, thời lượng Montessori Work có thể kéo dài khoảng 120 phút, trong đó mỗi trẻ được giới thiệu bài học cá nhân phù hợp.",
+      "keywords": [
+        "thời",
+        "gian",
+        "montessori",
+        "work",
+        "trong"
+      ]
+    },
+    {
+      "category": "Montessori",
+      "questions": [
+        "Trẻ sẽ nhận được gì khi học Montessori tại Casa?"
+      ],
+      "answer": "Trẻ được phát triển tính tự lập, khả năng tập trung, tư duy logic, kỹ năng ngôn ngữ, kỹ năng xã hội và sự tự tin. Đồng thời, trẻ hình thành tình yêu học tập qua trải nghiệm thực tiễn thay vì áp lực thành tích.",
+      "keywords": [
+        "trẻ",
+        "nhận",
+        "học",
+        "montessori",
+        "tại"
+      ]
+    },
+    {
+      "category": "Montessori",
+      "questions": [
+        "Tại sao Casa nhấn mạnh nguyên tắc “Follow the child”?"
+      ],
+      "answer": "Vì mỗi trẻ có nhịp phát triển sinh học, tâm lý, sở thích và khả năng khác nhau. Khi được quan sát đúng và hỗ trợ đúng lúc, trẻ sẽ hình thành động lực nội tại, sự tự tin và tiến bộ một cách bền vững.",
+      "keywords": [
+        "tại",
+        "sao",
+        "casa",
+        "nhấn",
+        "mạnh"
+      ]
+    },
+    {
+      "category": "Chương trình tiếng anh",
+      "questions": [
+        "Casa có chú trọng phát âm chuẩn không?"
+      ],
+      "answer": "Có. Thông qua giáo viên nước ngoài, Oxford Phonics và các hoạt động nghe – nói thường xuyên, trẻ dần hình thành nền tảng phát âm, trọng âm và ngữ điệu chuẩn quốc tế.",
+      "keywords": [
+        "casa",
+        "chú",
+        "trọng",
+        "phát",
+        "chuẩn"
+      ]
+    },
+    {
+      "category": "Chương trình tiếng anh",
+      "questions": [
+        "Casa có dạy tiếng Anh theo chủ đề không?"
+      ],
+      "answer": "Có. Chương trình được thiết kế theo cấu trúc 1 tháng – 1 chủ đề lớn, mỗi tuần là một chủ đề nhánh. Cách học này giúp trẻ gặp lại cùng nhóm từ vựng và mẫu câu trong nhiều ngữ cảnh khác nhau, từ đó ghi nhớ và sử dụng tự nhiên hơn.",
+      "keywords": [
+        "casa",
         "dạy",
-        "nghỉ việc",
-        "thôi việc",
-        "không còn"
+        "tiếng",
+        "theo",
+        "chủ"
       ]
     },
     {
-      "category": "Đội ngũ giáo viên",
+      "category": "Chương trình tiếng anh",
       "questions": [
-        "cô Dung còn dạy ở trường không",
-        "Cô Dung hiện tại có còn dạy ở trường không?",
-        "Giáo viên cô Dung còn làm việc tại trường không?",
-        "Cô Dung đã nghỉ dạy chưa?"
+        "Casa có giúp trẻ tự tin nói trước đám đông không?"
       ],
-      "answer": "còn",
+      "answer": "Có. Trẻ thường xuyên có cơ hội thể hiện bản thân qua show and tell, storytelling, Casa Talk Show, biểu diễn theo chủ đề và thuyết trình đơn giản.",
       "keywords": [
-        "cô Dung",
-        "có còn dạy",
-        "giáo viên"
+        "casa",
+        "giúp",
+        "trẻ",
+        "tin",
+        "nói"
       ]
     },
     {
-      "category": "Đội ngũ giáo viên",
+      "category": "Chương trình tiếng anh",
       "questions": [
-        "cô Hằng còn dạy ở trường không",
-        "Cô Hằng có còn dạy ở trường không?",
-        "Cô Hằng đã nghỉ dạy chưa?",
-        "Tình trạng hiện tại của cô Hằng?"
+        "Casa có lợi thế gì trong việc chuẩn bị cho các trường tiểu học chất lượng cao?"
       ],
-      "answer": "còn",
+      "answer": "Tại Casa, trẻ được chuẩn bị đồng thời về phản xạ giao tiếp, phonics, khả năng trình bày và sự tự tin. Theo tài liệu tư vấn, nhiều học sinh lớp tiền tiểu học tham gia đánh giá ở các trường liên kết và đạt kết quả tích cực.",
       "keywords": [
-        "cô Hằng",
-        "có còn dạy",
-        "giáo viên"
+        "casa",
+        "lợi",
+        "trong",
+        "việc",
+        "chuẩn"
       ]
     },
     {
-      "category": "Đội ngũ giáo viên",
+      "category": "Chương trình tiếng anh",
       "questions": [
-        "cô Ly còn dạy ở trường không",
-        "Cô Ly hiện tại có còn dạy tại trường không?",
-        "Tình trạng giảng dạy của cô Ly hiện nay như thế nào?",
-        "Cô Ly có tiếp tục công tác tại trường hay không?"
+        "Casa có theo dõi sự tiến bộ của trẻ trong tiếng Anh không?"
       ],
-      "answer": "còn",
+      "answer": "Có. Tài liệu chương trình cho thấy nhà trường có các bài đánh giá định kỳ để nắm bắt khả năng tiếp thu của từng trẻ và điều chỉnh lộ trình học tập phù hợp với tốc độ phát triển riêng.",
       "keywords": [
-        "cô Ly",
+        "casa",
+        "theo",
+        "dõi",
+        "tiến",
+        "trẻ"
+      ]
+    },
+    {
+      "category": "Chương trình tiếng anh",
+      "questions": [
+        "Casa có đặt nặng thành tích hay ép trẻ học trước không?"
+      ],
+      "answer": "Không. Casa hướng đến việc giúp trẻ yêu thích ngôn ngữ, tự tin giao tiếp và phát triển nền tảng vững chắc, đồng thời tôn trọng nhịp độ phát triển riêng của từng em bé.",
+      "keywords": [
+        "casa",
+        "đặt",
+        "nặng",
+        "thành",
+        "tích"
+      ]
+    },
+    {
+      "category": "Chương trình tiếng anh",
+      "questions": [
+        "Casa dạy tiếng Anh theo phương pháp nào?"
+      ],
+      "answer": "Casa kết hợp linh hoạt các phương pháp hiện đại như CLT, TPR, Phonics-based và PPP, giúp trẻ học qua giao tiếp, vận động, trải nghiệm và thực hành thay vì chỉ ghi nhớ thụ động.",
+      "keywords": [
+        "casa",
         "dạy",
-        "vẫn còn",
-        "giáo viên"
+        "tiếng",
+        "theo",
+        "phương"
       ]
     },
     {
-      "category": "Đội ngũ giáo viên",
+      "category": "Chương trình tiếng anh",
       "questions": [
-        "Thầy cô là giáo viên đến từ đâu ạ",
-        "Giáo viên trường có người nước ngoài không?",
-        "Thầy cô giáo trường có xuất thân từ đâu?",
-        "Đội ngũ giáo viên có đa quốc tịch không?"
+        "Casa giúp trẻ ghi nhớ từ vựng bằng cách nào?"
       ],
-      "answer": "Nhiều nước",
+      "answer": "Casa áp dụng nguyên tắc “lặp lại để thẩm thấu”. Trẻ được gặp lại từ vựng và mẫu câu qua nhiều hình thức như bài hát, truyện, trò chơi, phonics, vận động, hoạt động ngoại khóa và trình bày trước lớp.",
       "keywords": [
-        "giáo viên",
-        "đến từ",
-        "nước ngoài"
+        "casa",
+        "giúp",
+        "trẻ",
+        "ghi",
+        "nhớ"
+      ]
+    },
+    {
+      "category": "Chương trình tiếng anh",
+      "questions": [
+        "Chương trình có dạy phonics không?"
+      ],
+      "answer": "Có. Casa kết hợp Oxford Phonics với hoạt động ngôn ngữ và giáo cụ Montessori để giúp trẻ phát triển nền tảng âm – chữ một cách bài bản, phù hợp với độ tuổi.",
+      "keywords": [
+        "chương",
+        "trình",
+        "dạy",
+        "phonics"
+      ]
+    },
+    {
+      "category": "Chương trình tiếng anh",
+      "questions": [
+        "Chương trình có phù hợp theo từng độ tuổi không?"
+      ],
+      "answer": "Có. Nội dung được điều chỉnh theo từng giai đoạn phát triển: 0–3 tuổi làm quen ngôn ngữ qua âm thanh và trải nghiệm; 3–4 tuổi làm quen âm và từ vựng cơ bản; 4–5 tuổi ghép âm, đọc từ đơn giản; 5–6 tuổi tăng khả năng đọc, diễn đạt và chuẩn bị nền tảng tiền tiểu học.",
+      "keywords": [
+        "chương",
+        "trình",
+        "phù",
+        "hợp",
+        "theo"
+      ]
+    },
+    {
+      "category": "Chương trình tiếng anh",
+      "questions": [
+        "Chương trình tiếng Anh tại Casa có gì nổi bật?"
+      ],
+      "answer": "Chương trình giúp trẻ tiếp cận ngôn ngữ một cách tự nhiên, vui vẻ và phù hợp với lứa tuổi mầm non. Trẻ không chỉ học trong giờ học cố định mà còn được thực hành qua trò chuyện, hát, kể chuyện, phonics, trò chơi, hoạt động trải nghiệm và thuyết trình.",
+      "keywords": [
+        "chương",
+        "trình",
+        "tiếng",
+        "tại",
+        "casa"
+      ]
+    },
+    {
+      "category": "Chương trình tiếng anh",
+      "questions": [
+        "Con học hệ Quốc tế có bị loạn ngôn ngữ không?"
+      ],
+      "answer": "Casa vẫn duy trì các giờ học tiếng Việt và linh hoạt sử dụng Anh – Việt theo từng giai đoạn phát triển của trẻ, vì vậy mục tiêu là giúp trẻ cân bằng hai ngôn ngữ chứ không gây áp lực hay “loạn ngôn ngữ”.",
+      "keywords": [
+        "học",
+        "quốc",
+        "loạn",
+        "ngôn",
+        "ngữ"
+      ]
+    },
+    {
+      "category": "Chương trình tiếng anh",
+      "questions": [
+        "Giáo viên nước ngoài tại Casa có phù hợp với trẻ mầm non không?"
+      ],
+      "answer": "Có. Giáo viên tại Casa hiểu đặc điểm tâm lý, khả năng tập trung và nhu cầu phát triển của trẻ mầm non. Các tiết học được thiết kế sinh động, có vận động, hình ảnh trực quan, trò chơi và tương tác để trẻ hứng thú và dễ tiếp nhận.",
+      "keywords": [
+        "giáo",
+        "viên",
+        "nước",
+        "ngoài",
+        "tại"
+      ]
+    },
+    {
+      "category": "Chương trình tiếng anh",
+      "questions": [
+        "Mỗi ngày con có bao nhiêu thời lượng tiếng Anh?"
+      ],
+      "answer": "Tùy hệ và độ tuổi. Theo tài liệu tư vấn hiện có, ở hệ Song ngữ trẻ 0–3 tuổi thường có khoảng 1–1,5 giờ/ngày với giáo viên nước ngoài; trẻ 3–6 tuổi khoảng 2–2,5 giờ/ngày. Ở hệ Quốc tế, trẻ có môi trường tiếng Anh gần như xuyên suốt ngày học.",
+      "keywords": [
+        "mỗi",
+        "ngày",
+        "thời",
+        "lượng",
+        "tiếng"
+      ]
+    },
+    {
+      "category": "Chương trình tiếng anh",
+      "questions": [
+        "Ngoài giờ học chính, trẻ còn được học tiếng Anh qua hoạt động nào khác?"
+      ],
+      "answer": "Ngoài các giờ học tiếng Anh, trẻ còn được tiếp cận ngôn ngữ qua các hoạt động ngoại khóa như science, cooking, art, music và nhiều hoạt động trải nghiệm khác do giáo viên hướng dẫn theo chủ đề.",
+      "keywords": [
+        "ngoài",
+        "giờ",
+        "học",
+        "chính",
+        "trẻ"
+      ]
+    },
+    {
+      "category": "Chương trình tiếng anh",
+      "questions": [
+        "Nếu trẻ nhút nhát hoặc chậm nói thì sao?"
+      ],
+      "answer": "Casa tôn trọng nhịp độ phát triển riêng của từng trẻ. Giáo viên đồng hành, khuyến khích và tạo cơ hội để trẻ tham gia từng bước, từ nghe hiểu, bắt chước, phản hồi ngắn đến diễn đạt tự tin hơn.",
+      "keywords": [
+        "trẻ",
+        "nhút",
+        "nhát",
+        "hoặc",
+        "chậm"
+      ]
+    },
+    {
+      "category": "Chương trình tiếng anh",
+      "questions": [
+        "Phụ huynh có thể kỳ vọng con đạt được gì sau khi học?"
+      ],
+      "answer": "Tùy theo độ tuổi và thời gian học, trẻ có thể tăng hứng thú với tiếng Anh, hiểu và phản hồi các chỉ dẫn quen thuộc, ghi nhớ và sử dụng từ vựng – mẫu câu cơ bản, mạnh dạn giao tiếp hơn và hình thành nền tảng phonics phù hợp với lứa tuổi.",
+      "keywords": [
+        "phụ",
+        "huynh",
+        "thể",
+        "vọng",
+        "đạt"
+      ]
+    },
+    {
+      "category": "Chương trình tiếng anh",
+      "questions": [
+        "Sự khác nhau giữa hệ Song ngữ và hệ Quốc tế là gì?"
+      ],
+      "answer": "Hệ Song ngữ có giáo viên nước ngoài giảng dạy theo giờ trong ngày; hệ Quốc tế có giáo viên nước ngoài đồng hành trong lớp gần như xuyên suốt ngày học. Thời lượng và mức độ “đắm chìm” ngôn ngữ vì vậy sẽ khác nhau giữa hai hệ.",
+      "keywords": [
+        "khác",
+        "nhau",
+        "giữa",
+        "song",
+        "ngữ"
+      ]
+    },
+    {
+      "category": "Chương trình tiếng anh",
+      "questions": [
+        "Tiêu chuẩn đầu ra của chương trình tiếng Anh là gì?"
+      ],
+      "answer": "Casa hướng tới việc giúp trẻ có phản xạ nghe – nói tự nhiên, mạnh dạn giao tiếp, thuyết trình đơn giản, đọc từ/câu ngắn phù hợp độ tuổi và có nền tảng để chuyển tiếp sang các chương trình song ngữ, Cambridge hoặc quốc tế ở giai đoạn tiếp theo.",
+      "keywords": [
+        "tiêu",
+        "chuẩn",
+        "đầu",
+        "chương",
+        "trình"
+      ]
+    },
+    {
+      "category": "Chương trình tiếng anh",
+      "questions": [
+        "Tiếng Anh ở Casa chỉ là một môn học riêng hay là môi trường sử dụng hằng ngày?"
+      ],
+      "answer": "Tiếng Anh tại Casa không chỉ là một môn học riêng lẻ mà được lồng ghép tự nhiên vào các hoạt động học tập, trải nghiệm và sinh hoạt hằng ngày của trẻ.",
+      "keywords": [
+        "tiếng",
+        "casa",
+        "chỉ",
+        "môn",
+        "học"
+      ]
+    },
+    {
+      "category": "Chương trình tiếng anh",
+      "questions": [
+        "Trẻ chưa biết tiếng Anh có theo được chương trình không?"
+      ],
+      "answer": "Có. Chương trình phù hợp với cả những trẻ mới bắt đầu làm quen với tiếng Anh. Giáo viên sử dụng hình ảnh trực quan, ngôn ngữ đơn giản, lặp lại thường xuyên và nhiều hoạt động thực hành để giúp trẻ tiếp cận ngôn ngữ nhẹ nhàng, không áp lực.",
+      "keywords": [
+        "trẻ",
+        "chưa",
+        "biết",
+        "tiếng",
+        "theo"
+      ]
+    },
+    {
+      "category": "Chương trình tiếng anh",
+      "questions": [
+        "Trẻ có được thực hành giao tiếp thật không?"
+      ],
+      "answer": "Có. Casa chú trọng thực hành ngôn ngữ trong ngữ cảnh thực tế qua show and tell, kể chuyện, trò chuyện theo chủ đề, trả lời câu hỏi, hát, chơi trò chơi, thảo luận nhóm và trình bày trước lớp.",
+      "keywords": [
+        "trẻ",
+        "thực",
+        "hành",
+        "giao",
+        "tiếp"
+      ]
+    },
+    {
+      "category": "Chương trình tiếng anh",
+      "questions": [
+        "Trẻ học tiếng Anh trong những hoạt động nào?"
+      ],
+      "answer": "Tiếng Anh được lồng ghép trong Morning Circle Time, Montessori English Time, Group Phonics Time, Practice Language in Use, storytelling, singing, games, Casa Talk Show, science, cooking, art và các hoạt động trải nghiệm theo chủ đề.",
+      "keywords": [
+        "trẻ",
+        "học",
+        "tiếng",
+        "trong",
+        "những"
+      ]
+    },
+    {
+      "category": "Chương trình tiếng anh",
+      "questions": [
+        "Trẻ được học với giáo viên nào?"
+      ],
+      "answer": "Trẻ học cùng giáo viên nước ngoài trong các giờ học và hoạt động tiếng Anh. Đội ngũ này có phát âm chuẩn, kinh nghiệm làm việc với trẻ nhỏ và biết cách tạo môi trường học tập gần gũi, tích cực.",
+      "keywords": [
+        "trẻ",
+        "học",
+        "giáo",
+        "viên"
+      ]
+    },
+    {
+      "category": "Chương trình tiếng anh",
+      "questions": [
+        "Điểm khác biệt của chương trình tiếng Anh Casa là gì?"
+      ],
+      "answer": "Điểm khác biệt của Casa nằm ở sự kết hợp giữa giáo viên nước ngoài, học theo chủ đề, Oxford Phonics, tinh thần Montessori và môi trường thực hành ngôn ngữ xuyên suốt trong ngày.",
+      "keywords": [
+        "điểm",
+        "khác",
+        "biệt",
+        "chương",
+        "trình"
       ]
     }
   ]

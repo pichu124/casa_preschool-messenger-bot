@@ -6,5 +6,13 @@
     "message_count": 2,
     "kid_age": "2 tuổi",
     "interested_program": "quốc tế"
+  },
+  "cross_session_test": {
+    "kid_name": "Bin",
+    "kid_age": "4 tuổi",
+    "interested_program": "song ngữ",
+    "first_seen": "2026-04-11T20:34:55.926614",
+    "last_seen": "2026-04-11T20:34:55.926621",
+    "message_count": 1
   }
 }

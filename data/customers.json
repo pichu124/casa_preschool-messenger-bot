@@ -19,6 +19,11 @@
         "role": "user",
         "content": "con em ten Bin 4 tuoi, em quan tam he song ngu",
         "timestamp": "2026-04-11T20:34:57.386474"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ em chào mẹ ạ! Em là trợ lý tư vấn của trường mầm non Casa 🌸 Mẹ cho em xin thêm thông tin về bé Bin 4 tuổi ạ. Mẹ quan tâm hệ song ngữ nên em sẽ tư vấn chi tiết về chương trình, thời lượng tiếng Anh và môi trường học tập nhé ạ!",
+        "timestamp": "2026-04-11T20:34:58.865060"
       }
     ]
   }

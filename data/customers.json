@@ -54,6 +54,11 @@
         "role": "assistant",
         "content": "Dạ chào mẹ Bin ạ! 💕 Lâu rồi không gặp mẹ, bé Bin giờ đã quen trường chưa ạ? Về camera, em xin phép  nhé ạ. Mẹ muốn em hỗ trợ mẹ những gì tiếp theo ạ?",
         "timestamp": "2026-04-11T20:37:21.711799"
+      },
+      {
+        "role": "user",
+        "content": "hoc phi bao nhieu",
+        "timestamp": "2026-04-11T20:37:30.444866"
       }
     ]
   }

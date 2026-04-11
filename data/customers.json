@@ -149,6 +149,11 @@
         "role": "user",
         "content": "truong co bep an khong",
         "timestamp": "2026-04-11T20:39:03.037289"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ có ạ! Cơ sở Mỹ Đình có bếp ăn riêng, đảm bảo vệ sinh an toàn thực phẩm theo quy định ạ. Thực đơn được xây dựng cân đối dinh dưỡng, phù hợp độ tuổi và thay đổi theo mùa ạ.\n\nMẹ muốn em gửi thông tin chi tiết về thực đơn hoặc chế độ dinh dưỡng cho bé Bin không ạ?",
+        "timestamp": "2026-04-11T20:39:05.228871"
       }
     ],
     "interested_campus": "Mỹ Đình"

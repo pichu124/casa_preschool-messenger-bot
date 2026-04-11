@@ -12,8 +12,8 @@
     "kid_age": "4 tuổi",
     "interested_program": "song ngữ",
     "first_seen": "2026-04-11T20:34:55.926614",
-    "last_seen": "2026-04-08T20:36:12.044407",
-    "message_count": 1,
+    "last_seen": "2026-04-11T20:38:06.225605",
+    "message_count": 2,
     "conversation_history": [
       {
         "role": "user",
@@ -85,6 +85,7 @@
         "content": "Dạ chào mẹ Bin ạ! 💕 Lâu rồi không gặp mẹ, bé Bin giờ đã quen trường chưa ạ? Sau lần trước em chia sẻ về chương trình song ngữ, mẹ đã quyết định rồi thì em sẽ hỗ trợ mẹ những bước tiếp theo nhé ạ!\n\nMẹ muốn em sắp xếp lịch tham quan trường cho mình không ạ? Em sẽ gửi lịch và thông tin chi tiết ngay sau khi mẹ đồng ý ạ!",
         "timestamp": "2026-04-11T20:37:55.970821"
       }
-    ]
+    ],
+    "interested_campus": "Mỹ Đình"
   }
 }

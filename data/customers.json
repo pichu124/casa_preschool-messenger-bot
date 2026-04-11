@@ -39,6 +39,11 @@
         "role": "user",
         "content": "em da quyet dinh roi",
         "timestamp": "2026-04-11T20:36:45.588576"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ chào mẹ Bin ạ! 💕 Lâu rồi không gặp mẹ, bé Bin giờ thế nào rồi ạ? Sau lần trước em chia sẻ về chương trình song ngữ, mẹ đã quyết định rồi thì em sẽ hỗ trợ mẹ những bước tiếp theo nhé ạ!",
+        "timestamp": "2026-04-11T20:36:47.051080"
       }
     ]
   }

@@ -119,6 +119,11 @@
         "role": "user",
         "content": "thuc don the nao",
         "timestamp": "2026-04-11T20:38:38.490245"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ, thực đơn tại cơ sở Mỹ Đình cho bé Bin 4 tuổi được xây dựng theo nguyên tắc đa dạng – cân đối – phù hợp độ tuổi ạ. Mỗi ngày bé sẽ có 5 bữa: sáng, phụ sáng, trưa, phụ chiều và tối. Thực phẩm được lựa chọn tươi sạch, ưu tiên theo mùa, hạn chế chế biến sẵn ạ.\n\nMẹ muốn em gửi mẫu thực đơn tuần hoặc thông tin về chế độ dinh dưỡng chi tiết không ạ?",
+        "timestamp": "2026-04-11T20:38:39.965892"
       }
     ],
     "interested_campus": "Mỹ Đình"

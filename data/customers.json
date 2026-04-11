@@ -99,6 +99,11 @@
         "role": "user",
         "content": "co lop tro nho khong",
         "timestamp": "2026-04-11T20:38:17.009893"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ, ở lớp 3–6 tuổi tại cơ sở Mỹ Đình, sĩ số thường khoảng 25–27 bé với 3 cô nên mỗi cô sẽ chăm sóc khoảng 8–9 bé ạ. Nhà trường luôn đảm bảo tỷ lệ cô–trò phù hợp để bé nhận được sự quan tâm sát sao nhất ạ.\n\nMẹ muốn em hỗ trợ mẹ đăng ký tham quan hoặc học thử cho bé Bin không ạ?",
+        "timestamp": "2026-04-11T20:38:19.415292"
       }
     ],
     "interested_campus": "Mỹ Đình"

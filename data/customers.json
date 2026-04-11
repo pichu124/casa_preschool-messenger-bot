@@ -94,6 +94,11 @@
         "role": "assistant",
         "content": "Dạ chào mẹ Bin ạ! 💕 Lâu rồi không gặp mẹ, bé Bin giờ đã quen trường chưa ạ? Sau lần trước em chia sẻ về chương trình song ngữ, mẹ đã suy nghĩ thêm chưa ạ?\n\nVề địa chỉ cơ sở Mỹ Đình, em xin phép gửi ngay cho mẹ nhé ạ:\n📍 **Cơ sở Mỹ Đình**: Tầng 1,2,3 tòa nhà CT1A, KĐT Mỹ Đình 1, Nam Từ Liêm, Hà Nội\n\nMẹ muốn em hỗ trợ thêm gì nữa không ạ?",
         "timestamp": "2026-04-11T20:38:10.587728"
+      },
+      {
+        "role": "user",
+        "content": "co lop tro nho khong",
+        "timestamp": "2026-04-11T20:38:17.009893"
       }
     ],
     "interested_campus": "Mỹ Đình"

@@ -114,6 +114,11 @@
         "role": "user",
         "content": "truong co da ngoai khong",
         "timestamp": "2026-04-11T20:39:21.810776"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ, cơ sở Mỹ Đình có tổ chức các buổi dã ngoại định kỳ khoảng 2 tháng/lần ạ. Các chuyến đi thường gắn với chủ đề học tập như thiên nhiên, trang trại hoặc bảo tàng để bé trải nghiệm thực tế ạ.\n\nMẹ muốn em gửi thông tin về lịch dã ngoại sắp tới hoặc hỗ trợ đăng ký tham gia không ạ?",
+        "timestamp": "2026-04-11T20:39:24.771967"
       }
     ],
     "interested_campus": "Mỹ Đình",

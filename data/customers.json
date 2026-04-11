@@ -124,6 +124,11 @@
         "role": "user",
         "content": "co ngoai khoa khong",
         "timestamp": "2026-04-11T20:39:30.780710"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ, ngoài hoạt động dã ngoại định kỳ, trường cũng tổ chức các buổi ngoại khóa khoa học, nghệ thuật, nấu ăn... theo chủ đề ạ. Bé Bin sẽ được tham gia trải nghiệm thực hành cùng các bạn ạ.\n\nMẹ muốn em gửi thông tin chi tiết về lịch ngoại khóa sắp tới hoặc hỗ trợ đăng ký tham gia không ạ?",
+        "timestamp": "2026-04-11T20:39:32.317129"
       }
     ],
     "interested_campus": "Mỹ Đình",

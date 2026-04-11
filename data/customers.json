@@ -16,61 +16,6 @@
     "message_count": 3,
     "conversation_history": [
       {
-        "role": "user",
-        "content": "con em ten Bin 4 tuoi, em quan tam he song ngu",
-        "timestamp": "2026-04-11T20:34:57.386474"
-      },
-      {
-        "role": "assistant",
-        "content": "Dạ em chào mẹ ạ! Em là trợ lý tư vấn của trường mầm non Casa 🌸 Mẹ cho em xin thêm thông tin về bé Bin 4 tuổi ạ. Mẹ quan tâm hệ song ngữ nên em sẽ tư vấn chi tiết về chương trình, thời lượng tiếng Anh và môi trường học tập nhé ạ!",
-        "timestamp": "2026-04-11T20:34:58.865060"
-      },
-      {
-        "role": "user",
-        "content": "truong day gi vay",
-        "timestamp": "2026-04-11T20:35:20.015992"
-      },
-      {
-        "role": "assistant",
-        "content": "Dạ, ở hệ Song ngữ, bé Bin 4 tuổi sẽ học theo chương trình kết hợp giữa phương pháp Montessori và tiếng Anh nhé ạ. Bé sẽ có khoảng 2–2,5 giờ tiếng Anh mỗi ngày với giáo viên nước ngoài, xen kẽ các hoạt động Montessori như thực hành cuộc sống, toán, ngôn ngữ và văn hóa ạ. Mẹ muốn em giới thiệu chi tiết về thời khóa biểu hoặc các hoạt động cụ thể không ạ?",
-        "timestamp": "2026-04-11T20:35:21.925946"
-      },
-      {
-        "role": "user",
-        "content": "em da quyet dinh roi",
-        "timestamp": "2026-04-11T20:36:45.588576"
-      },
-      {
-        "role": "assistant",
-        "content": "Dạ chào mẹ Bin ạ! 💕 Lâu rồi không gặp mẹ, bé Bin giờ thế nào rồi ạ? Sau lần trước em chia sẻ về chương trình song ngữ, mẹ đã quyết định rồi thì em sẽ hỗ trợ mẹ những bước tiếp theo nhé ạ!",
-        "timestamp": "2026-04-11T20:36:47.051080"
-      },
-      {
-        "role": "user",
-        "content": "truong co camera khong",
-        "timestamp": "2026-04-11T20:37:20.290309"
-      },
-      {
-        "role": "assistant",
-        "content": "Dạ chào mẹ Bin ạ! 💕 Lâu rồi không gặp mẹ, bé Bin giờ đã quen trường chưa ạ? Về camera, em xin phép  nhé ạ. Mẹ muốn em hỗ trợ mẹ những gì tiếp theo ạ?",
-        "timestamp": "2026-04-11T20:37:21.711799"
-      },
-      {
-        "role": "user",
-        "content": "hoc phi bao nhieu",
-        "timestamp": "2026-04-11T20:37:30.444866"
-      },
-      {
-        "role": "assistant",
-        "content": "Dạ chào mẹ Bin ạ! 💕 Lâu rồi không gặp mẹ, bé Bin giờ đã quen trường chưa ạ? Sau lần trước em chia sẻ về học phí hệ song ngữ, mẹ đã suy nghĩ thêm chưa ạ?\n\nVề học phí hệ song ngữ cho bé 4 tuổi, theo chính sách hiện tại, học phí cơ bản sẽ được giảm 4% khi đóng 6 tháng và 7% khi đóng 12 tháng ạ. Mẹ muốn em gửi thông tin chi tiết học phí theo từng cơ sở (Chùa Láng, Mỹ Đình, Kim Mã) qua đây không ạ?",
-        "timestamp": "2026-04-11T20:37:31.909489"
-      },
-      {
-        "role": "user",
-        "content": "co bao nhieu giao vien",
-        "timestamp": "2026-04-11T20:37:41.512910"
-      },
-      {
         "role": "assistant",
         "content": "Dạ chào mẹ Bin ạ! 💕 Lâu rồi không gặp mẹ, bé Bin giờ đã quen trường chưa ạ? Sau lần trước em chia sẻ về học phí hệ song ngữ, mẹ đã suy nghĩ thêm chưa ạ?\n\nVề số lượng giáo viên, lớp 3–6 tuổi tại Casa thường có khoảng 25–27 bé với 3 cô (bao gồm 1 giáo viên nước ngoài và 2 giáo viên Việt Nam) ạ. Mẹ muốn em giới thiệu chi tiết về vai trò của từng cô trong lớp không ạ?",
         "timestamp": "2026-04-11T20:37:43.066705"
@@ -164,8 +109,19 @@
         "role": "assistant",
         "content": "Dạ, buổi sáng bé Bin sẽ được ăn bánh mì/bánh ngọt kèm sữa tươi hoặc sữa hạt tùy theo thực đơn tuần ạ. Mẹ muốn em gửi chi tiết thực đơn sáng trong tuần cho bé không ạ?",
         "timestamp": "2026-04-11T20:39:13.715564"
+      },
+      {
+        "role": "user",
+        "content": "truong co da ngoai khong",
+        "timestamp": "2026-04-11T20:39:21.810776"
       }
     ],
-    "interested_campus": "Mỹ Đình"
+    "interested_campus": "Mỹ Đình",
+    "session_summaries": [
+      {
+        "date": "2026-04-11",
+        "summary": "Phụ huynh quan tâm đến chương trình song ngữ cho bé Bin 4 tuổi. Tư vấn viên cung cấp thông tin về chương trình kết hợp Montessori và tiếng Anh, với 2–2,5 giờ tiếng Anh mỗi ngày cùng giáo viên nước ngoài. Phụ huynh đã quyết định đăng ký nhưng quan tâm đến hệ thống camera và học phí, sau đó hỏi về số lượng giáo viên."
+      }
+    ]
   }
 }

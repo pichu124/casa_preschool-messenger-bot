@@ -17,6 +17,11 @@ QUY TẮC VỀ NGÔN NGỮ (BẮT BUỘC):
 3. Dùng "dạ" đầu câu, "ạ" cuối câu, "nhé ạ" tự nhiên. Giọng điệu ấm áp, tôn trọng.
 4. Gọi trẻ là "bé" hoặc "con", không gọi "cháu", "trẻ em". Khi biết tên bé thì gọi tên.
 
+SỬ DỤNG TÓM TẮT CÁC LẦN TRÒ CHUYỆN TRƯỚC:
+- Nếu có section [TÓM TẮT CÁC LẦN TRÒ CHUYỆN TRƯỚC ĐÂY] trong prompt, hãy ĐỌC KỸ để hiểu phụ huynh đã hỏi gì, em đã tư vấn gì, phụ huynh đã quyết định/phản hồi gì.
+- Khi phụ huynh quay lại, có thể tham chiếu nội dung cũ một cách tự nhiên (VD: "Sau lần trước em đã chia sẻ về học phí, mẹ đã suy nghĩ thêm chưa ạ?", "Bé Bông giờ thế nào rồi mẹ, lần trước mẹ kể bé hơi nhút nhát ạ").
+- Đừng hỏi lại những gì đã được hỏi và trả lời rồi. Tiếp nối mạch tư vấn.
+
 PHÂN BIỆT TIN NHẮN ĐẦU TIÊN vs TIN NHẮN TIẾP THEO:
 
 📍 Khi là TIN NHẮN ĐẦU TIÊN (context marker [FIRST_MESSAGE] xuất hiện trong tin nhắn):
@@ -238,11 +243,19 @@ API_KEY_MAP: dict[str, str] = {
 }
 
 
+# Module-level reference to the active AIEngine instance.
+# Set by main.py after instantiation; used by customer_memory.py for summarization.
+ai_engine_instance: "AIEngine | None" = None
+
+
 class AIEngine:
     def __init__(self, qa_context: str):
         self.qa_context = qa_context
         self.system_prompt = SYSTEM_PROMPT.format(qa_context=qa_context)
         self._providers: dict[str, AIProvider] = {}
+        # Register self as the global instance
+        global ai_engine_instance
+        ai_engine_instance = self
 
     def _get_provider(self, name: str) -> AIProvider | None:
         if name not in self._providers:
@@ -263,22 +276,39 @@ class AIEngine:
         user_message: str,
         conversation_history: list[dict] | None = None,
         customer_context: str = "",
+        gap_hours: float = 0.0,
     ) -> AIResponse:
         """Try each model in the fallback chain until one succeeds.
 
         customer_context: optional string with known customer info to inject into prompt.
+        gap_hours: hours since last interaction with this customer (0 if first time).
         """
         history = conversation_history or []
 
-        # Detect first-time message (no prior conversation AND no prior profile)
-        is_returning_customer = bool(customer_context)
-        is_first_message = len(history) == 0 and not is_returning_customer
+        # Detect first-time message vs returning customer vs continuing conversation
+        is_returning_customer = bool(customer_context) and gap_hours >= 24
+        is_first_message = len(history) == 0 and not bool(customer_context)
         first_marker = "[FIRST_MESSAGE] " if is_first_message else ""
 
         if is_first_message:
             conversation_hint = "- Đây là TIN NHẮN ĐẦU TIÊN của phụ huynh (khách mới). Hãy chào ấm áp, giới thiệu ngắn, trả lời ngắn gọn và hỏi thêm về bé.\n"
-        elif is_returning_customer and len(history) == 0:
-            conversation_hint = "- Đây là phụ huynh CŨ quay lại sau một thời gian. Hãy chào lại ấm áp và nhắc đến thông tin bé đã biết (VD: 'Dạ chào mẹ Bông ạ! Lâu rồi không gặp mẹ, bé Bông giờ khoẻ không ạ?'). KHÔNG hỏi lại thông tin đã biết.\n"
+        elif is_returning_customer:
+            # Format gap nicely
+            if gap_hours < 48:
+                gap_text = "hôm qua"
+            elif gap_hours < 168:
+                gap_text = f"{int(gap_hours / 24)} ngày trước"
+            elif gap_hours < 720:
+                gap_text = f"khoảng {int(gap_hours / 168)} tuần trước"
+            else:
+                gap_text = f"khoảng {int(gap_hours / 720)} tháng trước"
+            conversation_hint = (
+                f"- Đây là phụ huynh CŨ quay lại sau {gap_text}. Hãy chào lại ấm áp, "
+                f"nhắc đến tên bé đã biết (VD: 'Dạ chào mẹ Bông ạ! Lâu rồi không gặp mẹ, bé Bông giờ sao rồi ạ?'). "
+                f"Tham chiếu nội dung đã trao đổi trước đó (xem [TÓM TẮT CÁC LẦN TRÒ CHUYỆN TRƯỚC ĐÂY] và lịch sử tin nhắn) "
+                f"để nối tiếp mạch tư vấn (VD: 'Sau lần trước em chia sẻ về học phí song ngữ, mẹ đã suy nghĩ thêm chưa ạ?'). "
+                f"KHÔNG hỏi lại thông tin đã biết.\n"
+            )
         else:
             conversation_hint = "- Đây là tin nhắn tiếp theo trong cuộc trò chuyện. KHÔNG chào lại 'em chào mẹ', đi thẳng vào trả lời. Tham chiếu thông tin bé đã biết nếu có.\n"
 
@@ -382,6 +412,55 @@ class AIEngine:
                 continue
 
         return {}
+
+    async def summarize_conversation(self, messages: list[dict]) -> str:
+        """Use AI to create a concise summary of a conversation chunk.
+
+        messages: list of {role, content, timestamp?} dicts.
+        Returns a Vietnamese summary string capturing key facts/decisions.
+        """
+        if not messages:
+            return ""
+
+        # Build readable transcript
+        transcript_lines = []
+        for m in messages:
+            role = "Phụ huynh" if m.get("role") == "user" else "Bot"
+            content = m.get("content", "").strip()
+            if content:
+                transcript_lines.append(f"{role}: {content}")
+        transcript = "\n".join(transcript_lines)
+
+        if not transcript:
+            return ""
+
+        summarize_prompt = (
+            "Bạn là hệ thống tóm tắt hội thoại tư vấn trường mầm non. "
+            "Tóm tắt đoạn hội thoại dưới đây thành 2-4 câu tiếng Việt, "
+            "tập trung vào: (1) câu hỏi/mối quan tâm chính của phụ huynh, "
+            "(2) thông tin đã được tư vấn, (3) quyết định/phản hồi của phụ huynh nếu có. "
+            "Viết theo ngôi thứ ba, ngắn gọn, không xưng 'em' hay 'mẹ'. "
+            "CHỈ trả về văn bản tóm tắt, KHÔNG thêm gì khác."
+        )
+        user_msg = f"Đoạn hội thoại:\n{transcript}\n\nTóm tắt:"
+
+        for model_name in settings.AI_MODEL_ORDER:
+            model_name = model_name.strip()
+            provider = self._get_provider(model_name)
+            if not provider:
+                continue
+            try:
+                summary = await provider.generate(summarize_prompt, user_msg, [])
+                summary = summary.strip()
+                # Strip code blocks if any
+                if summary.startswith("```"):
+                    summary = summary.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+                return summary
+            except Exception as e:
+                logger.warning(f"Summarize with {model_name} failed: {e}")
+                continue
+
+        return ""
 
     async def format_admin_reply(self, admin_answer: str, original_question: str) -> str:
         """Use AI to format an admin's raw reply into a polite customer response."""

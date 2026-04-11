@@ -159,6 +159,11 @@
         "role": "user",
         "content": "an gi vao buoi sang",
         "timestamp": "2026-04-11T20:39:11.717212"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ, buổi sáng bé Bin sẽ được ăn bánh mì/bánh ngọt kèm sữa tươi hoặc sữa hạt tùy theo thực đơn tuần ạ. Mẹ muốn em gửi chi tiết thực đơn sáng trong tuần cho bé không ạ?",
+        "timestamp": "2026-04-11T20:39:13.715564"
       }
     ],
     "interested_campus": "Mỹ Đình"

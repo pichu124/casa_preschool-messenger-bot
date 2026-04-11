@@ -134,6 +134,11 @@
         "role": "assistant",
         "content": "Dạ có ạ! Nhà trường có chương trình học thử 1 tuần cho bé Bin ạ. Đây là cơ hội để bé làm quen môi trường và phụ huynh quan sát mức độ phù hợp ạ.\n\nMẹ muốn em sắp xếp lịch học thử cho bé Bin không ạ?",
         "timestamp": "2026-04-11T20:38:48.268754"
+      },
+      {
+        "role": "user",
+        "content": "lop hoc bao nhieu be",
+        "timestamp": "2026-04-11T20:38:54.194851"
       }
     ],
     "interested_campus": "Mỹ Đình"

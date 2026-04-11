@@ -144,6 +144,11 @@
         "role": "assistant",
         "content": "Dạ lớp học tại cơ sở Mỹ Đình thường có khoảng 25–27 bé 4 tuổi ạ. Mỗi lớp có 3 cô (1 giáo viên nước ngoài + 2 giáo viên Việt Nam) để đảm bảo bé nhận được sự quan tâm sát sao ạ.\n\nMẹ muốn em hỗ trợ đăng ký tham quan hoặc học thử cho bé Bin không ạ?",
         "timestamp": "2026-04-11T20:38:56.291320"
+      },
+      {
+        "role": "user",
+        "content": "truong co bep an khong",
+        "timestamp": "2026-04-11T20:39:03.037289"
       }
     ],
     "interested_campus": "Mỹ Đình"

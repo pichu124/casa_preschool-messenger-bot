@@ -114,6 +114,11 @@
         "role": "assistant",
         "content": "Dạ, ở hệ Song ngữ tại cơ sở Mỹ Đình, bé Bin 4 tuổi sẽ có 2 buổi thể dục mỗi tuần ạ. Các buổi tập kết hợp vận động nhẹ nhàng, yoga thiếu nhi, vận động theo nhạc và các trò chơi vận động để phát triển thể chất toàn diện ạ.\n\nMẹ muốn em gửi thông tin chi tiết về lịch thể dục hoặc các hoạt động thể chất khác không ạ?",
         "timestamp": "2026-04-11T20:38:27.833439"
+      },
+      {
+        "role": "user",
+        "content": "thuc don the nao",
+        "timestamp": "2026-04-11T20:38:38.490245"
       }
     ],
     "interested_campus": "Mỹ Đình"

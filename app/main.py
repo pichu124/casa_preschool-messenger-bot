@@ -25,16 +25,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-APP_VERSION = "1.5.0"
+APP_VERSION = "1.6.0"
 app = FastAPI(title="Preschool Messenger Bot", version=APP_VERSION)
 
 # Initialize Q&A database and AI engine
 qa_db = QADatabase(settings.QA_DATABASE_PATH)
 ai_engine = AIEngine(qa_context=qa_db.build_context())
 
-# Simple in-memory conversation history (user_id -> list of messages)
+# Conversation history is now persisted in customer_memory profiles (cross-session)
+# Kept as fallback for /test-chat and stale references
 conversation_history: dict[str, list[dict]] = defaultdict(list)
-MAX_HISTORY = 10  # Keep last N messages per user
+MAX_HISTORY = 10  # Used only by /test-chat fallback
 
 # Dedup: track processed message IDs to prevent duplicates
 _processed_fb_mids: set[str] = set()
@@ -340,24 +341,24 @@ async def process_message(sender_id: str, text: str):
         user_name = profile.get("first_name", "ban")
         full_name = f"{profile.get('first_name', '')} {profile.get('last_name', '')}".strip()
 
-        # Get conversation history for this user
-        history = conversation_history[sender_id]
-
-        # Load customer profile (persisted across sessions)
+        # Load customer profile (persisted across sessions) + cross-session history
         existing_profile = customer_memory.get_profile(sender_id)
         customer_context = customer_memory.format_profile_for_prompt(existing_profile)
+        history = customer_memory.get_conversation_history(sender_id)
+        gap_hours = customer_memory.get_last_seen_gap_hours(sender_id)
 
-        # Get AI response with customer context
+        # Get AI response with customer context + persisted history + gap awareness
         response = await ai_engine.get_response(
             user_message=text,
             conversation_history=history,
             customer_context=customer_context,
+            gap_hours=gap_hours,
         )
 
         logger.info(
             f"User {sender_id} ({user_name}): {text[:100]} "
             f"-> Model: {response.model_used}, Escalate: {response.should_escalate}, "
-            f"HasProfile: {bool(existing_profile)}"
+            f"HasProfile: {bool(existing_profile)}, GapHours: {gap_hours:.1f}, HistoryLen: {len(history)}"
         )
 
         category = ""
@@ -408,14 +409,13 @@ async def process_message(sender_id: str, text: str):
         except Exception as extract_err:
             logger.warning(f"Customer info extraction failed: {extract_err}")
 
-        # Update conversation history
-        history.append({"role": "user", "content": text})
-        if response.text:
-            history.append({"role": "assistant", "content": response.text})
-
-        # Trim history
-        if len(history) > MAX_HISTORY * 2:
-            conversation_history[sender_id] = history[-MAX_HISTORY * 2:]
+        # Persist conversation history to customer profile (cross-session memory)
+        try:
+            await customer_memory.append_to_history(sender_id, "user", text)
+            if response.text:
+                await customer_memory.append_to_history(sender_id, "assistant", response.text)
+        except Exception as hist_err:
+            logger.warning(f"Failed to persist conversation history: {hist_err}")
 
     except Exception as e:
         logger.error(f"Error processing message from {sender_id}: {e}", exc_info=True)
@@ -479,39 +479,41 @@ class TestMessage(BaseModel):
 @app.post("/test-chat")
 async def test_chat(body: TestMessage):
     """Test AI response without Facebook (for development/debugging)."""
-    history = conversation_history[body.user_id]
-
-    # Load customer profile for test
+    # Load profile + persisted history (same as process_message)
     existing_profile = customer_memory.get_profile(body.user_id)
     customer_context = customer_memory.format_profile_for_prompt(existing_profile)
+    history = customer_memory.get_conversation_history(body.user_id)
+    gap_hours = customer_memory.get_last_seen_gap_hours(body.user_id)
 
     response = await ai_engine.get_response(
         user_message=body.message,
         conversation_history=history,
         customer_context=customer_context,
+        gap_hours=gap_hours,
     )
 
-    history.append({"role": "user", "content": body.message})
-    if response.text:
-        history.append({"role": "assistant", "content": response.text})
-    if len(history) > MAX_HISTORY * 2:
-        conversation_history[body.user_id] = history[-MAX_HISTORY * 2:]
-
-    # Extract and save profile (same as process_message)
+    # Extract and save profile
     try:
-        logger.info(f"[test-chat] Calling extract_customer_info for {body.user_id}")
         extracted = await ai_engine.extract_customer_info(body.message, existing_profile)
-        logger.info(f"[test-chat] Extracted: {extracted}")
         if extracted or not existing_profile:
-            updated = await customer_memory.update_profile(body.user_id, extracted)
-            logger.info(f"[test-chat] Profile after update: {updated}")
+            await customer_memory.update_profile(body.user_id, extracted)
     except Exception as e:
-        logger.warning(f"Extract failed in test-chat: {e}", exc_info=True)
+        logger.warning(f"Extract failed in test-chat: {e}")
+
+    # Persist conversation history
+    try:
+        await customer_memory.append_to_history(body.user_id, "user", body.message)
+        if response.text:
+            await customer_memory.append_to_history(body.user_id, "assistant", response.text)
+    except Exception as e:
+        logger.warning(f"Failed to persist history in test-chat: {e}")
 
     return {
         "response": response.text,
         "model_used": response.model_used,
         "should_escalate": response.should_escalate,
+        "gap_hours": round(gap_hours, 2),
+        "history_length": len(history),
         "profile": customer_memory.get_profile(body.user_id),
     }
 

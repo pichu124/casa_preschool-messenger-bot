@@ -69,6 +69,11 @@
         "role": "user",
         "content": "co bao nhieu giao vien",
         "timestamp": "2026-04-11T20:37:41.512910"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ chào mẹ Bin ạ! 💕 Lâu rồi không gặp mẹ, bé Bin giờ đã quen trường chưa ạ? Sau lần trước em chia sẻ về học phí hệ song ngữ, mẹ đã suy nghĩ thêm chưa ạ?\n\nVề số lượng giáo viên, lớp 3–6 tuổi tại Casa thường có khoảng 25–27 bé với 3 cô (bao gồm 1 giáo viên nước ngoài và 2 giáo viên Việt Nam) ạ. Mẹ muốn em giới thiệu chi tiết về vai trò của từng cô trong lớp không ạ?",
+        "timestamp": "2026-04-11T20:37:43.066705"
       }
     ]
   }

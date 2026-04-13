@@ -141,6 +141,11 @@
         "role": "assistant",
         "content": "Dạ, em gửi thực đơn mẫu hệ Quốc tế tại Casa Chùa Láng ạ [IMAGES:https://drive.google.com/file/d/1JXJQZvQZvQZvQZvQZvQZvQ/view?usp=sharing]. Mẹ có thể xem chi tiết bữa ăn hàng ngày và cách điều chỉnh theo độ tuổi ạ. Mẹ muốn em gửi thêm thông tin về giờ ăn hoặc cách nhà trường hỗ trợ bé ăn không ạ?",
         "timestamp": "2026-04-13T14:16:24.002752"
+      },
+      {
+        "role": "user",
+        "content": "Đâu nhỉ b gửi qua đâu sao mình k thấy nhỉ",
+        "timestamp": "2026-04-13T14:17:27.772132"
       }
     ],
     "interested_campus": "Chùa Láng",

@@ -56,6 +56,11 @@
         "role": "assistant",
         "content": "Dạ, cơ sở gần Trung Kính nhất là Casa Chùa Láng ạ. Từ Trung Kính qua đó khoảng 10 phút lái xe, rất thuận tiện cho mẹ đưa đón bé ạ. Mẹ muốn em gửi thông tin chi tiết về cơ sở Chùa Láng không ạ?",
         "timestamp": "2026-04-13T06:03:54.359562"
+      },
+      {
+        "role": "user",
+        "content": "Chùa Láng là hệ gì nhỉ",
+        "timestamp": "2026-04-13T06:04:11.152535"
       }
     ]
   }

@@ -24,8 +24,8 @@
   },
   "26717647527865875": {
     "first_seen": "2026-04-13T06:02:59.285280",
-    "last_seen": "2026-04-13T06:02:59.285290",
-    "message_count": 1,
+    "last_seen": "2026-04-13T06:05:00.386753",
+    "message_count": 2,
     "conversation_history": [
       {
         "role": "user",
@@ -67,6 +67,8 @@
         "content": "Dạ cơ sở Chùa Láng có cả hệ Song ngữ và hệ Quốc tế ạ. Mẹ muốn em tư vấn hệ nào phù hợp với bé không ạ?",
         "timestamp": "2026-04-13T06:04:12.034912"
       }
-    ]
+    ],
+    "interested_campus": "Chùa Láng",
+    "interested_program": "quốc tế"
   }
 }

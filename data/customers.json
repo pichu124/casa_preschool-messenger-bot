@@ -81,6 +81,11 @@
         "role": "user",
         "content": "hệ quốc tế vs song ngữ có gì khác nhau nhỉ",
         "timestamp": "2026-04-13T06:05:42.931526"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ, hệ Quốc tế tại Casa Chùa Láng có giáo viên nước ngoài đồng hành trong lớp gần như xuyên suốt ngày học (8h30-17h), bé sẽ được \"đắm chìm\" trong môi trường tiếng Anh tự nhiên ạ. Còn hệ Song ngữ chỉ có giáo viên nước ngoài dạy theo giờ nhất định trong ngày thôi ạ. Mẹ muốn em gửi thông tin chi tiết về học phí hệ Quốc tế không ạ?",
+        "timestamp": "2026-04-13T06:05:43.877879"
       }
     ],
     "interested_campus": "Chùa Láng",

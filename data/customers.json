@@ -28,61 +28,6 @@
     "message_count": 5,
     "conversation_history": [
       {
-        "role": "user",
-        "content": "h",
-        "timestamp": "2026-04-13T06:03:00.174388"
-      },
-      {
-        "role": "assistant",
-        "content": "Dạ em chào mẹ ạ! Em là trợ lý tư vấn của trường mầm non Casa 🌸 Mẹ vừa gửi tin nhắn \"h\" vậy ạ, em có thể giúp gì cho mẹ không ạ?",
-        "timestamp": "2026-04-13T06:03:01.038539"
-      },
-      {
-        "role": "user",
-        "content": "trường mình có mấy cơ sở bạn nhỉ",
-        "timestamp": "2026-04-13T06:03:25.395427"
-      },
-      {
-        "role": "assistant",
-        "content": "Dạ hiện tại Casa có 3 cơ sở tại Hà Nội ạ: Chùa Láng, Mỹ Đình và Kim Mã. Mẹ muốn em giới thiệu thêm về cơ sở nào không ạ?",
-        "timestamp": "2026-04-13T06:03:26.344968"
-      },
-      {
-        "role": "user",
-        "content": "mình ở trung kính thì học đâu gần nhà mình  nhất nhỉ",
-        "timestamp": "2026-04-13T06:03:53.378006"
-      },
-      {
-        "role": "assistant",
-        "content": "Dạ, cơ sở gần Trung Kính nhất là Casa Chùa Láng ạ. Từ Trung Kính qua đó khoảng 10 phút lái xe, rất thuận tiện cho mẹ đưa đón bé ạ. Mẹ muốn em gửi thông tin chi tiết về cơ sở Chùa Láng không ạ?",
-        "timestamp": "2026-04-13T06:03:54.359562"
-      },
-      {
-        "role": "user",
-        "content": "Chùa Láng là hệ gì nhỉ",
-        "timestamp": "2026-04-13T06:04:11.152535"
-      },
-      {
-        "role": "assistant",
-        "content": "Dạ cơ sở Chùa Láng có cả hệ Song ngữ và hệ Quốc tế ạ. Mẹ muốn em tư vấn hệ nào phù hợp với bé không ạ?",
-        "timestamp": "2026-04-13T06:04:12.034912"
-      },
-      {
-        "role": "user",
-        "content": "ơ mình tưởng Chùa Láng hệ quốc tế chứ",
-        "timestamp": "2026-04-13T06:05:01.388098"
-      },
-      {
-        "role": "assistant",
-        "content": "Dạ vâng ạ, em xin lỗi mẹ vì thông tin chưa rõ ràng ạ! Thực tế, cơ sở Chùa Láng có **cả hai hệ Song ngữ và Quốc tế** ạ. Mẹ muốn em tư vấn hệ nào phù hợp với bé không ạ?",
-        "timestamp": "2026-04-13T06:05:02.362571"
-      },
-      {
-        "role": "user",
-        "content": "hệ quốc tế vs song ngữ có gì khác nhau nhỉ",
-        "timestamp": "2026-04-13T06:05:42.931526"
-      },
-      {
         "role": "assistant",
         "content": "Dạ, hệ Quốc tế tại Casa Chùa Láng có giáo viên nước ngoài đồng hành trong lớp gần như xuyên suốt ngày học (8h30-17h), bé sẽ được \"đắm chìm\" trong môi trường tiếng Anh tự nhiên ạ. Còn hệ Song ngữ chỉ có giáo viên nước ngoài dạy theo giờ nhất định trong ngày thôi ạ. Mẹ muốn em gửi thông tin chi tiết về học phí hệ Quốc tế không ạ?",
         "timestamp": "2026-04-13T06:05:43.877879"
@@ -176,6 +121,11 @@
         "role": "user",
         "content": "các bé chưa ăn cơmthì trường có bữa cháo cho bé k",
         "timestamp": "2026-04-13T08:21:11.625246"
+      },
+      {
+        "role": "user",
+        "content": "B cho mình xem thực đơn mẫu nhé",
+        "timestamp": "2026-04-13T11:00:52.618485"
       }
     ],
     "interested_campus": "Chùa Láng",
@@ -184,6 +134,12 @@
       "học phí",
       "ăn uống",
       "xem camera 24/7"
+    ],
+    "session_summaries": [
+      {
+        "date": "2026-04-13",
+        "summary": "Phụ huynh quan tâm đến cơ sở mầm non Casa gần nhà nhất tại Trung Kính. Được tư vấn rằng cơ sở Chùa Láng là gần nhất, cách khoảng 10 phút lái xe, và đây là nơi có cả hệ Song ngữ lẫn hệ Quốc tế. Phụ huynh bày tỏ sự nhầm lẫn về hệ đào tạo tại Chùa Láng và muốn biết sự khác biệt giữa hai hệ này."
+      }
     ]
   }
 }

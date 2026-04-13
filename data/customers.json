@@ -91,6 +91,11 @@
         "role": "user",
         "content": "học phí hệ quốc tế là bao nhiêu",
         "timestamp": "2026-04-13T06:06:21.694658"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ, học phí hệ Quốc tế tại Casa Chùa Láng phụ thuộc vào độ tuổi bé ạ. Ví dụ bé 3 tuổi học phí khoảng 28 triệu/tháng, bé 5 tuổi khoảng 32 triệu/tháng ạ. Mẹ muốn em gửi thông tin học phí chi tiết theo độ tuổi của bé không ạ?",
+        "timestamp": "2026-04-13T06:06:22.702476"
       }
     ],
     "interested_campus": "Chùa Láng",

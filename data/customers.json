@@ -46,6 +46,11 @@
         "role": "assistant",
         "content": "Dạ hiện tại Casa có 3 cơ sở tại Hà Nội ạ: Chùa Láng, Mỹ Đình và Kim Mã. Mẹ muốn em giới thiệu thêm về cơ sở nào không ạ?",
         "timestamp": "2026-04-13T06:03:26.344968"
+      },
+      {
+        "role": "user",
+        "content": "mình ở trung kính thì học đâu gần nhà mình  nhất nhỉ",
+        "timestamp": "2026-04-13T06:03:53.378006"
       }
     ]
   }

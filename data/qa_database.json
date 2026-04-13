@@ -1259,6 +1259,21 @@
         "chương",
         "trình"
       ]
+    },
+    {
+      "category": "Đội ngũ giáo viên",
+      "questions": [
+        "cô Linh còn dạy ở trường không",
+        "Cô Linh hiện đang dạy ở trường không?",
+        "Cô Linh có còn giảng dạy tại cơ sở Hồng Kông không?",
+        "Thông tin về giáo viên cô Linh hiện nay?"
+      ],
+      "answer": "Có cô dạy ở cơ sở hồng kông",
+      "keywords": [
+        "cô Linh",
+        "dạy ở trường",
+        "cơ sở Hồng Kông"
+      ]
     }
   ]
 }

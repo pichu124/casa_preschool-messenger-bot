@@ -25,6 +25,13 @@
   "26717647527865875": {
     "first_seen": "2026-04-13T06:02:59.285280",
     "last_seen": "2026-04-13T06:02:59.285290",
-    "message_count": 1
+    "message_count": 1,
+    "conversation_history": [
+      {
+        "role": "user",
+        "content": "h",
+        "timestamp": "2026-04-13T06:03:00.174388"
+      }
+    ]
   }
 }

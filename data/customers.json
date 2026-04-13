@@ -61,6 +61,11 @@
         "role": "user",
         "content": "Chùa Láng là hệ gì nhỉ",
         "timestamp": "2026-04-13T06:04:11.152535"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ cơ sở Chùa Láng có cả hệ Song ngữ và hệ Quốc tế ạ. Mẹ muốn em tư vấn hệ nào phù hợp với bé không ạ?",
+        "timestamp": "2026-04-13T06:04:12.034912"
       }
     ]
   }

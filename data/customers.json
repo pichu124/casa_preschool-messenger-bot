@@ -9,6 +9,11 @@
         "role": "user",
         "content": "Cô quế anh trường casa có xinh không",
         "timestamp": "2026-04-13T05:54:52.800098"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ em chào mẹ ạ! Em là trợ lý tư vấn của trường mầm non Casa 🌸 Về cô Quế Anh, em không thể nhận xét về vẻ ngoài của giáo viên được ạ. Mẹ có thể đến tham quan để gặp trực tiếp các cô nhé ạ! Mẹ cho em biết con nhà mình mấy tuổi để em tư vấn chương trình phù hợp không ạ?",
+        "timestamp": "2026-04-13T05:54:53.745912"
       }
     ]
   }

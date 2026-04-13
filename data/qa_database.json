@@ -1261,33 +1261,19 @@
       ]
     },
     {
-      "category": "Đội ngũ giáo viên",
+      "category": "Chính sách trường",
       "questions": [
-        "cô Linh còn dạy ở trường không",
-        "Cô Linh hiện đang dạy ở trường không?",
-        "Cô Linh có còn giảng dạy tại cơ sở Hồng Kông không?",
-        "Thông tin về giáo viên cô Linh hiện nay?"
+        "Bên hệ quốc tế có được xem camera 24/7 k",
+        "Nhà trường có chính sách xem camera như thế nào?",
+        "Phụ huynh có thể xem camera trường vào thời gian nào?",
+        "Làm thế nào để phụ huynh có thể xem camera của trường?"
       ],
-      "answer": "Có cô dạy ở cơ sở hồng kông",
+      "answer": "Để đảm bảo quyền riêng tư của các trẻ khác nên Nhà trường k chia sẻ camera tới điện thoại cá nhân của PH ạ. Tuy nhiên mẹ có thể tới văn phòng nhà trường và xem camera bất kỳ lúc nào trong giờ hành chính ạ",
       "keywords": [
-        "cô Linh",
-        "dạy ở trường",
-        "cơ sở Hồng Kông"
-      ]
-    },
-    {
-      "category": "Đội ngũ giáo viên",
-      "questions": [
-        "cô Linh còn dạy ở trường không",
-        "Cô Linh hiện đang dạy lớp nào?",
-        "Lớp London có cô giáo nào dạy không?",
-        "Đội ngũ giáo viên của trường có thay đổi không?"
-      ],
-      "answer": "Cô Linh lớp london phải ko ạ. Dạ cô vẫn đang đồng hành cùng nhà trường ạ",
-      "keywords": [
-        "cô Linh",
-        "đội ngũ giáo viên",
-        "lớp London"
+        "camera",
+        "quyền riêng tư",
+        "phụ huynh",
+        "xem camera"
       ]
     }
   ]

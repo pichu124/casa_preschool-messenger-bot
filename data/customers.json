@@ -136,6 +136,16 @@
         "role": "user",
         "content": "hay bên bạn có hotline k?",
         "timestamp": "2026-04-13T08:02:48.204678"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ vâng ạ! Mẹ có thể đặt lịch tham quan trực tiếp trên app LittleLives luôn ạ, không cần tải thêm phiên bản mới đâu ạ. Em sẽ hỗ trợ mẹ nếu có bất kỳ khó khăn nào khi sử dụng app ạ. Mẹ muốn em hướng dẫn từng bước cách đặt lịch không ạ?",
+        "timestamp": "2026-04-13T08:02:48.977276"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ, hotline của Casa Chùa Láng là 024 3766 5555 ạ. Mẹ có thể gọi trực tiếp để được tư vấn chi tiết học phí hệ Quốc tế hoặc đặt lịch tham quan ạ. Mẹ muốn em gửi luôn số hotline này qua tin nhắn không ạ?",
+        "timestamp": "2026-04-13T08:02:49.180304"
       }
     ],
     "interested_campus": "Chùa Láng",

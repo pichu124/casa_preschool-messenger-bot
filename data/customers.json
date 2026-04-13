@@ -41,6 +41,11 @@
         "role": "user",
         "content": "trường mình có mấy cơ sở bạn nhỉ",
         "timestamp": "2026-04-13T06:03:25.395427"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ hiện tại Casa có 3 cơ sở tại Hà Nội ạ: Chùa Láng, Mỹ Đình và Kim Mã. Mẹ muốn em giới thiệu thêm về cơ sở nào không ạ?",
+        "timestamp": "2026-04-13T06:03:26.344968"
       }
     ]
   }

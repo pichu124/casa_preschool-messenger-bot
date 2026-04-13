@@ -1275,6 +1275,24 @@
         "phụ huynh",
         "xem camera"
       ]
+    },
+    {
+      "category": "Ăn uống",
+      "questions": [
+        "các bé chưa ăn cơmthì trường có bữa cháo cho bé k",
+        "Trường có cung cấp cháo cho bé không nếu bé chưa ăn được cơm?",
+        "Nếu bé chưa quen ăn thô thì trường có hỗ trợ gì không?",
+        "Thực đơn của trường có món ăn nào dành cho bé chưa ăn được cơm không?",
+        "Trường có nấu cháo cho bé không?"
+      ],
+      "answer": "Dạ với những bé chưa ăn thô thì trường sẽ chuẩn bị thêm cháo cho bé ạ. Đồngg thời cũng sẽ tập dần cho bé ăn thô làm quen dần theo thực đơn của Nhà trường. Đồng thời các món ăn của trường đều được thái nhỏ và ninh mềm nên Mẹ yên tâm ạ",
+      "keywords": [
+        "bữa cháo",
+        "bé chưa ăn cơm",
+        "ăn thô",
+        "thực đơn",
+        "món ăn thái nhỏ"
+      ]
     }
   ]
 }

@@ -24,8 +24,8 @@
   },
   "26717647527865875": {
     "first_seen": "2026-04-13T06:02:59.285280",
-    "last_seen": "2026-04-13T06:06:20.766585",
-    "message_count": 3,
+    "last_seen": "2026-04-13T08:21:10.451934",
+    "message_count": 4,
     "conversation_history": [
       {
         "role": "user",
@@ -176,7 +176,8 @@
     "interested_campus": "Chùa Láng",
     "interested_program": "quốc tế",
     "concerns": [
-      "học phí"
+      "học phí",
+      "ăn uống"
     ]
   }
 }

@@ -31,6 +31,11 @@
         "role": "user",
         "content": "h",
         "timestamp": "2026-04-13T06:03:00.174388"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ em chào mẹ ạ! Em là trợ lý tư vấn của trường mầm non Casa 🌸 Mẹ vừa gửi tin nhắn \"h\" vậy ạ, em có thể giúp gì cho mẹ không ạ?",
+        "timestamp": "2026-04-13T06:03:01.038539"
       }
     ]
   }

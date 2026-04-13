@@ -1274,6 +1274,21 @@
         "dạy ở trường",
         "cơ sở Hồng Kông"
       ]
+    },
+    {
+      "category": "Đội ngũ giáo viên",
+      "questions": [
+        "cô Linh còn dạy ở trường không",
+        "Cô Linh hiện đang dạy lớp nào?",
+        "Lớp London có cô giáo nào dạy không?",
+        "Đội ngũ giáo viên của trường có thay đổi không?"
+      ],
+      "answer": "Cô Linh lớp london phải ko ạ. Dạ cô vẫn đang đồng hành cùng nhà trường ạ",
+      "keywords": [
+        "cô Linh",
+        "đội ngũ giáo viên",
+        "lớp London"
+      ]
     }
   ]
 }

@@ -161,6 +161,11 @@
         "role": "user",
         "content": "bạn gửi đi",
         "timestamp": "2026-04-13T08:15:56.318253"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ, em gửi thông tin học phí hệ Quốc tế tại Casa Chùa Láng ạ:\n\n- **Bé 1.5-3 tuổi**: 25 triệu/tháng\n- **Bé 3-5 tuổi**: 28 triệu/tháng\n- **Bé 5-6 tuổi**: 32 triệu/tháng\n\nHọc phí đã bao gồm học phí, phí giáo dục, phí hoạt động trải nghiệm và phí tài liệu học tập ạ. Mẹ muốn em gửi thêm thông tin về phí xe buýt hoặc phí ăn không ạ?",
+        "timestamp": "2026-04-13T08:15:58.131926"
       }
     ],
     "interested_campus": "Chùa Láng",

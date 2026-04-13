@@ -156,6 +156,11 @@
         "role": "assistant",
         "content": "Dạ vâng ạ! Em đã ghi nhận lịch tham quan của mẹ vào 4h chiều nay tại Casa Chùa Láng ạ. Mẹ vui lòng mang theo giấy tờ tùy thân khi đến trường nhé ạ. Em có thể gửi thông tin học phí hệ Quốc tế chi tiết qua đây không ạ?",
         "timestamp": "2026-04-13T08:09:47.201521"
+      },
+      {
+        "role": "user",
+        "content": "bạn gửi đi",
+        "timestamp": "2026-04-13T08:15:56.318253"
       }
     ],
     "interested_campus": "Chùa Láng",

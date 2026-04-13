@@ -76,6 +76,11 @@
         "role": "assistant",
         "content": "Dạ vâng ạ, em xin lỗi mẹ vì thông tin chưa rõ ràng ạ! Thực tế, cơ sở Chùa Láng có **cả hai hệ Song ngữ và Quốc tế** ạ. Mẹ muốn em tư vấn hệ nào phù hợp với bé không ạ?",
         "timestamp": "2026-04-13T06:05:02.362571"
+      },
+      {
+        "role": "user",
+        "content": "hệ quốc tế vs song ngữ có gì khác nhau nhỉ",
+        "timestamp": "2026-04-13T06:05:42.931526"
       }
     ],
     "interested_campus": "Chùa Láng",

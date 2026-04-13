@@ -106,6 +106,11 @@
         "role": "assistant",
         "content": "Dạ học phí hệ Quốc tế đã bao gồm tất cả các khoản phí cơ bản như học phí, phí giáo dục, phí hoạt động trải nghiệm, phí tài liệu học tập ạ. Tuy nhiên, phí xe buýt, phí ăn, phí đồng phục và phí phát triển trường sẽ được tính riêng ạ. Mẹ muốn em gửi chi tiết từng khoản phí không ạ?",
         "timestamp": "2026-04-13T06:06:51.966696"
+      },
+      {
+        "role": "user",
+        "content": "mình muốn đặt lịch tham quan trường thì làm thế nào nhỉ",
+        "timestamp": "2026-04-13T06:11:24.019353"
       }
     ],
     "interested_campus": "Chùa Láng",

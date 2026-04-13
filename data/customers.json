@@ -111,6 +111,11 @@
         "role": "user",
         "content": "mình muốn đặt lịch tham quan trường thì làm thế nào nhỉ",
         "timestamp": "2026-04-13T06:11:24.019353"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ mẹ có thể đặt lịch tham quan trường Casa Chùa Láng qua app LittleLives hoặc gọi điện trực tiếp đến hotline 024 3766 5555 ạ. Em sẽ sắp xếp lịch thuận tiện nhất cho mẹ ạ. Mẹ muốn chọn khung giờ nào trong tuần ạ?",
+        "timestamp": "2026-04-13T06:11:25.189793"
       }
     ],
     "interested_campus": "Chùa Láng",

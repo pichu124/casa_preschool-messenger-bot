@@ -126,6 +126,16 @@
         "role": "assistant",
         "content": "Dạ vâng ạ, em xin lỗi mẹ vì sự bất tiện này ạ! Trên app LittleLives, mẹ có thể đặt lịch tham quan trực tiếp trên ứng dụng mà không cần tải về phiên bản mới ạ. Mẹ thử đăng nhập lại app xem nhé ạ. Em có thể hỗ trợ mẹ nếu gặp khó khăn khi sử dụng app không ạ?",
         "timestamp": "2026-04-13T07:46:05.516321"
+      },
+      {
+        "role": "user",
+        "content": "mình đặt lịch qua đây được k cho nó tiện",
+        "timestamp": "2026-04-13T08:02:48.003157"
+      },
+      {
+        "role": "user",
+        "content": "hay bên bạn có hotline k?",
+        "timestamp": "2026-04-13T08:02:48.204678"
       }
     ],
     "interested_campus": "Chùa Láng",

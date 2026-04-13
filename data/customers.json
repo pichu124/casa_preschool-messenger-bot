@@ -126,6 +126,11 @@
         "role": "user",
         "content": "B cho mình xem thực đơn mẫu nhé",
         "timestamp": "2026-04-13T11:00:52.618485"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ, hệ Quốc tế tại Casa **không cung cấp camera 24/7** ạ. Phụ huynh có thể xem camera trực tiếp tại văn phòng trường, còn các cô thường xuyên cập nhật tình hình bé qua ứng dụng LittleLives ạ.\n\nVới bé chưa ăn cơm tốt, nhà trường có hỗ trợ bữa cháo trong giai đoạn đầu ạ. Sau đó sẽ tập dần cho bé ăn thô theo độ tuổi ạ.\n\nMẹ muốn em gửi thực đơn mẫu hệ Quốc tế qua đây không ạ?",
+        "timestamp": "2026-04-13T11:00:55.077297"
       }
     ],
     "interested_campus": "Chùa Láng",

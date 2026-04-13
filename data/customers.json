@@ -151,6 +151,11 @@
         "role": "user",
         "content": "mình muốn 4h chiều nay qua trường đặt lịch giúp mình nhé",
         "timestamp": "2026-04-13T08:09:46.120825"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ vâng ạ! Em đã ghi nhận lịch tham quan của mẹ vào 4h chiều nay tại Casa Chùa Láng ạ. Mẹ vui lòng mang theo giấy tờ tùy thân khi đến trường nhé ạ. Em có thể gửi thông tin học phí hệ Quốc tế chi tiết qua đây không ạ?",
+        "timestamp": "2026-04-13T08:09:47.201521"
       }
     ],
     "interested_campus": "Chùa Láng",

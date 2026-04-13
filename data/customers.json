@@ -146,6 +146,11 @@
         "role": "assistant",
         "content": "Dạ, hotline của Casa Chùa Láng là 024 3766 5555 ạ. Mẹ có thể gọi trực tiếp để được tư vấn chi tiết học phí hệ Quốc tế hoặc đặt lịch tham quan ạ. Mẹ muốn em gửi luôn số hotline này qua tin nhắn không ạ?",
         "timestamp": "2026-04-13T08:02:49.180304"
+      },
+      {
+        "role": "user",
+        "content": "mình muốn 4h chiều nay qua trường đặt lịch giúp mình nhé",
+        "timestamp": "2026-04-13T08:09:46.120825"
       }
     ],
     "interested_campus": "Chùa Láng",

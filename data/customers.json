@@ -156,6 +156,11 @@
         "role": "user",
         "content": "Thế lớp 0-3 vs 3-5 lịch khác nhau gì k b",
         "timestamp": "2026-04-14T13:50:15.180844"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ, lịch trình theo độ tuổi tại Casa Chùa Láng có sự khác biệt nhẹ ạ:\n\n- **Lớp 0-3 tuổi**: Nhiều thời gian Montessori Work, hoạt động vận động, ngủ trưa dài hơn (12h-14h30)\n- **Lớp 3-5 tuổi**: Tăng cường hoạt động ngoại khóa, thuyết trình, học tập theo dự án, ngủ trưa ngắn hơn (12h-14h)\n\nMẹ muốn em gửi thêm thông tin về giờ ăn hoặc cách nhà trường hỗ trợ bé nhút nhát không ạ?",
+        "timestamp": "2026-04-14T13:50:18.336207"
       }
     ],
     "interested_campus": "Chùa Láng",

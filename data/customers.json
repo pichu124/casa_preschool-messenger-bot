@@ -141,6 +141,11 @@
         "role": "assistant",
         "content": "Dạ em xin lỗi mẹ ạ. Nhà trường chưa cung cấp thông tin chi tiết về lịch trình học tiếng Anh theo giờ trong ngày ạ. Em sẽ gửi yêu cầu này tới phòng tư vấn ngay ạ!",
         "timestamp": "2026-04-14T13:48:05.334287"
+      },
+      {
+        "role": "user",
+        "content": "À lịch trình 1 ngày của bé tại Casa thế nào nhỉ",
+        "timestamp": "2026-04-14T13:48:48.078745"
       }
     ],
     "interested_campus": "Chùa Láng",

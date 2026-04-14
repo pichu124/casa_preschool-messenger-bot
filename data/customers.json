@@ -24,8 +24,8 @@
   },
   "26717647527865875": {
     "first_seen": "2026-04-13T06:02:59.285280",
-    "last_seen": "2026-04-13T11:00:51.411439",
-    "message_count": 5,
+    "last_seen": "2026-04-14T13:42:38.596991",
+    "message_count": 6,
     "conversation_history": [
       {
         "role": "assistant",
@@ -170,6 +170,7 @@
         "date": "2026-04-13",
         "summary": "Phụ huynh quan tâm đến cơ sở mầm non Casa gần nhà nhất tại Trung Kính. Được tư vấn rằng cơ sở Chùa Láng là gần nhất, cách khoảng 10 phút lái xe, và đây là nơi có cả hệ Song ngữ lẫn hệ Quốc tế. Phụ huynh bày tỏ sự nhầm lẫn về hệ đào tạo tại Chùa Láng và muốn biết sự khác biệt giữa hai hệ này."
       }
-    ]
+    ],
+    "parent_name": "Mẹ Nhím"
   }
 }

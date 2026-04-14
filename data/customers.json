@@ -151,6 +151,11 @@
         "role": "assistant",
         "content": "Dạ, lịch trình 1 ngày của bé Bông 1.5-3 tuổi hệ Quốc tế tại Casa Chùa Láng ạ:\n\n- **8h30-11h30**: Montessori Work, hoạt động theo chủ đề, tiếng Anh xen kẽ\n- **11h30-12h**: Ăn trưa\n- **12h-14h30**: Ngủ trưa\n- **14h30-16h30**: Hoạt động ngoại khóa (science, art, gym...) hoặc tiếng Anh\n- **16h30-17h**: Dọn dẹp, chia tay\n\nMẹ muốn em gửi thêm thông tin về giờ ăn hoặc cách nhà trường hỗ trợ bé nhút nhát không ạ?",
         "timestamp": "2026-04-14T13:48:49.871312"
+      },
+      {
+        "role": "user",
+        "content": "Thế lớp 0-3 vs 3-5 lịch khác nhau gì k b",
+        "timestamp": "2026-04-14T13:50:15.180844"
       }
     ],
     "interested_campus": "Chùa Láng",

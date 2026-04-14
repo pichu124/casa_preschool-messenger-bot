@@ -166,6 +166,11 @@
         "role": "assistant",
         "content": "Dạ chào mẹ Nhím ạ! 🌸 Lâu rồi không gặp mẹ, bé Bông giờ thế nào rồi ạ? Em nhớ lần trước mẹ quan tâm đến sự khác biệt giữa hệ Song ngữ và hệ Quốc tế tại Casa Chùa Láng ạ.\n\nVề chương trình tiếng Anh hệ Quốc tế, bé sẽ được học cùng giáo viên nước ngoài gần như xuyên suốt ngày học (8h30-17h) ạ. Mẹ muốn em gửi thêm thông tin về giờ học tiếng Anh hoặc cách nhà trường hỗ trợ bé nhút nhát không ạ?",
         "timestamp": "2026-04-14T13:42:40.975165"
+      },
+      {
+        "role": "user",
+        "content": "Mình k hỏi so sánh 2 hệ. Mình muốn biết chương trình học hay dạy tiếng anh ở trường thế nào",
+        "timestamp": "2026-04-14T13:43:12.485781"
       }
     ],
     "interested_campus": "Chùa Láng",

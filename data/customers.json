@@ -24,8 +24,8 @@
   },
   "26717647527865875": {
     "first_seen": "2026-04-13T06:02:59.285280",
-    "last_seen": "2026-04-14T13:47:44.770183",
-    "message_count": 8,
+    "last_seen": "2026-04-14T13:48:02.656074",
+    "message_count": 9,
     "conversation_history": [
       {
         "role": "assistant",
@@ -150,6 +150,12 @@
         "summary": "Phụ huynh quan tâm đến học phí hệ Quốc tế, mức chi phí theo độ tuổi và các khoản phí bao gồm trong học phí. Tư vấn viên cung cấp thông tin học phí (28–32 triệu/tháng tùy độ tuổi) và giải thích học phí đã bao gồm hầu hết các khoản cơ bản, riêng phí xe buýt, ăn, đồng phục và phát triển trường tính riêng. Phụ huynh quyết định đặt lịch tham quan trường qua app LittleLives hoặc hotline, sau khi được hướng dẫn cách sử dụng app thuận tiện hơn."
       }
     ],
-    "parent_name": "Mẹ Nhím"
+    "parent_name": "Mẹ Nhím",
+    "kid_name": "Bông",
+    "kid_age": "1.5-3 tuổi",
+    "kid_gender": "bé gái",
+    "kid_traits": [
+      "nhút nhát"
+    ]
   }
 }

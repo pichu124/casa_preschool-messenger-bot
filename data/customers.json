@@ -171,6 +171,11 @@
         "role": "user",
         "content": "Mình k hỏi so sánh 2 hệ. Mình muốn biết chương trình học hay dạy tiếng anh ở trường thế nào",
         "timestamp": "2026-04-14T13:43:12.485781"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ chương trình tiếng Anh hệ Quốc tế tại Casa Chùa Láng được thiết kế theo phương pháp Oxford Phonics, CLT, TPR, kết hợp với tinh thần Montessori ạ. Bé sẽ được học tiếng Anh xuyên suốt ngày thông qua các hoạt động như storytelling, phonics, games, science, cooking và thuyết trình trước lớp ạ.\n\nMẹ muốn em gửi thêm thông tin về tiêu chuẩn đầu ra hoặc cách nhà trường hỗ trợ bé nhút nhát không ạ?",
+        "timestamp": "2026-04-14T13:43:13.616822"
       }
     ],
     "interested_campus": "Chùa Láng",

@@ -29,61 +29,6 @@
     "conversation_history": [
       {
         "role": "assistant",
-        "content": "Dạ, hệ Quốc tế tại Casa Chùa Láng có giáo viên nước ngoài đồng hành trong lớp gần như xuyên suốt ngày học (8h30-17h), bé sẽ được \"đắm chìm\" trong môi trường tiếng Anh tự nhiên ạ. Còn hệ Song ngữ chỉ có giáo viên nước ngoài dạy theo giờ nhất định trong ngày thôi ạ. Mẹ muốn em gửi thông tin chi tiết về học phí hệ Quốc tế không ạ?",
-        "timestamp": "2026-04-13T06:05:43.877879"
-      },
-      {
-        "role": "user",
-        "content": "học phí hệ quốc tế là bao nhiêu",
-        "timestamp": "2026-04-13T06:06:21.694658"
-      },
-      {
-        "role": "assistant",
-        "content": "Dạ, học phí hệ Quốc tế tại Casa Chùa Láng phụ thuộc vào độ tuổi bé ạ. Ví dụ bé 3 tuổi học phí khoảng 28 triệu/tháng, bé 5 tuổi khoảng 32 triệu/tháng ạ. Mẹ muốn em gửi thông tin học phí chi tiết theo độ tuổi của bé không ạ?",
-        "timestamp": "2026-04-13T06:06:22.702476"
-      },
-      {
-        "role": "user",
-        "content": "đấy là nguyên tiền học phí thôi hay bao gồm tất cả các phí rồi?",
-        "timestamp": "2026-04-13T06:06:50.988571"
-      },
-      {
-        "role": "assistant",
-        "content": "Dạ học phí hệ Quốc tế đã bao gồm tất cả các khoản phí cơ bản như học phí, phí giáo dục, phí hoạt động trải nghiệm, phí tài liệu học tập ạ. Tuy nhiên, phí xe buýt, phí ăn, phí đồng phục và phí phát triển trường sẽ được tính riêng ạ. Mẹ muốn em gửi chi tiết từng khoản phí không ạ?",
-        "timestamp": "2026-04-13T06:06:51.966696"
-      },
-      {
-        "role": "user",
-        "content": "mình muốn đặt lịch tham quan trường thì làm thế nào nhỉ",
-        "timestamp": "2026-04-13T06:11:24.019353"
-      },
-      {
-        "role": "assistant",
-        "content": "Dạ mẹ có thể đặt lịch tham quan trường Casa Chùa Láng qua app LittleLives hoặc gọi điện trực tiếp đến hotline 024 3766 5555 ạ. Em sẽ sắp xếp lịch thuận tiện nhất cho mẹ ạ. Mẹ muốn chọn khung giờ nào trong tuần ạ?",
-        "timestamp": "2026-04-13T06:11:25.189793"
-      },
-      {
-        "role": "user",
-        "content": "qua App littlelive thì mình phải tảu về á",
-        "timestamp": "2026-04-13T07:46:04.530599"
-      },
-      {
-        "role": "assistant",
-        "content": "Dạ vâng ạ, em xin lỗi mẹ vì sự bất tiện này ạ! Trên app LittleLives, mẹ có thể đặt lịch tham quan trực tiếp trên ứng dụng mà không cần tải về phiên bản mới ạ. Mẹ thử đăng nhập lại app xem nhé ạ. Em có thể hỗ trợ mẹ nếu gặp khó khăn khi sử dụng app không ạ?",
-        "timestamp": "2026-04-13T07:46:05.516321"
-      },
-      {
-        "role": "user",
-        "content": "mình đặt lịch qua đây được k cho nó tiện",
-        "timestamp": "2026-04-13T08:02:48.003157"
-      },
-      {
-        "role": "user",
-        "content": "hay bên bạn có hotline k?",
-        "timestamp": "2026-04-13T08:02:48.204678"
-      },
-      {
-        "role": "assistant",
         "content": "Dạ vâng ạ! Mẹ có thể đặt lịch tham quan trực tiếp trên app LittleLives luôn ạ, không cần tải thêm phiên bản mới đâu ạ. Em sẽ hỗ trợ mẹ nếu có bất kỳ khó khăn nào khi sử dụng app ạ. Mẹ muốn em hướng dẫn từng bước cách đặt lịch không ạ?",
         "timestamp": "2026-04-13T08:02:48.977276"
       },
@@ -176,6 +121,11 @@
         "role": "assistant",
         "content": "Dạ chương trình tiếng Anh hệ Quốc tế tại Casa Chùa Láng được thiết kế theo phương pháp Oxford Phonics, CLT, TPR, kết hợp với tinh thần Montessori ạ. Bé sẽ được học tiếng Anh xuyên suốt ngày thông qua các hoạt động như storytelling, phonics, games, science, cooking và thuyết trình trước lớp ạ.\n\nMẹ muốn em gửi thêm thông tin về tiêu chuẩn đầu ra hoặc cách nhà trường hỗ trợ bé nhút nhát không ạ?",
         "timestamp": "2026-04-14T13:43:13.616822"
+      },
+      {
+        "role": "user",
+        "content": "Thời gian bé học trực tiếp vs giáo viên nước ngoài là bao lâu",
+        "timestamp": "2026-04-14T13:47:46.159924"
       }
     ],
     "interested_campus": "Chùa Láng",
@@ -189,6 +139,10 @@
       {
         "date": "2026-04-13",
         "summary": "Phụ huynh quan tâm đến cơ sở mầm non Casa gần nhà nhất tại Trung Kính. Được tư vấn rằng cơ sở Chùa Láng là gần nhất, cách khoảng 10 phút lái xe, và đây là nơi có cả hệ Song ngữ lẫn hệ Quốc tế. Phụ huynh bày tỏ sự nhầm lẫn về hệ đào tạo tại Chùa Láng và muốn biết sự khác biệt giữa hai hệ này."
+      },
+      {
+        "date": "2026-04-14",
+        "summary": "Phụ huynh quan tâm đến học phí hệ Quốc tế, mức chi phí theo độ tuổi và các khoản phí bao gồm trong học phí. Tư vấn viên cung cấp thông tin học phí (28–32 triệu/tháng tùy độ tuổi) và giải thích học phí đã bao gồm hầu hết các khoản cơ bản, riêng phí xe buýt, ăn, đồng phục và phát triển trường tính riêng. Phụ huynh quyết định đặt lịch tham quan trường qua app LittleLives hoặc hotline, sau khi được hướng dẫn cách sử dụng app thuận tiện hơn."
       }
     ],
     "parent_name": "Mẹ Nhím"

@@ -126,6 +126,11 @@
         "role": "user",
         "content": "Thời gian bé học trực tiếp vs giáo viên nước ngoài là bao lâu",
         "timestamp": "2026-04-14T13:47:46.159924"
+      },
+      {
+        "role": "assistant",
+        "content": "Dạ, tại hệ Quốc tế Chùa Láng, bé sẽ học trực tiếp cùng giáo viên nước ngoài gần như xuyên suốt ngày học (8h30-17h) ạ. Mẹ muốn em gửi thêm thông tin về tiêu chuẩn đầu ra hoặc cách nhà trường hỗ trợ bé nhút nhát không ạ?",
+        "timestamp": "2026-04-14T13:47:49.237671"
       }
     ],
     "interested_campus": "Chùa Láng",

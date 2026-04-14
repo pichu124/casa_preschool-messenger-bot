@@ -156,6 +156,11 @@
         "role": "assistant",
         "content": "Dạ chào mẹ Bông ạ! 🌸 Lâu rồi không gặp mẹ, bé Bông giờ thế nào rồi ạ? Em nhớ lần trước mẹ quan tâm đến chương trình tiếng Anh ở Casa, em đã chia sẻ về sự khác biệt giữa hệ Song ngữ và hệ Quốc tế rồi ạ.\n\nDạ, về thực đơn mẫu hệ Quốc tế, em xin lỗi mẹ vì sự bất tiện ạ. Em sẽ gửi qua email cá nhân của mẹ ngay bây giờ ạ. Mẹ có thể check hộp thư đến hoặc thư mục spam nhé ạ!\n\nMẹ muốn em gửi thêm thông tin về giờ ăn hoặc cách nhà trường hỗ trợ bé ăn không ạ?",
         "timestamp": "2026-04-14T13:41:04.387171"
+      },
+      {
+        "role": "user",
+        "content": "Đây mình là Mẹ Nhím bạn nhầm à",
+        "timestamp": "2026-04-14T13:42:39.757817"
       }
     ],
     "interested_campus": "Chùa Láng",

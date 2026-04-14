@@ -131,6 +131,11 @@
         "role": "assistant",
         "content": "Dạ, tại hệ Quốc tế Chùa Láng, bé sẽ học trực tiếp cùng giáo viên nước ngoài gần như xuyên suốt ngày học (8h30-17h) ạ. Mẹ muốn em gửi thêm thông tin về tiêu chuẩn đầu ra hoặc cách nhà trường hỗ trợ bé nhút nhát không ạ?",
         "timestamp": "2026-04-14T13:47:49.237671"
+      },
+      {
+        "role": "user",
+        "content": "Có gửi mình nhé",
+        "timestamp": "2026-04-14T13:48:03.900301"
       }
     ],
     "interested_campus": "Chùa Láng",

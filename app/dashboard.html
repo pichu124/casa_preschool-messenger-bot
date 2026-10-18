@@ -100,12 +100,14 @@ tr:hover td { background: #f7fafc; }
 
 <script>
 let dailyChart, categoryChart;
+const SECRET = new URLSearchParams(location.search).get('secret') || '';
+const q = SECRET ? `?secret=${encodeURIComponent(SECRET)}` : '';
 
 async function loadData() {
   try {
     const [statsRes, messagesRes] = await Promise.all([
-      fetch('/analytics/stats'),
-      fetch('/analytics/messages')
+      fetch('/analytics/stats' + q),
+      fetch('/analytics/messages' + q)
     ]);
     const stats = await statsRes.json();
     const messages = await messagesRes.json();

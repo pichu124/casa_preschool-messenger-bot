@@ -1,6 +1,5 @@
 import logging
 import re
-from collections import defaultdict
 
 from fastapi import FastAPI, Request, HTTPException, Query, BackgroundTasks
 from fastapi.responses import PlainTextResponse
@@ -31,11 +30,6 @@ app = FastAPI(title="Preschool Messenger Bot", version=APP_VERSION)
 # Initialize Q&A database and AI engine
 qa_db = QADatabase(settings.QA_DATABASE_PATH)
 ai_engine = AIEngine(qa_context=qa_db.build_context())
-
-# Conversation history is now persisted in customer_memory profiles (cross-session)
-# Kept as fallback for /test-chat and stale references
-conversation_history: dict[str, list[dict]] = defaultdict(list)
-MAX_HISTORY = 10  # Used only by /test-chat fallback
 
 # Dedup: track processed message IDs to prevent duplicates
 _processed_fb_mids: set[str] = set()
@@ -263,8 +257,10 @@ async def handle_webhook(request: Request, background_tasks: BackgroundTasks):
                 continue
             if mid:
                 _processed_fb_mids.add(mid)
+                # ponytail: evict ~half instead of clear() so recent mids survive and dedup keeps working
                 if len(_processed_fb_mids) > MAX_DEDUP_SIZE:
-                    _processed_fb_mids.clear()
+                    for _ in range(MAX_DEDUP_SIZE // 2):
+                        _processed_fb_mids.pop()
 
             # Process in background so webhook returns 200 immediately
             background_tasks.add_task(process_message, sender_id, text)
@@ -553,7 +549,8 @@ async def handle_telegram_webhook(request: Request):
         if tg_mid:
             _processed_tg_mids.add(tg_mid)
             if len(_processed_tg_mids) > MAX_DEDUP_SIZE:
-                _processed_tg_mids.clear()
+                for _ in range(MAX_DEDUP_SIZE // 2):
+                    _processed_tg_mids.pop()
 
         original_msg_id = reply.get("message_id")
         admin_text = message.get("text", "")
@@ -625,7 +622,7 @@ async def handle_telegram_webhook(request: Request):
 async def setup_telegram_webhook():
     """Register Telegram webhook URL."""
     import httpx
-    webhook_url = f"https://casa-preschool-messenger-bot.onrender.com/telegram-webhook"
+    webhook_url = "https://casa-preschool-messenger-bot.onrender.com/telegram-webhook"
     url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/setWebhook"
     async with httpx.AsyncClient() as client:
         response = await client.post(url, json={

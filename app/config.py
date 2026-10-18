@@ -34,6 +34,12 @@ class Settings:
     # Facebook Graph API
     FB_GRAPH_API_URL: str = "https://graph.facebook.com/v21.0"
 
+    # Public base URL where this app is reachable (used for webhook registration)
+    PUBLIC_BASE_URL: str = os.getenv(
+        "PUBLIC_BASE_URL",
+        "https://casa-preschool-messenger-bot.onrender.com",
+    )
+
     # Q&A Database path
     QA_DATABASE_PATH: str = os.getenv("QA_DATABASE_PATH", "data/qa_database.json")
 

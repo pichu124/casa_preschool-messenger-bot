@@ -1,7 +1,7 @@
 import logging
 import re
 
-from fastapi import FastAPI, Request, HTTPException, Query, BackgroundTasks
+from fastapi import FastAPI, Request, HTTPException, Query, BackgroundTasks, Depends
 from fastapi.responses import PlainTextResponse
 
 from app.config import settings
@@ -43,6 +43,12 @@ ESCALATION_MESSAGE = (
 )
 
 
+def require_secret(secret: str = ""):
+    """Guard admin endpoints. Pass ?secret=<TELEGRAM_WEBHOOK_SECRET>."""
+    if secret != settings.TELEGRAM_WEBHOOK_SECRET:
+        raise HTTPException(status_code=403, detail="Invalid secret")
+
+
 @app.get("/")
 async def health_check():
     return {
@@ -54,8 +60,8 @@ async def health_check():
 
 
 @app.get("/dashboard")
-async def dashboard():
-    """Serve analytics dashboard HTML."""
+async def dashboard(_: None = Depends(require_secret)):
+    """Serve analytics dashboard HTML. Requires ?secret=."""
     from pathlib import Path
     from fastapi.responses import HTMLResponse
     dashboard_path = Path(__file__).parent / "dashboard.html"
@@ -65,14 +71,14 @@ async def dashboard():
 
 
 @app.get("/analytics/stats")
-async def analytics_stats():
-    """Return analytics statistics as JSON."""
+async def analytics_stats(_: None = Depends(require_secret)):
+    """Return analytics statistics as JSON. Requires ?secret=."""
     return analytics.get_stats()
 
 
 @app.get("/analytics/messages")
-async def analytics_messages(limit: int = 20):
-    """Return recent messages as JSON."""
+async def analytics_messages(limit: int = 20, _: None = Depends(require_secret)):
+    """Return recent messages as JSON. Requires ?secret=."""
     return analytics.get_recent_messages(limit=limit)
 
 
@@ -433,8 +439,8 @@ async def reload_qa():
 
 
 @app.get("/qa-database")
-async def get_qa_database():
-    """View all Q&A pairs including learned ones."""
+async def get_qa_database(_: None = Depends(require_secret)):
+    """View all Q&A pairs including learned ones. Requires ?secret=."""
     return {
         "total": len(qa_db.qa_pairs),
         "qa_pairs": qa_db.qa_pairs,
@@ -442,8 +448,8 @@ async def get_qa_database():
 
 
 @app.get("/qa-learned")
-async def get_qa_learned():
-    """View only Q&A pairs learned from admin replies."""
+async def get_qa_learned(_: None = Depends(require_secret)):
+    """View only Q&A pairs learned from admin replies. Requires ?secret=."""
     learned = [p for p in qa_db.qa_pairs if p.get("category") == "Học từ admin"]
     return {
         "total": len(learned),
@@ -622,7 +628,7 @@ async def handle_telegram_webhook(request: Request):
 async def setup_telegram_webhook():
     """Register Telegram webhook URL."""
     import httpx
-    webhook_url = "https://casa-preschool-messenger-bot.onrender.com/telegram-webhook"
+    webhook_url = f"{settings.PUBLIC_BASE_URL.rstrip('/')}/telegram-webhook"
     url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/setWebhook"
     async with httpx.AsyncClient() as client:
         response = await client.post(url, json={

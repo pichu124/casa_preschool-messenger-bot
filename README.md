@@ -37,7 +37,7 @@ Sau do dien cac gia tri vao file `.env`.
    - Muc **Webhooks**: click **Add Callback URL**
      - Callback URL: `https://your-domain.com/webhook` (hoac ngrok URL)
      - Verify Token: nhap gia tri giong `FB_VERIFY_TOKEN` trong file .env
-   - Subscribe to: `messages`, `messaging_postbacks` (nut Bat dau, cau hoi goi y), `messaging_referrals` (khach mo chat tu quang cao hoac link m.me khi da tung nhan tin)
+   - Subscribe to: `messages`, `messaging_postbacks` (nut Bat dau, cau hoi goi y), `messaging_referrals` (khach mo chat tu quang cao hoac link m.me khi da tung nhan tin), `message_echoes` (tin nhan vien tu nhan tay trong hop thu Page; bat buoc truoc khi bat tin nhac lai, muc 10)
 5. Trong **App Settings** -> **Basic**: copy **App Secret** vao `FB_APP_SECRET`
 6. Dang ky nut Bat dau (Get Started) va 4 cau hoi goi y (`ICE_BREAKERS` trong `app/messenger.py`) voi Page: chay mot lan sau khi deploy, va chay lai moi khi doi cac cau hoi do:
    ```bash
@@ -110,11 +110,12 @@ Moi gio GitHub Actions (`.github/workflows/followup.yml`, phut 17) goi `POST /fo
 - Tin cuoi trong hoi thoai la cua bot, va khong phai cau chuyen tu van vien (tu van vien dang lo).
 - Chua co SDT, chua hen tham quan/hoc thu.
 - Chua nhac lan nao ke tu tin cuoi cua phu huynh (`followup_sent_at` trong ho so khach).
+- Nhan vien chua tu nhan tay cho phu huynh trong hop thu Page ke tu tin cuoi cua phu huynh (`staff_replied_at` trong ho so khach). Bot gui moi tin kem `metadata` `casa-bot`; Facebook gui lai (echo) moi tin Page gui di, echo khong co `casa-bot` la tin nhan vien nhan tay. Can dang ky truong webhook `message_echoes` (muc 3), thieu thi bot khong biet nhan vien da nhan va van nhac.
 - Gio Viet Nam tu 8h00 den truoc 21h00.
 
 Mau tin theo trang thai: chua biet tuoi be thi hoi tuoi; da biet tuoi nhung chua co SDT thi xin SDT/Zalo; phu huynh da tu choi de lai SDT thi KHONG xin so, moi tham quan/hoc thu 1 tuan mien phi. Graph API tu choi (ngoai cua so 24 gio, khach chan Page) thi bo qua khach do. Tin da gui duoc ghi vao lich su hoi thoai, khong tang so tin nhan cua khach. Gio trong lich su la gio may chu khong co mui gio, duoc coi la UTC (Render chay UTC).
 
-Cach bat (can ca hai noi):
+Cach bat (truoc het dang ky truong webhook `message_echoes`, muc 3; sau do can ca hai noi):
 
 1. Render: dat bien moi truong `FOLLOWUP_ENABLED=true`. Chua dat thi `/followup/run` chi dem so khach du dieu kien, khong gui gi.
 2. GitHub repo -> Settings -> Secrets and variables -> Actions:

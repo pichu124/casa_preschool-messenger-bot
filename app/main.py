@@ -3,6 +3,7 @@ import hmac
 import logging
 import re
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, Request, HTTPException, Query, BackgroundTasks, Depends
@@ -13,6 +14,7 @@ from app.config import settings
 from app.qa_database import QADatabase
 from app.ai_engine import AIEngine
 from app.messenger import (
+    BOT_MESSAGE_METADATA,
     GET_STARTED_PAYLOAD,
     ICE_BREAKERS,
     QUICK_REPLY_PREFIX,
@@ -304,7 +306,9 @@ async def handle_webhook(request: Request, background_tasks: BackgroundTasks):
                         _processed_fb_mids.pop()
 
             # Process in background so webhook returns 200 immediately
-            if inbound.text:
+            if isinstance(inbound, StaffReply):
+                background_tasks.add_task(save_staff_reply, inbound.customer_id, inbound.replied_at)
+            elif inbound.text:
                 background_tasks.add_task(
                     process_message, inbound.sender_id, inbound.text, inbound.attribution, inbound.phone_from_qr
                 )
@@ -326,6 +330,15 @@ class InboundEvent:
     dedup_key: str
     attribution: dict = field(default_factory=dict)
     phone_from_qr: str | None = None
+
+
+@dataclass
+class StaffReply:
+    """Staff typed a message to the parent in the Page inbox (seen as a message echo)."""
+
+    customer_id: str
+    dedup_key: str
+    replied_at: str  # ISO, UTC
 
 
 def _attribution(referral: dict) -> dict:
@@ -351,12 +364,26 @@ def _find_phone(value) -> str | None:
     return match.group() if match else None
 
 
-def parse_messaging_event(event: dict) -> InboundEvent | None:
+def _staff_reply(echo: dict) -> StaffReply | None:
+    """A message echo (sender: the Page, recipient: the parent) of a message the bot did not send; None for the
+    bot's own messages."""
+    customer_id = (echo.get("recipient") or {}).get("id")
+    message = echo["message"]
+    if not customer_id or message.get("metadata") == BOT_MESSAGE_METADATA:
+        return None
+    timestamp = echo.get("timestamp")  # milliseconds
+    replied_at = datetime.fromtimestamp(timestamp / 1000, timezone.utc) if timestamp else datetime.now(timezone.utc)
+    return StaffReply(customer_id, message.get("mid", ""), replied_at.isoformat())
+
+
+def parse_messaging_event(event: dict) -> InboundEvent | StaffReply | None:
     """One webhook `messaging` event as what the bot answers or records; None when there is neither."""
-    sender_id = (event.get("sender") or {}).get("id")
     message = event.get("message") or {}
+    if message.get("is_echo"):
+        return _staff_reply(event)
+    sender_id = (event.get("sender") or {}).get("id")
     postback = event.get("postback") or {}
-    if not sender_id or message.get("is_echo"):
+    if not sender_id:
         return None
 
     referral = event.get("referral") or message.get("referral") or postback.get("referral") or {}
@@ -390,6 +417,13 @@ async def save_attribution(sender_id: str, attribution: dict):
     """Referral without a message (parent opened the thread from an ad or link): remember the source, no reply."""
     customer_memory.set_fields(sender_id, attribution)
     logger.info(f"Referral for {sender_id}: {list(attribution)}")
+    await customer_memory.sync_to_github()
+
+
+async def save_staff_reply(customer_id: str, replied_at: str):
+    """Staff answered the parent by hand in the Page inbox: app/followup.py sends no follow-up after it. No reply."""
+    customer_memory.set_fields(customer_id, {"staff_replied_at": replied_at})
+    logger.info(f"Staff replied by hand to {customer_id}")
     await customer_memory.sync_to_github()
 
 

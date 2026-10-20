@@ -10,6 +10,7 @@ import json
 import logging
 import re
 import unicodedata
+from datetime import datetime, timedelta, timezone
 
 import httpx
 import pytest
@@ -19,7 +20,7 @@ import app.main as main
 from app import ai_engine, customer_memory, escalation, messenger
 from app.ai_engine import SYSTEM_PROMPT, AIEngine, AIProvider, AIResponse
 from app.config import settings
-from app.main import InboundEvent, parse_messaging_event
+from app.main import InboundEvent, StaffReply, parse_messaging_event
 from app.messenger import QUICK_REPLIES, build_quick_replies, set_messenger_profile
 
 client = TestClient(main.app)
@@ -75,6 +76,14 @@ def referral_event(referral) -> dict:
     return {"sender": {"id": SENDER}, "recipient": {"id": PAGE_ID}, "timestamp": TIMESTAMP, "referral": referral}
 
 
+def echo_event(metadata=None, mid="m_echo", **event) -> dict:
+    """Tin Page gửi phụ huynh, Facebook gửi lại (message_echoes): sender là Page, recipient là phụ huynh."""
+    message = {"is_echo": True, "app_id": 263902037430900, "mid": mid, "text": "Dạ chị gọi lại cho mình ngay ạ"}
+    if metadata is not None:
+        message["metadata"] = metadata
+    return {"sender": {"id": PAGE_ID}, "recipient": {"id": SENDER}, "timestamp": TIMESTAMP, "message": message, **event}
+
+
 def inbound(text, dedup_key="m_text", attribution=None, phone_from_qr=None) -> InboundEvent:
     return InboundEvent(
         sender_id=SENDER,
@@ -95,7 +104,8 @@ def test_plain_text_message():
 @pytest.mark.parametrize(
     "event",
     [
-        message_event(text="Dạ Casa chào Ba/Mẹ ạ", is_echo=True),
+        echo_event(metadata="casa-bot"),
+        echo_event(recipient={}),
         message_event(attachments=[{"type": "image", "payload": {"url": "https://example.com/a.jpg"}}]),
         {"sender": {"id": SENDER}, "recipient": {"id": PAGE_ID}, "delivery": {"mids": ["m_1"]}},
         {"sender": {"id": SENDER}, "recipient": {"id": PAGE_ID}, "read": {"watermark": TIMESTAMP}},
@@ -103,10 +113,38 @@ def test_plain_text_message():
         postback_event("PAYLOAD_LA", title=""),
         referral_event({"source": "DISCOVER_TAB", "type": "OPEN_THREAD"}),
     ],
-    ids=["echo", "chỉ có ảnh", "delivery", "read", "không có sender", "postback lạ không title", "referral không nguồn"],
+    ids=[
+        "echo của bot",
+        "echo không có người nhận",
+        "chỉ có ảnh",
+        "delivery",
+        "read",
+        "không có sender",
+        "postback lạ không title",
+        "referral không nguồn",
+    ],
 )
 def test_events_without_anything_to_answer_or_record_are_ignored(event):
     assert parse_messaging_event(event) is None
+
+
+# TIMESTAMP (1760000000123 ms) theo UTC
+STAFF_REPLIED_AT = "2025-10-09T08:53:20.123000+00:00"
+
+
+@pytest.mark.parametrize("metadata", [None, "", "cong-cu-khac"], ids=["không metadata", "metadata rỗng", "metadata lạ"])
+def test_echo_not_sent_by_the_bot_is_a_staff_reply_to_the_recipient(metadata):
+    assert parse_messaging_event(echo_event(metadata)) == StaffReply(SENDER, "m_echo", STAFF_REPLIED_AT)
+
+
+def test_staff_echo_without_timestamp_is_dated_now_in_utc():
+    event = echo_event()
+    del event["timestamp"]
+
+    replied_at = datetime.fromisoformat(parse_messaging_event(event).replied_at)
+
+    assert replied_at.utcoffset() == timedelta(0)
+    assert abs(datetime.now(timezone.utc) - replied_at) < timedelta(minutes=1)
 
 
 @pytest.mark.parametrize(
@@ -301,6 +339,32 @@ def test_get_started_is_answered_once_with_a_greeting(bot):
 
     assert bot.sent == [("text", MODEL_TEXT, None)]
     assert customer_memory.get_conversation_history(SENDER)[0]["content"] == "Xin chào Casa ạ"
+
+
+def test_staff_echo_records_staff_reply_without_answering(bot):
+    history = [{"role": "user", "content": "Học phí bao nhiêu ạ?", "timestamp": "2025-10-09T08:00:00"}]
+    customer_memory._customers[SENDER] = {"kid_age": "3 tuổi", "message_count": 1, "conversation_history": history}
+
+    post_webhook(echo_event(), echo_event())
+
+    assert bot.sent == []
+    assert customer_memory.get_profile(SENDER) == {
+        "kid_age": "3 tuổi",
+        "message_count": 1,
+        "conversation_history": history,
+        "staff_replied_at": STAFF_REPLIED_AT,
+    }
+    assert bot.synced == 1
+
+
+def test_echo_of_the_bot_own_message_changes_nothing(bot):
+    customer_memory._customers[SENDER] = {"kid_age": "3 tuổi", "message_count": 1}
+
+    post_webhook(echo_event(metadata="casa-bot"))
+
+    assert bot.sent == []
+    assert customer_memory.get_profile(SENDER) == {"kid_age": "3 tuổi", "message_count": 1}
+    assert bot.synced == 0
 
 
 def test_phone_quick_reply_saves_phone_and_sends_lead_without_logging_it(bot, caplog):
@@ -517,15 +581,15 @@ def test_send_message_puts_quick_replies_on_last_chunk_only(graph):
     asyncio.run(messenger.send_message(SENDER, "a" * 2000 + "b" * 5, quick_replies=quick_replies))
 
     assert [body["message"] for _, _, body in graph] == [
-        {"text": "a" * 2000},
-        {"text": "b" * 5, "quick_replies": quick_replies},
+        {"text": "a" * 2000, "metadata": "casa-bot"},
+        {"text": "b" * 5, "metadata": "casa-bot", "quick_replies": quick_replies},
     ]
 
 
 def test_send_message_without_quick_replies_sends_plain_text(graph):
     asyncio.run(messenger.send_message(SENDER, "Dạ vâng ạ"))
 
-    assert [body["message"] for _, _, body in graph] == [{"text": "Dạ vâng ạ"}]
+    assert [body["message"] for _, _, body in graph] == [{"text": "Dạ vâng ạ", "metadata": "casa-bot"}]
 
 
 def test_send_image_carries_quick_replies(graph):
@@ -536,9 +600,25 @@ def test_send_image_carries_quick_replies(graph):
     assert [body["message"] for _, _, body in graph] == [
         {
             "attachment": {"type": "image", "payload": {"url": "https://casa.example/static/a.jpg", "is_reusable": True}},
+            "metadata": "casa-bot",
             "quick_replies": quick_replies,
         }
     ]
+
+
+def test_echo_of_every_message_the_bot_sends_is_not_a_staff_reply(graph):
+    asyncio.run(messenger.send_message(SENDER, "a" * 2005, quick_replies=build_quick_replies("age")))
+    asyncio.run(messenger.send_image(SENDER, "https://casa.example/static/a.jpg"))
+
+    assert len(graph) == 3
+    for _, _, body in graph:
+        echo = {
+            "sender": {"id": PAGE_ID},
+            "recipient": body["recipient"],
+            "timestamp": TIMESTAMP,
+            "message": {"is_echo": True, "app_id": 1234, "mid": "m_echo", **body["message"]},
+        }
+        assert parse_messaging_event(echo) is None
 
 
 EXPECTED_PROFILE = {

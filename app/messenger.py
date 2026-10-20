@@ -40,6 +40,9 @@ QUICK_REPLIES: dict[str, list[tuple[str, str]]] = {
     ],
 }
 QUICK_REPLY_PREFIX = "QR:"
+# Sent with every message the bot sends; Facebook returns it in the message echo, so an echo without it is
+# a message staff typed in the Page inbox.
+BOT_MESSAGE_METADATA = "casa-bot"
 
 GET_STARTED_PAYLOAD = "GET_STARTED"
 # Questions offered when a parent opens a new conversation; payload -> question.
@@ -85,7 +88,7 @@ async def send_message(recipient_id: str, text: str, quick_replies: list[dict] |
 
     async with httpx.AsyncClient() as client:
         for n, chunk in enumerate(chunks, 1):
-            message = {"text": chunk}
+            message = {"text": chunk, "metadata": BOT_MESSAGE_METADATA}
             if quick_replies and n == len(chunks):
                 message["quick_replies"] = quick_replies
             payload = {
@@ -112,7 +115,8 @@ async def send_image(recipient_id: str, image_url: str, quick_replies: list[dict
         "attachment": {
             "type": "image",
             "payload": {"url": image_url, "is_reusable": True},
-        }
+        },
+        "metadata": BOT_MESSAGE_METADATA,
     }
     if quick_replies:
         message["quick_replies"] = quick_replies

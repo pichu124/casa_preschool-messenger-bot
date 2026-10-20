@@ -34,6 +34,7 @@ H = timedelta(hours=1)
 M = timedelta(minutes=1)
 NOW = datetime(2026, 10, 20, 10, 0, tzinfo=VN).astimezone(timezone.utc)
 CID = "9000000000000201"
+PAGE_ID = "9000000000000200"
 WEBHOOK_SECRET = "tg-secret_followup"
 FB_NAME = "Lan Thử"
 KID_NAME = "Bin"
@@ -76,6 +77,9 @@ DUE_CASES = [
     ("đã nhắc sau tin cuối", profile(followup_sent_at=(NOW - 4 * H).isoformat()), NOW, None),
     ("nhắc đúng lúc tin cuối", profile(followup_sent_at=(NOW - 5 * H).isoformat()), NOW, None),
     ("nhắc trước tin cuối mới hơn", profile(followup_sent_at=(NOW - 30 * H).isoformat()), NOW, "ask_age"),
+    ("nhân viên nhắn tay sau tin cuối", profile(staff_replied_at=(NOW - 4 * H).isoformat()), NOW, None),
+    ("nhân viên nhắn tay trước tin cuối", profile(staff_replied_at=(NOW - 30 * H).isoformat()), NOW, "ask_age"),
+    ("staff_replied_at không đọc được", profile(staff_replied_at="không phải ngày"), NOW, None),
     ("tin cuối: chuyển tư vấn viên, xin SĐT", profile(bot_text=ESCALATION_MESSAGE_ASK_PHONE), NOW, None),
     ("tin cuối: chuyển tư vấn viên, có SĐT", profile(bot_text=ESCALATION_MESSAGE_HAS_PHONE), NOW, None),
     ("tin cuối: chuyển tư vấn viên, từ chối SĐT", profile(bot_text=ESCALATION_MESSAGE_PHONE_DECLINED), NOW, None),
@@ -264,6 +268,39 @@ def test_overlapping_runs_do_not_send_twice(monkeypatch, outbox, synced):
     assert sorted(recipient for recipient, _ in outbox.sent) == [ASK_AGE_ID, INVITE_ID]
     assert first["sent"] + second["sent"] == 2
     assert synced == [1]
+
+
+def staff_echo(customer_id: str, at: datetime) -> dict:
+    """Webhook Facebook gửi khi nhân viên nhắn tay cho phụ huynh trong hộp thư Page (không có metadata của bot)."""
+    event = {
+        "sender": {"id": PAGE_ID},
+        "recipient": {"id": customer_id},
+        "timestamp": int(at.timestamp() * 1000),
+        "message": {"is_echo": True, "app_id": 263902037430900, "mid": "m_echo", "text": "Dạ chị gọi cho mình nhé"},
+    }
+    return {"object": "page", "entry": [{"id": PAGE_ID, "messaging": [event]}]}
+
+
+@pytest.mark.parametrize(
+    ("staff_at", "sent_to"),
+    [(NOW - 4 * H, [INVITE_ID]), (NOW - 6 * H, [ASK_AGE_ID, INVITE_ID])],
+    ids=["sau tin cuối của phụ huynh", "trước tin cuối của phụ huynh"],
+)
+def test_staff_reply_in_page_inbox_after_parent_last_message_stops_the_followup(
+    monkeypatch, outbox, synced, staff_at, sent_to
+):
+    """Tin cuối của phụ huynh (seed_customers) cách NOW 5 giờ."""
+    monkeypatch.setattr(settings, "FOLLOWUP_ENABLED", True)
+    monkeypatch.setattr(settings, "FB_APP_SECRET", "")
+    seed_customers()
+
+    assert client.post("/webhook", json=staff_echo(ASK_AGE_ID, staff_at)).status_code == 200
+    result = asyncio.run(followup.run_followups(dry_run=False))
+
+    assert [recipient for recipient, _ in outbox.sent] == sent_to
+    assert result["sent"] == len(sent_to)
+    assert customer_memory.get_profile(ASK_AGE_ID)["staff_replied_at"] == staff_at.isoformat()
+    assert synced == [1, 1]
 
 
 def test_no_due_customer_does_not_sync(monkeypatch, outbox):

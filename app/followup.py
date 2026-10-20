@@ -81,10 +81,12 @@ def _is_due(profile: dict, now_utc: datetime) -> bool:
     parent_at = _as_utc(parent_messages[-1].get("timestamp"))
     if parent_at is None or not MIN_SILENCE <= now_utc - parent_at <= MAX_SILENCE:
         return False
-    if "followup_sent_at" in profile:
-        sent_at = _as_utc(profile["followup_sent_at"])
-        if sent_at is None or sent_at >= parent_at:
-            return False
+    # Already followed up, or staff answered by hand in the Page inbox (app/main.py), since the parent's last message
+    for key in ("followup_sent_at", "staff_replied_at"):
+        if key in profile:
+            at = _as_utc(profile[key])
+            if at is None or at >= parent_at:
+                return False
     return True
 
 

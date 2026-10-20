@@ -189,6 +189,17 @@ def test_first_message_asks_for_standard_greeting(monkeypatch):
     assert "Dạ Casa chào Ba/Mẹ ạ" in user_message
 
 
+def test_new_parent_with_known_context_still_gets_greeting(monkeypatch):
+    # Khách mới bấm quảng cáo: chưa có lịch sử nhưng đã có hồ sơ (nguồn, trạng thái tư vấn).
+    context = '[THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT]:\n[TRẠNG THÁI TƯ VẤN]:\n- Giai đoạn: Mới\n- Nguồn: quảng cáo "Học thử 1 tuần"'
+
+    _, user_message = model_input(monkeypatch, "cho hoi hoc phi", customer_context=context)
+
+    assert "[FIRST_MESSAGE] cho hoi hoc phi" in user_message
+    assert "Dạ Casa chào Ba/Mẹ ạ" in user_message
+    assert 'Nguồn: quảng cáo "Học thử 1 tuần"' in user_message
+
+
 def test_follow_up_message_is_not_marked_first(monkeypatch):
     _, user_message = model_input(
         monkeypatch,

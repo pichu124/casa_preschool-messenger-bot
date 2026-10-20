@@ -321,7 +321,8 @@ class AIEngine:
 
         # Detect first-time message vs returning customer vs continuing conversation
         is_returning_customer = bool(customer_context) and gap_hours >= 24
-        is_first_message = len(history) == 0 and not bool(customer_context)
+        # Chỉ dựa vào lịch sử: khách mới từ quảng cáo đã có hồ sơ (nguồn, trạng thái) trước tin đầu tiên.
+        is_first_message = len(history) == 0
         first_marker = "[FIRST_MESSAGE] " if is_first_message else ""
 
         if is_first_message:

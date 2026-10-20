@@ -111,6 +111,7 @@ Moi gio GitHub Actions (`.github/workflows/followup.yml`, phut 17) goi `POST /fo
 - Chua co SDT, chua hen tham quan/hoc thu.
 - Chua nhac lan nao ke tu tin cuoi cua phu huynh (`followup_sent_at` trong ho so khach).
 - Nhan vien chua tu nhan tay cho phu huynh trong hop thu Page ke tu tin cuoi cua phu huynh (`staff_replied_at` trong ho so khach). Bot gui moi tin kem `metadata` `casa-bot`; Facebook gui lai (echo) moi tin Page gui di, echo khong co `casa-bot` la tin nhan vien nhan tay. Can dang ky truong webhook `message_echoes` (muc 3), thieu thi bot khong biet nhan vien da nhan va van nhac.
+  - Tin tu dong cua Page trong Meta Business Suite (Instant Reply, Away message) cung tao echo khong co `casa-bot`, nen bi tinh la nhan vien da nhan va khach do se khong bao gio duoc nhac. Tat cac tin tu dong nay truoc khi bat tin nhac lai.
 - Gio Viet Nam tu 8h00 den truoc 21h00.
 
 Mau tin theo trang thai: chua biet tuoi be thi hoi tuoi; da biet tuoi nhung chua co SDT thi xin SDT/Zalo; phu huynh da tu choi de lai SDT thi KHONG xin so, moi tham quan/hoc thu 1 tuan mien phi. Graph API tu choi (ngoai cua so 24 gio, khach chan Page) thi bo qua khach do. Tin da gui duoc ghi vao lich su hoi thoai, khong tang so tin nhan cua khach. Gio trong lich su la gio may chu khong co mui gio, duoc coi la UTC (Render chay UTC).

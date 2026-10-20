@@ -34,7 +34,7 @@ Bảo mật:
    - chưa biết tuổi bé: hỏi tuổi bé;
    - đã biết tuổi, chưa có SĐT: xin SĐT/Zalo để tư vấn viên gửi thông tin và học phí;
    - phụ huynh đã từ chối để lại số: mời học thử 1 tuần miễn phí / tham quan (không xin số).
-   Duyệt nội dung và cho phép bật?
+   Duyệt nội dung và cho phép bật? Trước khi bật: đăng ký `message_echoes` (mục B) và tắt tin tự động của Page trong Meta Business Suite (Instant Reply, Away message) — các tin này bị coi là nhân viên đã nhắn nên khách sẽ không được nhắc.
 3. [ ] **Nút trả lời nhanh** (nhãn → câu bot hiểu): Học phí / Chương trình học / Cơ sở gần nhà / Đặt lịch tham quan; Dưới 2 tuổi / 2 – 3 tuổi / 3 – 4 tuổi / 4 – 6 tuổi; Chùa Láng / Mỹ Đình / Kim Mã; Buổi sáng / Buổi chiều (hẹn tham quan); Tuần này / Tuần sau (học thử). Đổi không?
 4. [ ] Ví dụ CARE trong prompt gợi ý hệ Song ngữ Kim Mã khi phụ huynh muốn tối ưu chi phí. Trường có muốn bot gợi ý như vậy không?
 5. [ ] Khi nào tư vấn lại xe bus (và tuyến/phí/ưu đãi hiện hành).
@@ -51,6 +51,7 @@ Bảo mật:
 
 ## E. Kỹ thuật cần người có quyền
 
+- [ ] SĐT bot nhận: chỉ số Việt Nam dạng `0…` hoặc `+84…` (lấy số đầu tiên nếu phụ huynh cho nhiều số). Không nhận số nước ngoài, số thiếu số 0 đầu ("912 345 678") hay viết tách quá lạ ("0912 - 345 - 678"). Có cần nới không?
 - [ ] Model Groq `deepseek-r1-distill-llama-70b` có thể đã ngừng: kiểm tra trên console Groq, đổi model nếu cần.
 - [ ] Chạy `.venv/bin/python scripts/eval_chat.py` với một API key AI để chấm hội thoại thật (bot đã được test với model giả, chưa với model thật).
 - [ ] Sau deploy, kiểm trên Messenger thật: nút trả lời nhanh, nút gửi SĐT, câu hỏi gợi ý, tin từ quảng cáo; một lead thật xuất hiện trong nhóm Telegram và Google Sheet.

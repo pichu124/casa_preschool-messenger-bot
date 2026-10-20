@@ -37,8 +37,13 @@ Sau do dien cac gia tri vao file `.env`.
    - Muc **Webhooks**: click **Add Callback URL**
      - Callback URL: `https://your-domain.com/webhook` (hoac ngrok URL)
      - Verify Token: nhap gia tri giong `FB_VERIFY_TOKEN` trong file .env
-   - Subscribe to: `messages`, `messaging_postbacks`
+   - Subscribe to: `messages`, `messaging_postbacks` (nut Bat dau, cau hoi goi y), `messaging_referrals` (khach mo chat tu quang cao hoac link m.me khi da tung nhan tin)
 5. Trong **App Settings** -> **Basic**: copy **App Secret** vao `FB_APP_SECRET`
+6. Dang ky nut Bat dau (Get Started) va 4 cau hoi goi y (`ICE_BREAKERS` trong `app/messenger.py`) voi Page: chay mot lan sau khi deploy, va chay lai moi khi doi cac cau hoi do:
+   ```bash
+   curl -X POST "https://your-domain.com/setup-messenger-profile?secret=<TELEGRAM_WEBHOOK_SECRET>"
+   ```
+   Ket qua `{"result": "success"}` la xong; co `error` thi xem `FB_PAGE_ACCESS_TOKEN`.
 
 ### 4. Thiet lap Admin Escalation
 
@@ -87,6 +92,16 @@ Phu huynh de lai SDT lan dau, doi SDT, hoac chot hen tham quan/hoc thu: bot gui 
 - `LEADS_SHEET_TOKEN`: chuoi ngau nhien, phai trung Script Property `LEADS_TOKEN` cua script. Bot gui no trong body JSON; sai token thi script tu choi ghi.
 - URL va token cung nhau du de ghi hang vao Sheet (co du lieu ca nhan cua phu huynh): chi dat tren Render, khong dua vao chat hay repo.
 
+### 9. Anh tinh (`static/`)
+
+File trong thu muc `static/` duoc phuc vu CONG KHAI, khong can secret, tai `{PUBLIC_BASE_URL}/static/<file>` (Facebook tai anh tu URL nay, nen `PUBLIC_BASE_URL` phai la URL cong khai cua app). Chi dat anh duoc phep cong khai (vd thuc don mau), khong dat du lieu ca nhan.
+
+De bot gui anh kem cau tra loi, them duong dan vao cap Q&A trong `data/qa_database.json`:
+
+```json
+{"category": "Ăn uống", "questions": ["Cho em xem thực đơn mẫu"], "answer": "...", "images": ["static/thuc-don-mau.jpg"]}
+```
+
 ## Chay ung dung
 
 ### Development (local)
@@ -118,6 +133,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 | POST | `/webhook` | Nhan tin nhan tu Messenger | chu ky `X-Hub-Signature-256` (chi khi dat `FB_APP_SECRET`) |
 | POST | `/telegram-webhook` | Nhan admin reply tu Telegram | header `X-Telegram-Bot-Api-Secret-Token` |
 | POST | `/setup-telegram-webhook` | Dang ky webhook Telegram voi secret hien tai | `?secret=` |
+| POST | `/setup-messenger-profile` | Dang ky nut Bat dau va cau hoi goi y voi Page | `?secret=` |
+| GET | `/static/<file>` | Anh tinh trong `static/` | khong (cong khai) |
 | GET | `/dashboard` | Dashboard analytics | `?secret=` |
 | GET | `/analytics/stats`, `/analytics/messages` | Du lieu analytics (JSON) | `?secret=` |
 | POST | `/analytics/reset` | Xoa du lieu analytics | `?secret=` |
@@ -170,4 +187,5 @@ app/
   escalation.py    - Chuyen cau hoi cho admin
 data/
   qa_database.json - Du lieu Q&A
+static/            - Anh cong khai cho Q&A (vd thuc don mau)
 ```

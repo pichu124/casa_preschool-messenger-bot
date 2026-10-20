@@ -125,8 +125,11 @@ async def run_followups(dry_run: bool = False) -> dict:
                 customer_memory.set_fields(customer_id, {"followup_sent_at": now.isoformat()})
                 await customer_memory.append_to_history(customer_id, "assistant", text)
                 sent += 1
-            if sent:
-                await customer_memory.sync_to_github()
+            if sent and not await customer_memory.sync_to_github():
+                logger.warning(
+                    f"Follow-up run: followup_sent_at of {sent} parents not pushed to GitHub, only on local disk: "
+                    "lost on restart, and they may be followed up again"
+                )
         logger.info(f"Follow-up run: {len(due)} due, {sent} sent (enabled={enabled}, dry_run={dry_run})")
         return {
             "due": len(due),

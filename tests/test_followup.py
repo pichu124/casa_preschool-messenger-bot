@@ -270,6 +270,27 @@ def test_overlapping_runs_do_not_send_twice(monkeypatch, outbox, synced):
     assert synced == [1]
 
 
+@pytest.mark.parametrize("pushed", [True, False], ids=["đẩy được", "không đẩy được"])
+def test_unpushed_followup_marks_log_a_warning_without_personal_data(monkeypatch, outbox, caplog, pushed):
+    monkeypatch.setattr(settings, "FOLLOWUP_ENABLED", True)
+    seed_customers()
+
+    async def sync_to_github():
+        return pushed
+
+    monkeypatch.setattr(customer_memory, "sync_to_github", sync_to_github)
+
+    with caplog.at_level(logging.DEBUG):
+        result = asyncio.run(followup.run_followups(dry_run=False))
+
+    assert result["sent"] == 2
+    warnings = [r.getMessage() for r in caplog.records if r.name == followup.logger.name and r.levelno == logging.WARNING]
+    assert len(warnings) == int(not pushed)
+    assert all("followup_sent_at" in m for m in warnings)
+    private = (FB_NAME, KID_NAME, PHONE, PARENT_TEXT, BOT_TEXT, ASK_AGE_ID, INVITE_ID, *followup.TEMPLATES.values())
+    assert [m for m in (r.getMessage() for r in caplog.records) if any(p in m for p in private)] == []
+
+
 def staff_echo(customer_id: str, at: datetime) -> dict:
     """Webhook Facebook gửi khi nhân viên nhắn tay cho phụ huynh trong hộp thư Page (không có metadata của bot)."""
     event = {

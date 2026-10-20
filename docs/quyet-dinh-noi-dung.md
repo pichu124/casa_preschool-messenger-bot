@@ -39,7 +39,7 @@ Thứ tự ưu tiên khi mâu thuẫn: (1) phản hồi của trường bên dư
 - Diện tích lớp: Mỹ Đình 80–90 m²; Chùa Láng 90–100 m².
 - Dã ngoại: 6 chuyến/năm.
 - Chương trình: 3–6 tuổi học Cambridge Early Years là khung chính, Montessori là phương pháp và giáo cụ bổ trợ; 15 tháng–3 tuổi xây nền tảng qua Montessori, làm quen tiếng Anh với giáo viên nước ngoài.
-- Không có workshop.
+- Bỏ toàn bộ nội dung workshop của cô Phan Thúy (sheet "Workshop" trong kịch bản). Câu trả lời về sự kiện chung của trường (Family Day, workshop, lễ hội…) vẫn giữ — chờ trường xác nhận (docs/dot-3-can-bo-sung.md, mục C6).
 - Xe bus: bot không tư vấn (không nêu tuyến, phí, ưu đãi); nói tư vấn viên sẽ trao đổi trực tiếp, xin SĐT; không cho số → chuyển nhân viên.
 - Thực đơn mẫu: gửi thẳng cho phụ huynh khi đã có file trong Q&A (trường `images`).
 - Không hỏi thẳng ngân sách; có thể hỏi gia đình cân nhắc hệ Quốc tế hay Song ngữ.

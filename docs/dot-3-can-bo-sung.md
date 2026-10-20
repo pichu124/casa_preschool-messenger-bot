@@ -16,7 +16,7 @@ Trên Render (Environment):
 - [ ] `FOLLOWUP_ENABLED=true` chỉ khi đã duyệt mục C2.
 
 Trên Facebook App → Webhooks:
-- [ ] Đăng ký thêm `messaging_postbacks` và `messaging_referrals` (nút Get Started, câu hỏi gợi ý, nhận diện khách từ quảng cáo).
+- [ ] Đăng ký thêm `messaging_postbacks` và `messaging_referrals` (nút Get Started, câu hỏi gợi ý, nhận diện khách từ quảng cáo), và `message_echoes` (để tin nhắc lại biết nhân viên đã tự nhắn với phụ huynh; bắt buộc trước khi bật tin nhắc lại).
 - [ ] Sau deploy gọi một lần `POST /setup-messenger-profile?secret=<secret>` để cài nút Get Started và 4 câu hỏi gợi ý.
 
 Trên GitHub (Settings → Secrets and variables → Actions), chỉ khi bật tin nhắc lại:
@@ -38,6 +38,7 @@ Bảo mật:
 3. [ ] **Nút trả lời nhanh** (nhãn → câu bot hiểu): Học phí / Chương trình học / Cơ sở gần nhà / Đặt lịch tham quan; Dưới 2 tuổi / 2 – 3 tuổi / 3 – 4 tuổi / 4 – 6 tuổi; Chùa Láng / Mỹ Đình / Kim Mã; Buổi sáng / Buổi chiều (hẹn tham quan); Tuần này / Tuần sau (học thử). Đổi không?
 4. [ ] Ví dụ CARE trong prompt gợi ý hệ Song ngữ Kim Mã khi phụ huynh muốn tối ưu chi phí. Trường có muốn bot gợi ý như vậy không?
 5. [ ] Khi nào tư vấn lại xe bus (và tuyến/phí/ưu đãi hiện hành).
+6. [ ] "Bỏ phần workshop" đã được hiểu là bỏ workshop của cô Phan Thúy. Câu trả lời về sự kiện chung ("Family Day, workshop, lễ hội…") vẫn còn chữ "workshop". Có bỏ luôn chữ này không?
 
 ## D. Dữ kiện cần trường xác nhận
 

@@ -47,7 +47,8 @@ _processed_fb_mids: set[str] = set()
 _processed_tg_mids: set[int] = set()
 MAX_DEDUP_SIZE = 500
 
-# Sent to the parent on escalation; only invite a phone/Zalo number when we don't have one yet.
+# Sent to the parent on escalation; only invite a phone/Zalo number when we don't have one yet and the parent
+# has not declined to leave one (then the consultant's Telegram reply comes back here, in Messenger).
 ESCALATION_MESSAGE_HAS_PHONE = (
     "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! "
     "Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, "
@@ -57,6 +58,11 @@ ESCALATION_MESSAGE_ASK_PHONE = (
     "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! "
     "Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, bộ phận sẽ phản hồi Ba/Mẹ sớm nhất ạ. "
     "Nếu tiện, Ba/Mẹ để lại SĐT hoặc Zalo để tư vấn viên hỗ trợ Ba/Mẹ nhanh hơn nhé ạ."
+)
+ESCALATION_MESSAGE_PHONE_DECLINED = (
+    "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! "
+    "Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, "
+    "nhân viên tư vấn sẽ trả lời Ba/Mẹ trực tiếp tại đây sớm nhất ạ."
 )
 
 
@@ -401,9 +407,12 @@ async def process_message(sender_id: str, text: str):
                 customer_name=full_name,
                 question=text,
             )
-            reply_text = (
-                ESCALATION_MESSAGE_HAS_PHONE if had_phone or extracted.get("phone") else ESCALATION_MESSAGE_ASK_PHONE
-            )
+            if had_phone or extracted.get("phone"):
+                reply_text = ESCALATION_MESSAGE_HAS_PHONE
+            elif extracted.get("phone_declined") or existing_profile.get("phone_declined"):
+                reply_text = ESCALATION_MESSAGE_PHONE_DECLINED
+            else:
+                reply_text = ESCALATION_MESSAGE_ASK_PHONE
             await send_message(sender_id, reply_text)
         else:
             # History keeps the [IMAGES:] token so the model knows which images were already sent

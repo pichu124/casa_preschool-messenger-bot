@@ -31,6 +31,8 @@ SHEET_ECHO_URL = "https://script.googleusercontent.com/macros/echo?user_content_
 SHEET_TOKEN = "sheet-token-test"
 TELEGRAM_TOKEN = "123456:telegram-token-test"
 MODEL_TEXT = "Dạ em ghi nhận ạ. Ba/Mẹ muốn tham quan buổi sáng hay buổi chiều ạ?"
+QUESTION = "Bảng học phí chi tiết thế nào ạ?"
+ASK_PHONE_WORDS = ("SĐT", "Zalo", "số điện thoại")
 VN = timezone(timedelta(hours=7))
 
 
@@ -352,6 +354,28 @@ def test_lead_logs_contain_no_phone_or_sheet_url(chat, net, caplog, escalate):
     assert len(net.telegram) == 2 + int(escalate)
     assert [r for r in caplog.records if CUSTOMER_ID in r.getMessage()], "không bắt được log nào của tin này"
     assert leaked(caplog) == []
+
+
+# --- Câu chuyển tư vấn viên khi phụ huynh đã từ chối để lại SĐT ---
+
+
+@pytest.mark.parametrize("declined_in", ["tin này", "hồ sơ"])
+def test_escalation_after_phone_declined_does_not_ask_for_phone(chat, net, declined_in):
+    extracted = {}
+    if declined_in == "hồ sơ":
+        known_customer(kid_age="3 tuổi", phone_declined=True)
+    else:
+        extracted = {"phone_declined": True}
+
+    chat.say(f"Mình không để số đâu, {QUESTION}", extracted=extracted, reply="", escalate=True)
+
+    assert len(chat.sent) == 1
+    assert "tư vấn" in chat.sent[0] and "trực tiếp" in chat.sent[0]
+    assert [word for word in ASK_PHONE_WORDS if word in chat.sent[0]] == []
+    assert len(net.leads(escalation.ESCALATION_HEADER)) == len(net.telegram) == 1
+    assert net.sheet == []
+    assert customer_memory.get_profile(CUSTOMER_ID)["phone_declined"] is True
+    assert customer_memory.get_conversation_history(CUSTOMER_ID)[-1] == {"role": "assistant", "content": chat.sent[0]}
 
 
 # --- post_lead_row ---

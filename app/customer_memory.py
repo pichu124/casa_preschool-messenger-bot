@@ -23,49 +23,62 @@ RETURNING_GAP_HOURS = 24  # Gap > 24h = returning customer (special greeting)
 # In-memory cache: loaded at startup, persisted to disk on updates; sync_to_github() pushes it to CUSTOMERS_GITHUB_REPO
 _customers: dict[str, dict] = {}
 _loaded = False
+# Set when the startup pull from CUSTOMERS_GITHUB_REPO failed: pushing the disk copy would overwrite the repo.
+_pull_failed = False
 
 
-def _load_from_disk():
-    """Load customer profiles from local JSON file, fallback to CUSTOMERS_GITHUB_REPO if set."""
-    global _customers, _loaded
+def _read_disk() -> dict:
     path = Path(CUSTOMERS_PATH)
     if path.exists():
         try:
-            _customers = json.loads(path.read_text(encoding="utf-8"))
-            logger.info(f"Loaded {len(_customers)} customer profiles from disk")
-            _loaded = True
-            return
+            return json.loads(path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, ValueError):
-            _customers = {}
+            pass
+    return {}
 
-    # File doesn't exist or is corrupt - try pulling from GitHub
+
+def _pull_from_github(token: str, repo: str) -> dict | None:
+    """customers.json from `repo`, or None if the repo has no such file yet. Raises on any other outcome."""
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json",
+    }
+    api_url = f"https://api.github.com/repos/{repo}/contents/{GITHUB_FILE_PATH}"
+    resp = httpx.get(api_url, headers=headers, params={"ref": BRANCH}, timeout=15)
+    if resp.status_code == 404:
+        return None
+    if resp.status_code != 200:
+        raise RuntimeError(f"GitHub returned {resp.status_code}")
+    customers = json.loads(base64.b64decode(resp.json()["content"]).decode("utf-8"))
+    if not isinstance(customers, dict):
+        raise ValueError("customers.json is not a JSON object")
+    return customers
+
+
+def _load_from_disk():
+    """Load customer profiles. With CUSTOMERS_GITHUB_REPO set, that repo wins over the disk copy (which may be
+    stale, e.g. baked into the image); disk is used when the repo has no file yet, or read-only if the pull fails."""
+    global _customers, _loaded, _pull_failed
     token = settings.GITHUB_TOKEN
     repo = settings.CUSTOMERS_GITHUB_REPO
+    remote = None
     if token and repo:
         try:
-            headers = {
-                "Authorization": f"token {token}",
-                "Accept": "application/vnd.github.v3+json",
-            }
-            api_url = f"https://api.github.com/repos/{repo}/contents/{GITHUB_FILE_PATH}"
-            resp = httpx.get(api_url, headers=headers, params={"ref": BRANCH}, timeout=15)
-            if resp.status_code == 200:
-                content_b64 = resp.json().get("content", "")
-                content = base64.b64decode(content_b64).decode("utf-8")
-                _customers = json.loads(content)
-                # Save to local disk for faster subsequent loads
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(content, encoding="utf-8")
-                logger.info(f"Loaded {len(_customers)} customer profiles from GitHub")
-            else:
-                logger.info(f"No customers file on GitHub ({resp.status_code}), starting empty")
-                _customers = {}
+            remote = _pull_from_github(token, repo)
         except Exception as e:
-            logger.warning(f"Failed to load customers from GitHub: {e}")
-            _customers = {}
-    else:
-        _customers = {}
+            _pull_failed = True
+            logger.error(
+                f"Failed to load customers from {repo} ({type(e).__name__}: {e}): using the disk copy, "
+                "GitHub sync for customers is OFF until restart so the repo is not overwritten"
+            )
 
+    if remote is not None:
+        _customers = remote
+        _save_to_disk()
+        logger.info(f"Loaded {len(_customers)} customer profiles from GitHub")
+    else:
+        _customers = _read_disk()
+        logger.info(f"Loaded {len(_customers)} customer profiles from disk")
     _loaded = True
 
 
@@ -88,6 +101,11 @@ async def sync_to_github() -> bool:
     repo = settings.CUSTOMERS_GITHUB_REPO
     if not token or not repo:
         logger.debug("GITHUB_TOKEN or CUSTOMERS_GITHUB_REPO not set, skipping GitHub sync for customers")
+        return False
+    if not _loaded:
+        _load_from_disk()
+    if _pull_failed:
+        logger.error(f"Skipping GitHub sync for customers: startup load from {repo} failed (restart to retry)")
         return False
 
     headers = {

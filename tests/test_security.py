@@ -1,5 +1,6 @@
 """Endpoint admin và Telegram webhook chỉ mở khi có secret cấu hình và gửi đúng secret đó.
-customers.json chỉ lên GitHub khi đặt CUSTOMERS_GITHUB_REPO."""
+customers.json chỉ lên GitHub khi đặt CUSTOMERS_GITHUB_REPO; khi đặt thì lúc nạp repo đó thắng bản trên đĩa,
+và nạp lỗi thì không đẩy lên (để không đè repo bằng dữ liệu thiếu)."""
 
 import asyncio
 import base64
@@ -43,6 +44,13 @@ WRONG_SECRETS = [None, "", "sai", "casa-bot-secret-2024", "s3cret ", "bí-mật"
 TG_HEADER = "X-Telegram-Bot-Api-Secret-Token"
 ESCALATION_MSG_ID = 5151
 CUSTOMER_ID = "9000000000000002"
+
+PRIVATE_REPO = "casa-owner/casa-private-data"
+CUSTOMERS_API = f"https://api.github.com/repos/{PRIVATE_REPO}/contents/data/customers.json"
+# Bản cũ trên đĩa: data/customers.json được track trong repo code nên có sẵn trong image Render.
+DISK_PROFILES = {"9000000000000006": {"kid_age": "2"}}
+REMOTE_PROFILES = {"9000000000000007": {"kid_age": "4"}, "9000000000000008": {"kid_age": "5"}}
+NEW_CUSTOMER = "9000000000000009"
 
 
 def call(method, path, kwargs, secret):
@@ -186,12 +194,14 @@ def test_customers_not_pushed_without_repo(monkeypatch, github_token):
     # conftest fail ở teardown nếu có request mạng nào (kể cả khi code nuốt exception).
 
 
-def test_customers_not_pulled_without_repo(monkeypatch, github_token):
+@pytest.mark.parametrize("disk", [None, DISK_PROFILES], ids=["đĩa trống", "có bản trên đĩa"])
+def test_customers_not_pulled_without_repo(monkeypatch, github_token, disk):
     monkeypatch.setattr(settings, "CUSTOMERS_GITHUB_REPO", "")
     monkeypatch.setattr(customer_memory, "_loaded", False)
-    assert not Path(customer_memory.CUSTOMERS_PATH).exists()
+    if disk is not None:
+        Path(customer_memory.CUSTOMERS_PATH).write_text(json.dumps(disk), encoding="utf-8")
 
-    assert customer_memory.get_all_profiles() == {}
+    assert customer_memory.get_all_profiles() == (disk or {})
 
 
 def test_customers_pushed_only_to_configured_repo(monkeypatch, github_token):
@@ -227,3 +237,100 @@ def test_customers_pulled_only_from_configured_repo(monkeypatch, github_token):
     assert requests == [
         "https://api.github.com/repos/casa-owner/casa-private-data/contents/data/customers.json?ref=main"
     ]
+
+
+def github_file(profiles) -> httpx.Response:
+    return httpx.Response(200, json={"content": base64.b64encode(json.dumps(profiles).encode()).decode()})
+
+
+def github_timeout(request):
+    raise httpx.ConnectTimeout("timed out")
+
+
+@pytest.fixture
+def private_repo(monkeypatch, github_token):
+    """CUSTOMERS_GITHUB_REPO đặt, bot vừa khởi động lại với bản cũ trên đĩa; trả về các bản đã PUT lên GitHub."""
+    monkeypatch.setattr(settings, "CUSTOMERS_GITHUB_REPO", PRIVATE_REPO)
+    monkeypatch.setattr(customer_memory, "sync_to_github", REAL_SYNC_CUSTOMERS)
+    monkeypatch.setattr(customer_memory, "_loaded", False)
+    Path(customer_memory.CUSTOMERS_PATH).write_text(json.dumps(DISK_PROFILES), encoding="utf-8")
+    pushed = []
+
+    async def fake_github(self, request):
+        assert str(request.url).startswith(CUSTOMERS_API)
+        if request.method == "PUT":
+            pushed.append(json.loads(base64.b64decode(json.loads(request.content)["content"])))
+            return httpx.Response(200)
+        return httpx.Response(200, json={"sha": "abc123"})
+
+    monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", fake_github)
+    return pushed
+
+
+def serve_pull(monkeypatch, respond):
+    """GitHub trả lời lời kéo lúc nạp (httpx đồng bộ) bằng `respond(request)`; trả về các request đã gọi."""
+    pulled = []
+
+    def fake_github(self, request):
+        pulled.append((request.method, str(request.url)))
+        return respond(request)
+
+    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", fake_github)
+    return pulled
+
+
+def new_message_then_sync() -> bool:
+    asyncio.run(customer_memory.update_profile(NEW_CUSTOMER, {"kid_age": "3"}))
+    return asyncio.run(customer_memory.sync_to_github())
+
+
+def test_restart_loads_private_repo_over_stale_disk_copy(monkeypatch, private_repo):
+    pulled = serve_pull(monkeypatch, lambda request: github_file(REMOTE_PROFILES))
+
+    assert customer_memory.get_all_profiles() == REMOTE_PROFILES
+    assert pulled == [("GET", f"{CUSTOMERS_API}?ref=main")]
+    assert json.loads(Path(customer_memory.CUSTOMERS_PATH).read_text(encoding="utf-8")) == REMOTE_PROFILES
+
+    assert new_message_then_sync() is True
+    assert len(private_repo) == 1
+    assert set(private_repo[0]) == {*REMOTE_PROFILES, NEW_CUSTOMER}
+    assert {key: private_repo[0][key] for key in REMOTE_PROFILES} == REMOTE_PROFILES
+
+
+@pytest.mark.parametrize(
+    "respond",
+    [
+        lambda request: httpx.Response(500),
+        lambda request: httpx.Response(403),
+        github_timeout,
+        lambda request: httpx.Response(200, json={"content": base64.b64encode(b'{"9000').decode()}),
+        # File trên 1 MB: Contents API trả content rỗng.
+        lambda request: httpx.Response(200, json={"content": "", "encoding": "none"}),
+    ],
+    ids=["GitHub 500", "GitHub 403", "timeout", "JSON hỏng", "content rỗng"],
+)
+def test_failed_pull_keeps_bot_running_but_never_pushes(monkeypatch, caplog, private_repo, respond):
+    serve_pull(monkeypatch, respond)
+
+    with caplog.at_level(logging.ERROR, logger=customer_memory.logger.name):
+        assert customer_memory.get_all_profiles() == DISK_PROFILES
+
+    assert new_message_then_sync() is False
+    assert private_repo == []
+    assert customer_memory.get_profile(NEW_CUSTOMER)["kid_age"] == "3"
+    errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    assert [m for m in errors if PRIVATE_REPO in m], errors
+
+
+@pytest.mark.parametrize("disk", [DISK_PROFILES, None], ids=["có bản trên đĩa", "đĩa trống"])
+def test_private_repo_without_file_starts_from_disk_and_syncs(monkeypatch, private_repo, disk):
+    if disk is None:
+        Path(customer_memory.CUSTOMERS_PATH).unlink()
+    pulled = serve_pull(monkeypatch, lambda request: httpx.Response(404))
+
+    assert customer_memory.get_all_profiles() == (disk or {})
+    assert pulled == [("GET", f"{CUSTOMERS_API}?ref=main")]
+
+    assert new_message_then_sync() is True
+    assert len(private_repo) == 1
+    assert set(private_repo[0]) == {*(disk or {}), NEW_CUSTOMER}

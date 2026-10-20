@@ -75,6 +75,8 @@ Thu tu fallback cau hinh trong `AI_MODEL_ORDER`.
 
 - `CUSTOMERS_GITHUB_REPO` (`owner/ten-repo`): repo bot dung de day va keo `data/customers.json` (nhanh `main`) bang `GITHUB_TOKEN`. File nay chua du lieu ca nhan cua phu huynh va tre: chi tro toi repo PRIVATE, khong bao gio tro toi repo code public nay.
   - `GITHUB_TOKEN` phai co quyen ghi Contents tren repo do. Nen tao repo kem README de co san nhanh `main`.
+  - Luc khoi dong, repo do la nguon su that: bot keo `data/customers.json` tu repo truoc va ghi de ban tren dia. Repo chua co file (404) thi bot dung ban tren dia (khong co thi bat dau rong) va day len o tin nhan dau tien. Keo loi (mang, timeout, 5xx, 401/403, JSON hong) thi bot van tra loi voi ban tren dia nhung KHONG day len GitHub cho toi lan khoi dong sau (log ERROR), de khong de ban thieu len repo private.
+  - `data/customers.json` hien con duoc track trong repo code public nay (va nam trong image deploy). Sau khi repo private da co ban day du, nguoi quan tri nen go file khoi repo public (vd `git rm --cached data/customers.json` va them vao `.gitignore`); lich su git cu van con file nay.
 - De trong (mac dinh): ho so khach chi luu tren dia cuc bo, khong day len GitHub. Tren Render dia khong ben, nen ho so mat sau moi lan deploy hoac restart.
 
 ## Chay ung dung

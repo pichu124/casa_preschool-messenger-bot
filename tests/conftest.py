@@ -50,6 +50,7 @@ def isolate(monkeypatch, tmp_path):
     monkeypatch.setattr(customer_memory, "CUSTOMERS_PATH", str(tmp_path / "customers.json"))
     monkeypatch.setattr(customer_memory, "_customers", {})
     monkeypatch.setattr(customer_memory, "_loaded", True)
+    monkeypatch.setattr(customer_memory, "_pull_failed", False)
 
     yield
 

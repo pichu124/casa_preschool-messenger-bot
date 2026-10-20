@@ -116,19 +116,23 @@ async def escalate_to_admin(
         return False
 
 
-def _digits(phone) -> str:
-    return re.sub(r"[^0-9]", "", str(phone or ""))
+def normalize_phone(phone) -> str:
+    """Digits only, Vietnam country code 84 as a leading 0: "+84 912 345 678" and "0912345678" are one number."""
+    digits = re.sub(r"[^0-9]", "", str(phone or ""))
+    if len(digits) == 11 and digits.startswith("84"):
+        return "0" + digits[2:]
+    return digits
 
 
 def lead_events(before: dict, extracted: dict) -> list[str]:
     """Lead events in one parent message: `before` is the profile before it, `extracted` what it adds.
 
-    Phones are compared by digits only, so the same number in another format is no event.
+    Phones are compared after normalize_phone, so the same number in another format is no event.
     """
     events = []
-    phone = _digits(extracted.get("phone"))
+    phone = normalize_phone(extracted.get("phone"))
     if phone:
-        old_phone = _digits(before.get("phone"))
+        old_phone = normalize_phone(before.get("phone"))
         if not old_phone:
             events.append("new_phone")
         elif phone != old_phone:

@@ -1,6 +1,7 @@
 """Prompt tư vấn và lọc khối suy luận <think>: chỉ dùng provider giả, không mạng, không API key."""
 import asyncio
 import json
+import re
 
 import pytest
 
@@ -180,6 +181,18 @@ def test_model_never_receives_outdated_instruction(monkeypatch, phrase):
         assert phrase not in user_message
 
 
+# Trường bỏ workshop và tạm không tư vấn xe bus (phản hồi đợt 2).
+REMOVED_TOPICS = ["workshop", "phan thúy", "kiểm tra tuyến", "tuyến gần nhất"]
+
+
+@pytest.mark.parametrize("phrase", REMOVED_TOPICS)
+def test_model_never_receives_removed_topic(monkeypatch, phrase):
+    for kwargs in ({}, {"conversation_history": [{"role": "user", "content": "chào"}]}):
+        system_prompt, user_message = model_input(monkeypatch, "có xe bus không", **kwargs)
+        assert phrase not in system_prompt.lower()
+        assert phrase not in user_message.lower()
+
+
 REQUIRED_KNOWLEDGE = [
     "15 tháng",
     "185 Huỳnh Thúc Kháng",
@@ -194,14 +207,30 @@ REQUIRED_KNOWLEDGE = [
     "Zalo",
     "[ESCALATE]",
     "[IMAGES:",
+    "[TRẠNG THÁI TƯ VẤN]",
+    "Phụ huynh đã từ chối để lại SĐT: có",
+    "Nguồn: quảng cáo",
+    "Đã hẹn:",
 ]
 
+QUICK_KEYS = {"topics", "age", "campus", "phone", "visit_time", "trial_week"}
 
-@pytest.mark.parametrize("phrase", REQUIRED_KNOWLEDGE)
+
+@pytest.mark.parametrize("phrase", REQUIRED_KNOWLEDGE + [f"[QUICK:{key}]" for key in sorted(QUICK_KEYS)])
 def test_system_prompt_carries_required_knowledge(monkeypatch, phrase):
     system_prompt, _ = model_input(monkeypatch, "trường ở đâu")
 
     assert phrase in system_prompt
+
+
+def test_system_prompt_only_teaches_known_quick_reply_keys():
+    assert set(re.findall(r"\[QUICK:([^\]]*)\]", SYSTEM_PROMPT)) == QUICK_KEYS
+
+
+def test_system_prompt_instructions_stay_compact():
+    instructions = SYSTEM_PROMPT.replace("{qa_context}", "")
+    assert len(instructions) <= 10_000, len(instructions)
+    assert "{" not in instructions and "}" not in instructions
 
 
 def test_first_message_asks_for_standard_greeting(monkeypatch):
@@ -220,6 +249,21 @@ def test_new_parent_with_known_context_still_gets_greeting(monkeypatch):
     assert "[FIRST_MESSAGE] cho hoi hoc phi" in user_message
     assert "Dạ Casa chào Ba/Mẹ ạ" in user_message
     assert 'Nguồn: quảng cáo "Học thử 1 tuần"' in user_message
+
+
+def test_reminder_defers_next_step_to_consultation_state(monkeypatch):
+    context = "[THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT]:\n[TRẠNG THÁI TƯ VẤN]:\n- Giai đoạn: Đã hẹn tham quan/học thử\n- Đã hẹn: tham quan buổi sáng"
+
+    _, user_message = model_input(
+        monkeypatch,
+        "cảm ơn em",
+        customer_context=context,
+        conversation_history=[{"role": "user", "content": "buổi sáng nhé"}, {"role": "assistant", "content": "Dạ vâng ạ"}],
+    )
+
+    reminder = user_message.split("[NHẮC NHỞ QUAN TRỌNG]:", 1)[1]
+    assert "[TRẠNG THÁI TƯ VẤN]" in reminder
+    assert "không hẹn lại" in reminder
 
 
 def test_follow_up_message_is_not_marked_first(monkeypatch):

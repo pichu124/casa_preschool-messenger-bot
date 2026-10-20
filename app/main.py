@@ -20,7 +20,8 @@ from app.escalation import (
     ESCALATION_HEADER,
     escalate_to_admin,
     get_pending_escalation,
-    notify_lead,
+    lead_events,
+    publish_lead_event,
     resolve_escalation,
 )
 from app import analytics
@@ -385,7 +386,6 @@ async def process_message(sender_id: str, text: str):
             ),
             ai_engine.extract_customer_info(text, existing_profile),
         )
-        new_phone = extracted.get("phone") if not had_phone else None
 
         logger.info(
             f"User {sender_id} ({user_name}): {len(text)} chars "
@@ -401,7 +401,9 @@ async def process_message(sender_id: str, text: str):
                 customer_name=full_name,
                 question=text,
             )
-            reply_text = ESCALATION_MESSAGE_HAS_PHONE if had_phone or new_phone else ESCALATION_MESSAGE_ASK_PHONE
+            reply_text = (
+                ESCALATION_MESSAGE_HAS_PHONE if had_phone or extracted.get("phone") else ESCALATION_MESSAGE_ASK_PHONE
+            )
             await send_message(sender_id, reply_text)
         else:
             # History keeps the [IMAGES:] token so the model knows which images were already sent
@@ -435,11 +437,12 @@ async def process_message(sender_id: str, text: str):
         try:
             if full_name and "parent_name" not in extracted and not existing_profile.get("parent_name"):
                 extracted["parent_name"] = full_name
+            events = lead_events(existing_profile, extracted)
             updated_profile = await customer_memory.update_profile(sender_id, extracted)
             if extracted:
                 logger.info(f"Updated profile for {sender_id}: {list(extracted.keys())}")
-            if new_phone:
-                await notify_lead(sender_id, full_name, new_phone, updated_profile, text)
+            for kind in events:
+                await publish_lead_event(kind, sender_id, full_name, updated_profile, text)
         except Exception as profile_err:
             logger.warning(f"Customer profile update failed: {profile_err}")
 

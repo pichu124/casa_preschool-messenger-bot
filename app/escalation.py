@@ -1,11 +1,15 @@
+import asyncio
 import json
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
 
 import httpx
 
 from app.config import settings
+from app.customer_memory import lead_stage
+from app.leads_sheet import post_lead_row
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +19,11 @@ PENDING_ESCALATIONS_PATH = "data/pending_escalations.json"
 # Dòng đầu tin Telegram: /telegram-webhook chỉ dựng lại escalation từ text khi tin bắt đầu bằng ESCALATION_HEADER.
 ESCALATION_HEADER = "⚠️ CẦN TRỢ GIÚP ⚠️"
 LEAD_HEADER = "📞 KHÁCH ĐỂ LẠI SĐT"
+LEAD_HEADERS = {
+    "new_phone": LEAD_HEADER,
+    "phone_changed": "📞 KHÁCH ĐỔI SĐT",
+    "visit_request": "📅 KHÁCH HẸN THAM QUAN/HỌC THỬ",
+}
 
 # In-memory mapping: telegram_message_id -> escalation info
 _pending: dict[int, dict] = {}
@@ -107,36 +116,86 @@ async def escalate_to_admin(
         return False
 
 
-async def notify_lead(customer_id: str, customer_name: str, phone: str, profile: dict, last_message: str) -> bool:
-    """Tell the consultants on Telegram that a parent left a phone number.
+def _digits(phone) -> str:
+    return re.sub(r"[^0-9]", "", str(phone or ""))
 
-    Not tracked in _pending: replying to this message sends nothing to the parent.
+
+def lead_events(before: dict, extracted: dict) -> list[str]:
+    """Lead events in one parent message: `before` is the profile before it, `extracted` what it adds.
+
+    Phones are compared by digits only, so the same number in another format is no event.
     """
-    def known(*values) -> str:
-        return ", ".join(str(v) for v in values if v) or "chưa rõ"
+    events = []
+    phone = _digits(extracted.get("phone"))
+    if phone:
+        old_phone = _digits(before.get("phone"))
+        if not old_phone:
+            events.append("new_phone")
+        elif phone != old_phone:
+            events.append("phone_changed")
+    visit = str(extracted.get("visit_request") or "").strip()
+    if visit and visit != str(before.get("visit_request") or "").strip():
+        events.append("visit_request")
+    return events
 
-    concerns = profile.get("concerns")
-    concerns = concerns if isinstance(concerns, list) else [concerns]
 
-    message = (
-        f"{LEAD_HEADER}\n\n"
-        f"👤 Facebook: {customer_name}\n"
-        f"📱 SĐT: {phone}\n"
-        f"🆔 ID: {customer_id}\n"
-        f"👶 Bé: {known(profile.get('kid_name'), profile.get('kid_age'))}\n"
-        f"🏫 Quan tâm: {known(profile.get('interested_program'), profile.get('interested_campus'))}\n"
-        f"📍 Địa chỉ: {known(profile.get('address'))}\n"
-        f"💭 Mối quan tâm: {known(*concerns)}\n\n"
-        f"💬 Tin nhắn gần nhất:\n{last_message}\n\n"
-        f"🕐 {datetime.now().strftime('%d/%m/%Y %H:%M')}\n\n"
-        f"📲 Gọi hoặc nhắn Zalo cho phụ huynh. Reply tin này không gửi tới khách."
-    )
+def _join(*values) -> str:
+    return ", ".join(str(v) for v in values if v)
 
-    telegram_msg_id = await _send_telegram(message)
-    if telegram_msg_id is None:
-        return False
-    logger.info(f"Lead sent to Telegram (msg_id={telegram_msg_id}) for customer {customer_id}")
-    return True
+
+def _known(*values) -> str:
+    return _join(*values) or "chưa rõ"
+
+
+async def publish_lead_event(kind: str, customer_id: str, fb_name: str, profile: dict, last_message: str) -> None:
+    """Send a lead event to the Telegram group and the leads Google Sheet, concurrently. `profile` is the profile
+    after the parent's message.
+
+    Not tracked in _pending: replying to this message sends nothing to the parent. Never raises; logs carry
+    neither the phone number nor the Sheet URL.
+    """
+    try:
+        concerns = profile.get("concerns")
+        concerns = concerns if isinstance(concerns, list) else [concerns]
+        stage = lead_stage(profile)
+        message = (
+            f"{LEAD_HEADERS[kind]}\n\n"
+            f"👤 Facebook: {fb_name}\n"
+            f"📱 SĐT: {_known(profile.get('phone'))}\n"
+            f"🆔 ID: {customer_id}\n"
+            f"👶 Bé: {_known(profile.get('kid_name'), profile.get('kid_age'))}\n"
+            f"🏫 Quan tâm: {_known(profile.get('interested_program'), profile.get('interested_campus'))}\n"
+            f"📍 Khu vực: {_known(profile.get('area'), profile.get('address'))}\n"
+            f"🗓 Dự kiến nhập học: {_known(profile.get('expected_start'))}\n"
+            f"📅 Hẹn: {_known(profile.get('visit_request'))}\n"
+            f"📣 Quảng cáo: {_known(profile.get('ad_title'))}\n"
+            f"📊 Giai đoạn: {stage}\n"
+            f"💭 Mối quan tâm: {_known(*concerns)}\n\n"
+            f"💬 Tin nhắn gần nhất:\n{last_message}\n\n"
+            f"🕐 {datetime.now().strftime('%d/%m/%Y %H:%M')}\n\n"
+            f"📲 Gọi hoặc nhắn Zalo cho phụ huynh. Reply tin này không gửi tới khách."
+        )
+        # Keys and column order: docs/google-sheet-leads.md
+        row = {
+            "fb_name": fb_name,
+            "customer_id": customer_id,
+            "phone": _join(profile.get("phone")),
+            "kid_name": _join(profile.get("kid_name")),
+            "kid_age": _join(profile.get("kid_age")),
+            "campus": _join(profile.get("interested_campus"), profile.get("interested_program")),
+            "area": _join(profile.get("area"), profile.get("address")),
+            "expected_start": _join(profile.get("expected_start")),
+            "visit_request": _join(profile.get("visit_request")),
+            "ad_title": _join(profile.get("ad_title")),
+            "stage": stage,
+            "last_message": last_message,
+        }
+        telegram_msg_id, sheet_ok = await asyncio.gather(_send_telegram(message), post_lead_row(kind, row))
+        logger.info(
+            f"Lead {kind} for customer {customer_id}: Telegram msg_id={telegram_msg_id}, Sheet written={sheet_ok}"
+        )
+    except Exception as e:
+        logger.error(f"Lead {kind} for customer {customer_id} not published: {type(e).__name__}")
 
 
 def get_pending_escalation(telegram_msg_id: int) -> dict | None:

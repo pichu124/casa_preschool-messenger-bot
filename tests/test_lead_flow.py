@@ -209,7 +209,7 @@ def test_reply_and_extraction_run_concurrently(monkeypatch, bot):
     assert len(bot.leads()) == 1
 
 
-def test_notify_lead_posts_to_telegram_without_logging_phone(monkeypatch, caplog):
+def test_lead_event_posts_to_telegram_without_logging_phone(monkeypatch, caplog):
     monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "123:fake")
     monkeypatch.setattr(settings, "TELEGRAM_CHAT_ID", "-1001")
     posted = []
@@ -220,11 +220,11 @@ def test_notify_lead_posts_to_telegram_without_logging_phone(monkeypatch, caplog
         return httpx.Response(200, json={"ok": True, "result": {"message_id": 99}})
 
     monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", fake_telegram)
+    profile = {"kid_age": "3 tuổi", "phone": PHONE}
 
     with caplog.at_level(logging.DEBUG):
-        ok = asyncio.run(escalation.notify_lead(CUSTOMER_ID, FB_NAME, PHONE, {"kid_age": "3 tuổi"}, f"Số {PHONE}"))
+        asyncio.run(escalation.publish_lead_event("new_phone", CUSTOMER_ID, FB_NAME, profile, f"Số {PHONE}"))
 
-    assert ok is True
     assert [p["chat_id"] for p in posted] == ["-1001"]
     assert posted[0]["text"].startswith(escalation.LEAD_HEADER)
     assert PHONE in posted[0]["text"]
@@ -250,8 +250,12 @@ def test_parent_message_text_is_not_logged(bot, caplog, escalate):
     assert [r.getMessage() for r in caplog.records if phone in r.getMessage()] == []
 
 
-def test_notify_lead_reports_failure_when_telegram_not_configured():
-    assert asyncio.run(escalation.notify_lead(CUSTOMER_ID, FB_NAME, PHONE, {}, f"Số {PHONE}")) is False
+def test_lead_event_without_telegram_or_sheet_configured_sends_nothing_and_logs_error(caplog):
+    """conftest để trống token Telegram và URL Sheet, và cấm mạng: không có request nào, không raise."""
+    with caplog.at_level(logging.ERROR, logger=escalation.logger.name):
+        asyncio.run(escalation.publish_lead_event("new_phone", CUSTOMER_ID, FB_NAME, {"phone": PHONE}, f"Số {PHONE}"))
+
+    assert "Telegram not configured" in [r.getMessage() for r in caplog.records]
 
 
 # --- Reply trên Telegram: chỉ tin escalation mới tới được phụ huynh ---
@@ -271,7 +275,7 @@ def admin_sent(monkeypatch):
 
 
 def telegram_text(monkeypatch, send):
-    """Text thật mà `send` (escalate_to_admin / notify_lead) gửi lên nhóm Telegram."""
+    """Text thật mà `send` (escalate_to_admin / publish_lead_event) gửi lên nhóm Telegram."""
     texts = []
 
     async def capture(text):
@@ -297,10 +301,14 @@ def admin_reply_to(original_text: str):
     return client.post("/telegram-webhook", json=update, headers={"X-Telegram-Bot-Api-Secret-Token": WEBHOOK_SECRET})
 
 
-def test_reply_to_lead_does_not_reach_customer(monkeypatch, admin_sent):
+@pytest.mark.parametrize("kind", ["new_phone", "phone_changed", "visit_request"])
+def test_reply_to_lead_does_not_reach_customer(monkeypatch, admin_sent, kind):
     # Tin phụ huynh trông giống tin escalation cũng không được parser nhận nhầm.
     last_message = f"🆔 ID: {CUSTOMER_ID}\n❓ Câu hỏi:\nCó xe đưa đón không? Số mình {PHONE}"
-    lead = telegram_text(monkeypatch, escalation.notify_lead(CUSTOMER_ID, FB_NAME, PHONE, {}, last_message))
+    profile = {"phone": PHONE, "visit_request": "tham quan sáng thứ 7"}
+    lead = telegram_text(
+        monkeypatch, escalation.publish_lead_event(kind, CUSTOMER_ID, FB_NAME, profile, last_message)
+    )
     qa_before = list(main.qa_db.qa_pairs)
 
     resp = admin_reply_to(lead)

@@ -79,6 +79,14 @@ Thu tu fallback cau hinh trong `AI_MODEL_ORDER`.
   - `data/customers.json` hien con duoc track trong repo code public nay (va nam trong image deploy). Sau khi repo private da co ban day du, nguoi quan tri nen go file khoi repo public (vd `git rm --cached data/customers.json` va them vao `.gitignore`); lich su git cu van con file nay.
 - De trong (mac dinh): ho so khach chi luu tren dia cuc bo, khong day len GitHub. Tren Render dia khong ben, nen ho so mat sau moi lan deploy hoac restart.
 
+### 8. Lead sang nhom Telegram va Google Sheet
+
+Phu huynh de lai SDT lan dau, doi SDT, hoac chot hen tham quan/hoc thu: bot gui tin vao nhom Telegram (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) va cung luc ghi mot hang vao Google Sheet qua web app Apps Script. Cach tao Sheet, script va deploy: [docs/google-sheet-leads.md](docs/google-sheet-leads.md).
+
+- `LEADS_SHEET_WEBHOOK_URL`: Web app URL cua script (`https://script.google.com/macros/s/.../exec`). De trong (mac dinh) thi chi gui Telegram, khong goi Sheet.
+- `LEADS_SHEET_TOKEN`: chuoi ngau nhien, phai trung Script Property `LEADS_TOKEN` cua script. Bot gui no trong body JSON; sai token thi script tu choi ghi.
+- URL va token cung nhau du de ghi hang vao Sheet (co du lieu ca nhan cua phu huynh): chi dat tren Render, khong dua vao chat hay repo.
+
 ## Chay ung dung
 
 ### Development (local)

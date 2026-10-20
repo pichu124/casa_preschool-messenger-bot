@@ -30,6 +30,8 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
+# httpx logs every request URL at INFO: the Telegram bot token, the page access token, the leads Sheet URL.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 APP_VERSION = "1.6.0"

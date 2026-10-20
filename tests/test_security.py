@@ -16,7 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app.main as main
-from app import customer_memory, escalation
+from app import customer_memory, escalation, messenger
 from app.config import settings
 
 client = TestClient(main.app)
@@ -117,6 +117,31 @@ def test_startup_warns_about_missing_secrets(monkeypatch, caplog):
     warnings = " ".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
     assert "TELEGRAM_WEBHOOK_SECRET" in warnings
     assert "FB_APP_SECRET" in warnings
+
+
+def test_request_logs_do_not_carry_tokens_from_urls(monkeypatch, caplog):
+    """Token bot Telegram nằm trong path URL, token trang Facebook trong query: không record log nào chứa chúng."""
+    telegram_token = "123456:telegram-token-test"
+    page_token = "EAAB-page-token-test"
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", telegram_token)
+    monkeypatch.setattr(settings, "TELEGRAM_CHAT_ID", "-1001")
+    monkeypatch.setattr(settings, "FB_PAGE_ACCESS_TOKEN", page_token)
+    hosts = []
+
+    async def fake_api(self, request):
+        hosts.append(request.url.host)
+        return httpx.Response(200, json={"ok": True, "result": {"message_id": 1}})
+
+    monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", fake_api)
+
+    with caplog.at_level(logging.DEBUG):
+        assert asyncio.run(escalation.escalate_to_admin(CUSTOMER_ID, "Lan Thử", "Có xe đưa đón không?")) is True
+        asyncio.run(messenger.send_message(CUSTOMER_ID, "Dạ em chào Ba/Mẹ ạ"))
+
+    assert hosts == ["api.telegram.org", "graph.facebook.com"]
+    assert [r for r in caplog.records if CUSTOMER_ID in r.getMessage()], "không bắt được log nào"
+    tokens = (telegram_token, page_token)
+    assert [r.getMessage() for r in caplog.records if any(t in r.getMessage() for t in tokens)] == []
 
 
 def admin_reply_update() -> dict:

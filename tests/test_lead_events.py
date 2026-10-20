@@ -65,6 +65,8 @@ VN = timezone(timedelta(hours=7))
         ({}, {"phone": "không có"}, []),
         ({}, {"visit_request": VISIT}, ["visit_request"]),
         ({"visit_request": VISIT}, {"visit_request": VISIT}, []),
+        ({"visit_request": "tham quan buổi sáng"}, {"visit_request": "Tham quan  buổi sáng"}, []),
+        ({"visit_request": "Tham Quan\tbuổi  sáng "}, {"visit_request": " THAM QUAN BUỔI SÁNG"}, []),
         ({"visit_request": VISIT}, {"visit_request": "học thử tuần sau"}, ["visit_request"]),
         ({"visit_request": VISIT}, {}, []),
         ({}, {"visit_request": "  "}, []),
@@ -94,6 +96,8 @@ VN = timezone(timedelta(hours=7))
         "SĐT không có chữ số",
         "hẹn mới",
         "hẹn giống lần trước",
+        "hẹn giống, khác hoa thường và khoảng trắng",
+        "hẹn giống, viết hoa hết và tab",
         "hẹn khác lần trước",
         "không nhắc lại hẹn",
         "hẹn rỗng",
@@ -317,6 +321,15 @@ def test_two_numbers_in_one_message_publish_the_first_as_new_phone(chat, net, ca
     assert [(row["event"], row["phone"]) for row in net.sheet] == [("new_phone", PHONE)]
     assert leaked(caplog) == []
     assert [r.getMessage() for r in caplog.records if NEW_PHONE in r.getMessage()] == []
+
+
+def test_same_visit_request_in_other_case_and_spacing_publishes_nothing(chat, net):
+    known_customer(visit_request="Tham quan buổi sáng thứ 7")
+
+    chat.say("Vâng tham quan buổi sáng thứ 7 ạ", extracted={"visit_request": "tham quan  buổi sáng thứ 7"})
+
+    assert chat.sent == [MODEL_TEXT]
+    assert (net.telegram, net.sheet) == ([], [])
 
 
 def test_visit_request_publishes_once_per_new_request(chat, net):

@@ -146,10 +146,15 @@ def normalize_phone(phone) -> str:
     return digits
 
 
+def _same_text(value) -> str:
+    return " ".join(str(value or "").split()).casefold()
+
+
 def lead_events(before: dict, extracted: dict) -> list[str]:
     """Lead events in one parent message: `before` is the profile before it, `extracted` what it adds.
 
-    Phones are compared after normalize_phone, so the same number in another format is no event.
+    Phones are compared after normalize_phone and visit requests ignoring case and spacing, so the same value
+    written another way is no event.
     """
     events = []
     phone = normalize_phone(extracted.get("phone"))
@@ -159,8 +164,8 @@ def lead_events(before: dict, extracted: dict) -> list[str]:
             events.append("new_phone")
         elif phone != old_phone:
             events.append("phone_changed")
-    visit = str(extracted.get("visit_request") or "").strip()
-    if visit and visit != str(before.get("visit_request") or "").strip():
+    visit = _same_text(extracted.get("visit_request"))
+    if visit and visit != _same_text(before.get("visit_request")):
         events.append("visit_request")
     return events
 

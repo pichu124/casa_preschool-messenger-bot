@@ -9,7 +9,13 @@ cd "$(dirname "$0")/.." || exit 1
 
 py="${PYTHON:-}"
 if [ -z "$py" ]; then
-  for c in .venv/bin/python .venv/Scripts/python.exe python3 python; do
+  candidates=(.venv/bin/python .venv/Scripts/python.exe)
+  # Worktree của agent không có .venv riêng: dùng .venv của checkout chính.
+  if common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"; then
+    candidates+=("$(dirname "$common")/.venv/bin/python")
+  fi
+  candidates+=(python3 python)
+  for c in "${candidates[@]}"; do
     if "$c" -c 'import fastapi, pytest' >/dev/null 2>&1; then
       py="$c"
       break

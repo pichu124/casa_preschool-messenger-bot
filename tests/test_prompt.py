@@ -5,7 +5,7 @@ import json
 import pytest
 
 from app import ai_engine
-from app.ai_engine import AIEngine, AIProvider, strip_reasoning
+from app.ai_engine import SYSTEM_PROMPT, AIEngine, AIProvider, strip_reasoning
 from app.config import settings
 
 
@@ -114,3 +114,87 @@ def test_format_admin_reply_never_sends_reasoning_to_parent(monkeypatch):
     reply = asyncio.run(engine.format_admin_reply("thang 9 mo lop", "khi nào mở lớp"))
 
     assert reply == "Dạ lớp mở vào tháng 9 ạ."
+
+
+class RecordingProvider(FakeProvider):
+    """Ghi lại đúng những gì AIEngine gửi cho model."""
+
+    async def generate(self, system_prompt: str, user_message: str, conversation_history: list[dict]) -> str:
+        self.system_prompt, self.user_message = system_prompt, user_message
+        return await super().generate(system_prompt, user_message, conversation_history)
+
+
+def model_input(monkeypatch, user_message: str, **kwargs) -> tuple[str, str]:
+    recorder = RecordingProvider("Dạ Ba/Mẹ cho em xin tuổi bé ạ?")
+    engine = make_engine(monkeypatch, fake=recorder)
+    asyncio.run(engine.get_response(user_message, **kwargs))
+    return recorder.system_prompt, recorder.user_message
+
+
+def test_system_prompt_renders_qa_context():
+    rendered = SYSTEM_PROMPT.format(qa_context="XYZ-QA-CONTEXT")
+
+    assert "XYZ-QA-CONTEXT" in rendered
+    assert AIEngine(qa_context="XYZ-QA-CONTEXT").system_prompt == rendered
+
+
+OUTDATED_INSTRUCTIONS = [
+    "giá cả chính xác",
+    "1.5 đến 5 tuổi",
+    "mỗi tuần em chỉ nhận 1 bé",
+    "chuẩn Montessori quốc tế",
+    "AMS",
+    "Oxford",
+    "KHÔNG thêm CTA",
+    "trừ khi phụ huynh đang bày tỏ lo lắng",
+]
+
+
+@pytest.mark.parametrize("phrase", OUTDATED_INSTRUCTIONS)
+def test_model_never_receives_outdated_instruction(monkeypatch, phrase):
+    for kwargs in ({}, {"conversation_history": [{"role": "user", "content": "chào"}]}):
+        system_prompt, user_message = model_input(monkeypatch, "học phí bao nhiêu", **kwargs)
+        assert phrase not in system_prompt
+        assert phrase not in user_message
+
+
+REQUIRED_KNOWLEDGE = [
+    "15 tháng",
+    "185 Huỳnh Thúc Kháng",
+    "36 Phạm Hùng",
+    "294 Kim Mã",
+    "05/09",
+    "17h30",
+    "Connect",
+    "Acknowledge",
+    "Resolve",
+    "Evaluate",
+    "Zalo",
+    "[ESCALATE]",
+    "[IMAGES:",
+]
+
+
+@pytest.mark.parametrize("phrase", REQUIRED_KNOWLEDGE)
+def test_system_prompt_carries_required_knowledge(monkeypatch, phrase):
+    system_prompt, _ = model_input(monkeypatch, "trường ở đâu")
+
+    assert phrase in system_prompt
+
+
+def test_first_message_asks_for_standard_greeting(monkeypatch):
+    _, user_message = model_input(monkeypatch, "cho hoi hoc phi")
+
+    assert "[FIRST_MESSAGE] cho hoi hoc phi" in user_message
+    assert "Dạ Casa chào Ba/Mẹ ạ" in user_message
+
+
+def test_follow_up_message_is_not_marked_first(monkeypatch):
+    _, user_message = model_input(
+        monkeypatch,
+        "có xe bus không",
+        conversation_history=[{"role": "user", "content": "bé 3 tuổi"}, {"role": "assistant", "content": "Dạ vâng ạ"}],
+    )
+
+    assert "[FIRST_MESSAGE]" not in user_message
+    assert "Dạ Casa chào Ba/Mẹ ạ" not in user_message

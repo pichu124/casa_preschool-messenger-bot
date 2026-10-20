@@ -44,10 +44,16 @@ _processed_fb_mids: set[str] = set()
 _processed_tg_mids: set[int] = set()
 MAX_DEDUP_SIZE = 500
 
-ESCALATION_MESSAGE = (
-    "Dạ, cảm ơn ba/mẹ đã liên hệ với trường ạ! "
-    "Câu hỏi của mình đã được chuyển đến bộ phận tư vấn. "
-    "Bộ phận tư vấn sẽ phản hồi mình trong thời gian sớm nhất nhé ạ!"
+# Sent to the parent on escalation; only invite a phone/Zalo number when we don't have one yet.
+ESCALATION_MESSAGE_HAS_PHONE = (
+    "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! "
+    "Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, "
+    "tư vấn viên sẽ liên hệ và trả lời Ba/Mẹ trong thời gian sớm nhất ạ."
+)
+ESCALATION_MESSAGE_ASK_PHONE = (
+    "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! "
+    "Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, bộ phận sẽ phản hồi Ba/Mẹ sớm nhất ạ. "
+    "Nếu tiện, Ba/Mẹ để lại SĐT hoặc Zalo để tư vấn viên hỗ trợ Ba/Mẹ nhanh hơn nhé ạ."
 )
 
 
@@ -385,17 +391,19 @@ async def process_message(sender_id: str, text: str):
             f"HasProfile: {bool(existing_profile)}, GapHours: {gap_hours:.1f}, HistoryLen: {len(history)}"
         )
 
+        escalated = response.should_escalate or not response.text
         category = ""
-        if response.should_escalate or not response.text:
-            # Escalate to admin
+        if escalated:
             await escalate_to_admin(
                 customer_id=sender_id,
                 customer_name=full_name,
                 question=text,
             )
-            await send_message(sender_id, ESCALATION_MESSAGE)
+            reply_text = ESCALATION_MESSAGE_HAS_PHONE if had_phone or new_phone else ESCALATION_MESSAGE_ASK_PHONE
+            await send_message(sender_id, reply_text)
         else:
-            # Parse images from AI response
+            # History keeps the [IMAGES:] token so the model knows which images were already sent
+            reply_text = response.text
             clean_text, image_urls = _extract_images(response.text)
             category = _guess_category(text)
 
@@ -414,31 +422,29 @@ async def process_message(sender_id: str, text: str):
                 user_name=full_name or user_name,
                 question=text,
                 model_used=response.model_used,
-                escalated=response.should_escalate,
+                escalated=escalated,
                 category=category,
             )
         except Exception as log_err:
             logger.warning(f"Analytics logging failed: {log_err}")
 
-        # Save customer info (best effort, the reply is already sent)
+        # Save customer info (best effort, the reply is already sent). Update even without new info
+        # so last_seen and message_count track every message.
         try:
-            if extracted or not existing_profile:
-                # Always update to track last_seen and message_count, even if no new info
-                if full_name and "parent_name" not in extracted and not existing_profile.get("parent_name"):
-                    extracted["parent_name"] = full_name
-                updated_profile = await customer_memory.update_profile(sender_id, extracted)
-                if extracted:
-                    logger.info(f"Updated profile for {sender_id}: {list(extracted.keys())}")
-                if new_phone:
-                    await notify_lead(sender_id, full_name, new_phone, updated_profile, text)
+            if full_name and "parent_name" not in extracted and not existing_profile.get("parent_name"):
+                extracted["parent_name"] = full_name
+            updated_profile = await customer_memory.update_profile(sender_id, extracted)
+            if extracted:
+                logger.info(f"Updated profile for {sender_id}: {list(extracted.keys())}")
+            if new_phone:
+                await notify_lead(sender_id, full_name, new_phone, updated_profile, text)
         except Exception as profile_err:
             logger.warning(f"Customer profile update failed: {profile_err}")
 
         # Persist conversation history to customer profile (cross-session memory)
         try:
             await customer_memory.append_to_history(sender_id, "user", text)
-            if response.text:
-                await customer_memory.append_to_history(sender_id, "assistant", response.text)
+            await customer_memory.append_to_history(sender_id, "assistant", reply_text)
         except Exception as hist_err:
             logger.warning(f"Failed to persist conversation history: {hist_err}")
 
@@ -449,7 +455,7 @@ async def process_message(sender_id: str, text: str):
         try:
             await send_message(
                 sender_id,
-                "Xin loi, he thong dang gap su co. Vui long thu lai sau it phut.",
+                "Dạ, hệ thống của Casa đang gặp sự cố ạ. Ba/Mẹ vui lòng nhắn lại sau ít phút giúp em nhé ạ.",
             )
         except Exception:
             pass

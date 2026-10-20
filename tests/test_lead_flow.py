@@ -16,7 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app.main as main
-from app import customer_memory, escalation, github_sync
+from app import analytics, customer_memory, escalation, github_sync
 from app.ai_engine import AIResponse
 from app.config import settings
 
@@ -28,6 +28,8 @@ CUSTOMER_ID = "9000000000000101"
 FB_NAME = "Lan Thử"
 PHONE = "0900000101"
 MODEL_TEXT = "Dạ bé 3 tuổi học lớp Mầm ạ. Ba/Mẹ muốn tham quan buổi sáng hay buổi chiều ạ?"
+QUESTION = "Cô chủ nhiệm lớp Mầm tên gì ạ?"
+ASK_PHONE_WORDS = ("SĐT", "Zalo", "số điện thoại")
 ADMIN_TEXT = "Có xe tuyến Cầu Giấy, đón 7h15"
 WEBHOOK_SECRET = "tg-secret_lead"
 
@@ -49,6 +51,9 @@ class FakeBot:
 
     def leads(self):
         return [t for t in self.telegram if t.startswith(escalation.LEAD_HEADER)]
+
+    def escalations(self):
+        return [t for t in self.telegram if t.startswith(escalation.ESCALATION_HEADER)]
 
 
 @pytest.fixture
@@ -118,7 +123,7 @@ def test_each_message_pushes_customers_to_github_once(bot, github):
     assert snapshot["kid_age"] == "3 tuổi"
     assert [m["content"] for m in snapshot["conversation_history"]] == ["Bé nhà mình 3 tuổi ạ", MODEL_TEXT]
 
-    bot.say("Cô chủ nhiệm lớp Mầm tên gì ạ?", reply="", escalate=True)
+    bot.say(QUESTION, reply="", escalate=True)
     bot.say("Dạ vâng ạ")
 
     assert len(github) == 3
@@ -314,3 +319,103 @@ def test_reply_to_escalation_reaches_customer_after_pending_lost(monkeypatch, ad
     assert admin_sent == [(CUSTOMER_ID, ADMIN_TEXT)]
     assert pushed == [ADMIN_TEXT]
     assert main.qa_db.qa_pairs[-1]["questions"][0] == question
+
+
+# --- Câu chuyển tư vấn viên, history, analytics, hồ sơ ---
+
+
+def test_escalation_without_phone_invites_phone_or_zalo(bot):
+    bot.say(QUESTION, reply="", escalate=True)
+
+    assert len(bot.sent) == 1
+    assert "tư vấn" in bot.sent[0]
+    assert "SĐT" in bot.sent[0] and "Zalo" in bot.sent[0]
+    assert len(bot.escalations()) == 1
+    assert bot.leads() == []
+
+
+@pytest.mark.parametrize(
+    ("known_profile", "text", "extracted", "leads"),
+    [
+        ({"phone": PHONE, "parent_name": FB_NAME}, QUESTION, {}, 0),
+        ({}, f"{QUESTION} Số mình {PHONE}", {"phone": PHONE}, 1),
+    ],
+    ids=["số đã có trong hồ sơ", "số vừa gửi trong tin này"],
+)
+def test_escalation_with_phone_does_not_ask_for_it(bot, known_profile, text, extracted, leads):
+    if known_profile:
+        customer_memory._customers[CUSTOMER_ID] = dict(known_profile)
+
+    bot.say(text, reply="", escalate=True, extracted=extracted)
+
+    assert len(bot.sent) == 1
+    assert "tư vấn" in bot.sent[0]
+    assert not [word for word in ASK_PHONE_WORDS if word in bot.sent[0]]
+    assert len(bot.escalations()) == 1
+    assert len(bot.leads()) == leads
+
+
+def last_analytics_record() -> dict:
+    return json.loads(Path(analytics.ANALYTICS_PATH).read_text(encoding="utf-8").splitlines()[-1])
+
+
+@pytest.mark.parametrize(
+    ("reply", "escalate", "escalated"),
+    [
+        (MODEL_TEXT, False, False),
+        ("Dạ em xin phép kiểm tra lại ạ", True, True),
+        ("", True, True),
+        ("", False, True),
+    ],
+    ids=["trả lời thường", "model escalate kèm text", "mọi model lỗi", "model trả rỗng"],
+)
+def test_history_and_analytics_match_what_parent_received(bot, reply, escalate, escalated):
+    bot.say(QUESTION, reply=reply, escalate=escalate)
+
+    assert len(bot.sent) == 1
+    if escalated:
+        assert "tư vấn" in bot.sent[0]
+        assert not reply or reply not in bot.sent[0]
+    else:
+        assert bot.sent == [reply]
+    assert customer_memory.get_conversation_history(CUSTOMER_ID) == [
+        {"role": "user", "content": QUESTION},
+        {"role": "assistant", "content": bot.sent[0]},
+    ]
+    assert last_analytics_record()["escalated"] is escalated
+    assert len(bot.escalations()) == int(escalated)
+
+
+def test_returning_customer_without_new_info_updates_last_seen_and_count(bot):
+    customer_memory._customers[CUSTOMER_ID] = {
+        "kid_age": "3 tuổi",
+        "parent_name": FB_NAME,
+        "first_seen": "2026-09-01T08:00:00",
+        "last_seen": "2026-09-01T08:00:00",
+        "message_count": 4,
+    }
+
+    bot.say("Dạ vâng ạ")
+
+    profile = customer_memory.get_profile(CUSTOMER_ID)
+    assert profile["message_count"] == 5
+    assert profile["first_seen"] == "2026-09-01T08:00:00"
+    assert customer_memory.get_last_seen_gap_hours(CUSTOMER_ID) < 1
+
+
+def test_new_customer_gets_facebook_name_as_parent_name(bot):
+    bot.say("Chào trường ạ")
+
+    assert customer_memory.get_profile(CUSTOMER_ID)["parent_name"] == FB_NAME
+
+
+def test_unexpected_error_sends_apology_with_diacritics(monkeypatch, bot):
+    async def broken_get_response(**kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(main.ai_engine, "get_response", broken_get_response)
+
+    bot.say(QUESTION)
+
+    assert len(bot.sent) == 1
+    assert "sự cố" in bot.sent[0]

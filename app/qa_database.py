@@ -90,7 +90,10 @@ class QADatabase:
 
         # Sync to GitHub so data persists across deploys
         from app.github_sync import push_qa_to_github
-        await push_qa_to_github(self.qa_pairs)
+        try:
+            await push_qa_to_github(self.qa_pairs)
+        except Exception as e:
+            logger.warning(f"GitHub sync failed but local save succeeded: {e}")
 
         logger.info(f"Added new Q&A: [{category}] {' / '.join(questions)[:50]}...")
 

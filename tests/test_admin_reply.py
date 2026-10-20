@@ -1,5 +1,10 @@
 """Admin reply một escalation trên Telegram: khách nhận câu trả lời, bot học ngay, escalation được đóng."""
 
+import json
+from pathlib import Path
+
+import httpx
+import pytest
 from fastapi.testclient import TestClient
 
 import app.main as main
@@ -34,7 +39,9 @@ def telegram_reply_update(text: str) -> dict:
     }
 
 
-def test_admin_reply_reaches_customer_is_learned_and_resolves_escalation(monkeypatch):
+@pytest.fixture
+def sent(monkeypatch):
+    """Một escalation đang chờ, AI và Messenger giả; trả về danh sách tin đã gửi cho khách."""
     escalation._pending[ESCALATION_MSG_ID] = {
         "customer_id": CUSTOMER_ID,
         "customer_name": "Phụ huynh Test",
@@ -57,20 +64,45 @@ def test_admin_reply_reaches_customer_is_learned_and_resolves_escalation(monkeyp
             "similar_questions": ["Có xe bus ở Long Biên không?"],
         }
 
-    async def fake_push_qa_to_github(qa_pairs):
-        return True
-
     monkeypatch.setattr(settings, "TELEGRAM_WEBHOOK_SECRET", WEBHOOK_SECRET)
     monkeypatch.setattr(main, "send_message", fake_send_message)
     monkeypatch.setattr(main.ai_engine, "format_admin_reply", fake_format_admin_reply)
     monkeypatch.setattr(main.ai_engine, "classify_qa", fake_classify_qa)
-    monkeypatch.setattr(github_sync, "push_qa_to_github", fake_push_qa_to_github)
     assert ADMIN_TEXT not in main.ai_engine.system_prompt
+    return sent
 
-    resp = client.post("/telegram-webhook", json=telegram_reply_update(ADMIN_TEXT), headers=TELEGRAM_HEADERS)
 
+def assert_reply_applied(resp, sent):
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
     assert sent == [(CUSTOMER_ID, f"Dạ, về câu hỏi '{QUESTION}': {ADMIN_TEXT} ạ.")]
     assert ADMIN_TEXT in main.ai_engine.system_prompt
     assert escalation.get_pending_escalation(ESCALATION_MSG_ID) is None
+
+
+def test_admin_reply_reaches_customer_is_learned_and_resolves_escalation(monkeypatch, sent):
+    pushed = []
+
+    async def fake_push_qa_to_github(qa_pairs):
+        pushed.append(qa_pairs[-1]["answer"])
+        return True
+
+    monkeypatch.setattr(github_sync, "push_qa_to_github", fake_push_qa_to_github)
+
+    resp = client.post("/telegram-webhook", json=telegram_reply_update(ADMIN_TEXT), headers=TELEGRAM_HEADERS)
+
+    assert_reply_applied(resp, sent)
+    assert pushed == [ADMIN_TEXT]
+
+
+def test_admin_reply_still_applied_when_github_sync_fails(monkeypatch, sent):
+    async def failing_push_qa_to_github(qa_pairs):
+        raise httpx.ConnectTimeout("timed out")
+
+    monkeypatch.setattr(github_sync, "push_qa_to_github", failing_push_qa_to_github)
+
+    resp = client.post("/telegram-webhook", json=telegram_reply_update(ADMIN_TEXT), headers=TELEGRAM_HEADERS)
+
+    assert_reply_applied(resp, sent)
+    saved = json.loads(Path(main.qa_db.path).read_text(encoding="utf-8"))
+    assert saved["qa_pairs"][-1]["answer"] == ADMIN_TEXT

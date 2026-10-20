@@ -135,10 +135,14 @@ async def escalate_to_admin(
 
 
 def normalize_phone(phone) -> str:
-    """Digits only, Vietnam country code 84 as a leading 0: "+84 912 345 678" and "0912345678" are one number."""
+    """Digits only, Vietnam country code 84 (also written with the trunk 0, "+84 0…") as a leading 0:
+    "+84 912 345 678", "+84 0912 345 678" and "0912345678" are one number, as are "+84 24 3123 4567" and
+    "024 3123 4567"."""
     digits = re.sub(r"[^0-9]", "", str(phone or ""))
-    if len(digits) == 11 and digits.startswith("84"):
-        return "0" + digits[2:]
+    if digits.startswith("84"):
+        national = digits[2:].removeprefix("0")
+        if len(national) in (9, 10):  # mobile, landline
+            return "0" + national
     return digits
 
 

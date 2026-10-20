@@ -385,6 +385,31 @@ def test_phone_with_9_to_11_digits_is_saved(bot, phone):
     assert len(bot.leads()) == 1
 
 
+@pytest.mark.parametrize(
+    ("phone", "saved"),
+    [
+        ("0912345678, 0987654321", "0912345678"),
+        ("0912345678 0987654321", "0912345678"),
+        ("0912345678 hoặc 0987654321", "0912345678"),
+        ("+84 0912345678", "+84 0912345678"),
+        ("+84 24 3123 4567", "+84 24 3123 4567"),
+        ("(024) 3123 4567", "024 3123 4567"),
+        ("(+84) 912 345 678", "+84 912 345 678"),
+        ("Zalo 0912.345.678 ạ", "0912.345.678"),
+    ],
+)
+def test_first_phone_number_in_the_extracted_phone_is_saved_and_sent_as_lead(bot, caplog, phone, saved):
+    with caplog.at_level(logging.DEBUG):
+        bot.say(f"Số mình {phone}", extracted={"phone": phone})
+
+    assert customer_memory.get_profile(SENDER)["phone"] == saved
+    assert len(bot.leads()) == 1 and f"SĐT: {saved}\n" in bot.leads()[0]
+    logs = [r.getMessage() for r in caplog.records]
+    assert [m for m in logs if SENDER in m], "không bắt được log nào của tin này"
+    last_9_digits = re.sub(r"\D", "", saved)[-9:]
+    assert [m for m in logs if saved in m or last_9_digits in m] == []
+
+
 def test_extraction_gets_the_bot_message_just_sent(bot):
     customer_memory._customers[SENDER] = {
         "conversation_history": [

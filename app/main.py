@@ -33,7 +33,6 @@ from app.escalation import (
     escalate_to_admin,
     get_pending_escalation,
     lead_events,
-    normalize_phone,
     publish_lead_event,
     resolve_escalation,
 )
@@ -340,8 +339,16 @@ def _attribution(referral: dict) -> dict:
     return {k: v for k, v in fields.items() if v}
 
 
-def _is_phone(value) -> bool:
-    return 9 <= len(normalize_phone(value)) <= 11
+# A Vietnamese phone number in free text: 0, 84 or +84 (also "+84 0"), then 8 to 10 more digits with at most one
+# space, dot or dash between two digits. It may not run on into more digits ("+84 911 222 501 999" is none),
+# except into a second number starting with 0: "0912345678 0987654321" gives the first.
+PHONE_PATTERN = re.compile(r"(?<!\d)(?:\+?84[\s.\-]*0?|0)\d(?:[\s.\-]?\d){7,9}(?!\d|[\s.\-][1-9])")
+
+
+def _find_phone(value) -> str | None:
+    """The first Vietnamese phone number in `value` as written, without parentheses; None when there is none."""
+    match = PHONE_PATTERN.search(re.sub(r"[()]", "", str(value or "")))
+    return match.group() if match else None
 
 
 def parse_messaging_event(event: dict) -> InboundEvent | None:
@@ -363,7 +370,7 @@ def parse_messaging_event(event: dict) -> InboundEvent | None:
         payload = (message.get("quick_reply") or {}).get("payload", "")
         if payload.startswith(QUICK_REPLY_PREFIX):
             text = quick_reply_meaning(payload) or text
-        elif payload and _is_phone(payload):
+        elif payload and _find_phone(payload):
             # Messenger's phone button: payload and text are both the number from the parent's Facebook account
             phone_from_qr = payload
     elif postback:
@@ -422,13 +429,16 @@ def _last_bot_message(history: list[dict]) -> str:
 
 
 def _clean_extracted(extracted: dict, phone_from_qr: str | None) -> dict:
-    """The model's extraction made safe to store: the phone quick reply wins, a phone without 9-11 digits
-    (e.g. "không có") is dropped, and phone_declined is kept only as JSON true (models also return "false")."""
+    """The model's extraction made safe to store: the phone quick reply wins, otherwise phone is the first
+    Vietnamese phone number in what the model gave ("0912345678, 0987654321" keeps the first) and is dropped when
+    there is none (e.g. "không có"); phone_declined is kept only as JSON true (models also return "false")."""
     extracted = dict(extracted)
     if phone_from_qr:
         extracted["phone"] = phone_from_qr
-    if "phone" in extracted and not _is_phone(extracted["phone"]):
-        del extracted["phone"]
+    elif "phone" in extracted:
+        phone = _find_phone(extracted.pop("phone"))
+        if phone:
+            extracted["phone"] = phone
     if extracted.get("phone_declined") is not True:
         extracted.pop("phone_declined", None)
     return extracted

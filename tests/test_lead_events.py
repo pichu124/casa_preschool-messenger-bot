@@ -55,6 +55,13 @@ VN = timezone(timedelta(hours=7))
         ({"phone": PHONE}, {"phone": "84900000401"}, []),
         ({"phone": "+84900000401"}, {"phone": NEW_PHONE}, ["phone_changed"]),
         ({}, {"phone": "+84 900 000 401"}, ["new_phone"]),
+        ({"phone": PHONE}, {"phone": "+84 0900 000 401"}, []),
+        ({"phone": "840900000401"}, {"phone": PHONE}, []),
+        ({"phone": "+84 0900 000 401"}, {"phone": NEW_PHONE}, ["phone_changed"]),
+        ({}, {"phone": "+84 24 3123 4567"}, ["new_phone"]),
+        ({"phone": "024 3123 4567"}, {"phone": "+84 24 3123 4567"}, []),
+        ({"phone": "+84 024 3123 4567"}, {"phone": "02431234567"}, []),
+        ({"phone": "024 3123 4567"}, {"phone": "+84 24 3123 4568"}, ["phone_changed"]),
         ({}, {"phone": "không có"}, []),
         ({}, {"visit_request": VISIT}, ["visit_request"]),
         ({"visit_request": VISIT}, {"visit_request": VISIT}, []),
@@ -77,6 +84,13 @@ VN = timezone(timedelta(hours=7))
         "cùng SĐT, tin có 84",
         "đổi SĐT, hồ sơ có +84",
         "SĐT mới có +84",
+        "cùng SĐT, tin có +84 0",
+        "cùng SĐT, hồ sơ có 840",
+        "đổi SĐT, hồ sơ có +84 0",
+        "máy bàn mới có +84",
+        "cùng máy bàn, tin có +84",
+        "cùng máy bàn, hồ sơ có +84 0",
+        "đổi máy bàn",
         "SĐT không có chữ số",
         "hẹn mới",
         "hẹn giống lần trước",
@@ -290,6 +304,19 @@ def test_same_phone_in_other_format_publishes_nothing(chat, net):
 
     assert chat.sent == [MODEL_TEXT]
     assert (net.telegram, net.sheet) == ([], [])
+
+
+def test_two_numbers_in_one_message_publish_the_first_as_new_phone(chat, net, caplog):
+    two_numbers = f"{PHONE}, {NEW_PHONE}"
+
+    with caplog.at_level(logging.DEBUG):
+        chat.say(f"Số mình {two_numbers} ạ", extracted={"phone": two_numbers})
+
+    assert customer_memory.get_profile(CUSTOMER_ID)["phone"] == PHONE
+    assert len(net.telegram) == len(net.leads()) == 1
+    assert [(row["event"], row["phone"]) for row in net.sheet] == [("new_phone", PHONE)]
+    assert leaked(caplog) == []
+    assert [r.getMessage() for r in caplog.records if NEW_PHONE in r.getMessage()] == []
 
 
 def test_visit_request_publishes_once_per_new_request(chat, net):

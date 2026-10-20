@@ -12,7 +12,6 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 CUSTOMERS_PATH = "data/customers.json"
-REPO = "pichu124/casa_preschool-messenger-bot"
 GITHUB_FILE_PATH = "data/customers.json"
 BRANCH = "main"
 
@@ -21,13 +20,13 @@ MAX_HISTORY_MESSAGES = 30  # Trim history when exceeds this
 KEEP_AFTER_TRIM = 20  # Keep this many messages after trim/summarization
 RETURNING_GAP_HOURS = 24  # Gap > 24h = returning customer (special greeting)
 
-# In-memory cache: loaded at startup, persisted to disk + GitHub on updates
+# In-memory cache: loaded at startup, persisted to disk (+ CUSTOMERS_GITHUB_REPO if set) on updates
 _customers: dict[str, dict] = {}
 _loaded = False
 
 
 def _load_from_disk():
-    """Load customer profiles from local JSON file, fallback to GitHub."""
+    """Load customer profiles from local JSON file, fallback to CUSTOMERS_GITHUB_REPO if set."""
     global _customers, _loaded
     path = Path(CUSTOMERS_PATH)
     if path.exists():
@@ -41,13 +40,14 @@ def _load_from_disk():
 
     # File doesn't exist or is corrupt - try pulling from GitHub
     token = settings.GITHUB_TOKEN
-    if token:
+    repo = settings.CUSTOMERS_GITHUB_REPO
+    if token and repo:
         try:
             headers = {
                 "Authorization": f"token {token}",
                 "Accept": "application/vnd.github.v3+json",
             }
-            api_url = f"https://api.github.com/repos/{REPO}/contents/{GITHUB_FILE_PATH}"
+            api_url = f"https://api.github.com/repos/{repo}/contents/{GITHUB_FILE_PATH}"
             resp = httpx.get(api_url, headers=headers, params={"ref": BRANCH}, timeout=15)
             if resp.status_code == 200:
                 content_b64 = resp.json().get("content", "")
@@ -80,17 +80,18 @@ def _save_to_disk():
 
 
 async def _push_to_github():
-    """Push customers.json to GitHub for persistence across deploys."""
+    """Push customers.json to CUSTOMERS_GITHUB_REPO for persistence across deploys."""
     token = settings.GITHUB_TOKEN
-    if not token:
-        logger.debug("GITHUB_TOKEN not set, skipping GitHub sync for customers")
+    repo = settings.CUSTOMERS_GITHUB_REPO
+    if not token or not repo:
+        logger.debug("GITHUB_TOKEN or CUSTOMERS_GITHUB_REPO not set, skipping GitHub sync for customers")
         return False
 
     headers = {
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json",
     }
-    api_url = f"https://api.github.com/repos/{REPO}/contents/{GITHUB_FILE_PATH}"
+    api_url = f"https://api.github.com/repos/{repo}/contents/{GITHUB_FILE_PATH}"
 
     async with httpx.AsyncClient() as client:
         # Get current SHA if file exists

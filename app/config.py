@@ -17,6 +17,8 @@ class Settings:
 
     # GitHub auto-sync
     GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
+    # owner/name of a PRIVATE repo for data/customers.json; empty = keep customer data on local disk only
+    CUSTOMERS_GITHUB_REPO: str = os.getenv("CUSTOMERS_GITHUB_REPO", "")
 
     # AI Model API Keys
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")

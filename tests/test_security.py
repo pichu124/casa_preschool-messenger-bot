@@ -1,19 +1,26 @@
-"""Endpoint admin và Telegram webhook chỉ mở khi có secret cấu hình và gửi đúng secret đó."""
+"""Endpoint admin và Telegram webhook chỉ mở khi có secret cấu hình và gửi đúng secret đó.
+customers.json chỉ lên GitHub khi đặt CUSTOMERS_GITHUB_REPO."""
 
+import asyncio
+import base64
+import json
 import logging
 import os
 import subprocess
 import sys
 from pathlib import Path
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
 import app.main as main
-from app import escalation
+from app import customer_memory, escalation
 from app.config import settings
 
 client = TestClient(main.app)
+# conftest thay hàm này bằng stub cấm gọi; giữ bản thật để kiểm nó không ra mạng khi chưa đặt repo.
+REAL_PUSH_CUSTOMERS = customer_memory._push_to_github
 
 # (method, path, kwargs) cho mọi endpoint admin; kwargs là input hợp lệ để chỉ secret quyết định 403.
 ADMIN_ENDPOINTS = [
@@ -159,3 +166,64 @@ def test_telegram_webhook_accepts_correct_secret_token(monkeypatch):
 
     assert resp.status_code == 200
     assert resp.json() == {"status": "ignored"}
+
+
+@pytest.fixture
+def github_token(monkeypatch):
+    monkeypatch.setattr(settings, "GITHUB_TOKEN", "ghp_fake_token")
+
+
+def test_customers_not_pushed_without_repo(monkeypatch, github_token):
+    monkeypatch.setattr(settings, "CUSTOMERS_GITHUB_REPO", "")
+    monkeypatch.setattr(customer_memory, "_push_to_github", REAL_PUSH_CUSTOMERS)
+
+    assert asyncio.run(REAL_PUSH_CUSTOMERS()) is False
+    profile = asyncio.run(customer_memory.update_profile("9000000000000003", {"kid_age": "3"}))
+
+    assert profile["kid_age"] == "3"
+    saved = json.loads(Path(customer_memory.CUSTOMERS_PATH).read_text(encoding="utf-8"))
+    assert saved["9000000000000003"]["kid_age"] == "3"
+    # conftest fail ở teardown nếu có request mạng nào (kể cả khi code nuốt exception).
+
+
+def test_customers_not_pulled_without_repo(monkeypatch, github_token):
+    monkeypatch.setattr(settings, "CUSTOMERS_GITHUB_REPO", "")
+    monkeypatch.setattr(customer_memory, "_loaded", False)
+    assert not Path(customer_memory.CUSTOMERS_PATH).exists()
+
+    assert customer_memory.get_all_profiles() == {}
+
+
+def test_customers_pushed_only_to_configured_repo(monkeypatch, github_token):
+    monkeypatch.setattr(settings, "CUSTOMERS_GITHUB_REPO", "casa-owner/casa-private-data")
+    monkeypatch.setattr(customer_memory, "_customers", {"9000000000000004": {"kid_age": "4"}})
+    requests = []
+
+    async def fake_github(self, request):
+        requests.append((request.method, str(request.url)))
+        return httpx.Response(404 if request.method == "GET" else 201)
+
+    monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", fake_github)
+
+    assert asyncio.run(REAL_PUSH_CUSTOMERS()) is True
+    url = "https://api.github.com/repos/casa-owner/casa-private-data/contents/data/customers.json"
+    assert requests == [("GET", f"{url}?ref=main"), ("PUT", url)]
+
+
+def test_customers_pulled_only_from_configured_repo(monkeypatch, github_token):
+    monkeypatch.setattr(settings, "CUSTOMERS_GITHUB_REPO", "casa-owner/casa-private-data")
+    monkeypatch.setattr(customer_memory, "_loaded", False)
+    remote = {"9000000000000005": {"kid_age": "5"}}
+    requests = []
+
+    def fake_github(self, request):
+        requests.append(str(request.url))
+        content = base64.b64encode(json.dumps(remote).encode()).decode()
+        return httpx.Response(200, json={"content": content})
+
+    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", fake_github)
+
+    assert customer_memory.get_all_profiles() == remote
+    assert requests == [
+        "https://api.github.com/repos/casa-owner/casa-private-data/contents/data/customers.json?ref=main"
+    ]

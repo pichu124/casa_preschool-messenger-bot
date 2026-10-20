@@ -71,6 +71,12 @@ Thu tu fallback cau hinh trong `AI_MODEL_ORDER`.
     ```
 - `FB_APP_SECRET`: de trong thi `/webhook` nhan request ma khong kiem chu ky Facebook (log khoi dong co WARNING). Nen dat.
 
+### 7. Luu ho so khach (`data/customers.json`)
+
+- `CUSTOMERS_GITHUB_REPO` (`owner/ten-repo`): repo bot dung de day va keo `data/customers.json` (nhanh `main`) bang `GITHUB_TOKEN`. File nay chua du lieu ca nhan cua phu huynh va tre: chi tro toi repo PRIVATE, khong bao gio tro toi repo code public nay.
+  - `GITHUB_TOKEN` phai co quyen ghi Contents tren repo do. Nen tao repo kem README de co san nhanh `main`.
+- De trong (mac dinh): ho so khach chi luu tren dia cuc bo, khong day len GitHub. Tren Render dia khong ben, nen ho so mat sau moi lan deploy hoac restart.
+
 ## Chay ung dung
 
 ### Development (local)

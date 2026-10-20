@@ -5,6 +5,7 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from app import customer_memory
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -89,6 +90,21 @@ def _read_records() -> list[dict]:
     return records
 
 
+def funnel_stats(customers: dict) -> dict:
+    """Consulting funnel from customer profiles, which survive deploys (analytics.jsonl does not)."""
+    profiles = list(customers.values())
+    stages = Counter(customer_memory.lead_stage(p) for p in profiles)
+    return {
+        "total": len(profiles),
+        "with_kid_age": sum(1 for p in profiles if p.get("kid_age")),
+        "with_campus": sum(1 for p in profiles if p.get("interested_campus")),
+        "with_phone": sum(1 for p in profiles if p.get("phone")),
+        "with_visit": sum(1 for p in profiles if p.get("visit_request")),
+        "from_ads": sum(1 for p in profiles if p.get("lead_source") == "ads"),
+        "stages": {stage: stages[stage] for stage in customer_memory.STAGES},
+    }
+
+
 def get_stats() -> dict:
     """Compute analytics stats for dashboard."""
     records = _read_records()
@@ -148,6 +164,7 @@ def get_stats() -> dict:
         "top_categories": top_categories,
         "daily_series": daily_series,
         "models": dict(models),
+        "funnel": funnel_stats(customer_memory.get_all_profiles()),
     }
 
 

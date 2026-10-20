@@ -129,6 +129,10 @@ curl -X POST "https://your-domain.com/followup/run?secret=<TELEGRAM_WEBHOOK_SECR
 
 Ket qua `{"due": n, "sent": m, "enabled": true|false}`; `verbose=1` them danh sach mau tin + 4 ky tu cuoi ID khach (khong co ten, SDT, noi dung tin).
 
+### 11. Dashboard: pheu tu van
+
+`/dashboard?secret=` co muc "Pheu tu van": tong khach, co tuoi be, co co so quan tam, co SDT, da hen tham quan/hoc thu, tu quang cao, va so khach theo giai doan (Moi -> Da biet tuoi/co so -> Da co SDT -> Da hen). Pheu tinh tu ho so khach (`data/customers.json`), khong tu `analytics.jsonl`. Cac o tin nhan, nguoi dung, escalation va ti le chuyen tu van vien tinh tu `analytics.jsonl`, file nay mat moi lan deploy, nen chi phan anh tu lan deploy gan nhat. `/customers/export` co them cot Khu vuc, Du kien nhap hoc, Hen tham quan/hoc thu, Nguon (tieu de quang cao), Giai doan, Da tu choi SDT.
+
 ## Chay ung dung
 
 ### Development (local)

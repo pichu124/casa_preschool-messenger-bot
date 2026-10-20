@@ -15,7 +15,14 @@ from app.config import settings
 
 @pytest.fixture(autouse=True)
 def isolate(monkeypatch, tmp_path):
-    for name in ("GITHUB_TOKEN", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "FB_PAGE_ACCESS_TOKEN"):
+    for name in (
+        "GITHUB_TOKEN",
+        "TELEGRAM_BOT_TOKEN",
+        "TELEGRAM_CHAT_ID",
+        "FB_PAGE_ACCESS_TOKEN",
+        "LEADS_SHEET_WEBHOOK_URL",
+        "LEADS_SHEET_TOKEN",
+    ):
         monkeypatch.setattr(settings, name, "")
     monkeypatch.setattr(settings, "AI_MODEL_ORDER", [])
     monkeypatch.setattr(settings, "ANALYTICS_LOG_PATH", str(tmp_path / "analytics.jsonl"))

@@ -15,6 +15,11 @@ class Settings:
     TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
     TELEGRAM_WEBHOOK_SECRET: str = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
 
+    # Leads -> Google Sheet: Apps Script web app URL (docs/google-sheet-leads.md); empty = Telegram only
+    LEADS_SHEET_WEBHOOK_URL: str = os.getenv("LEADS_SHEET_WEBHOOK_URL", "")
+    # Sent in the JSON body (Apps Script cannot read request headers); must equal the script's LEADS_TOKEN
+    LEADS_SHEET_TOKEN: str = os.getenv("LEADS_SHEET_TOKEN", "")
+
     # GitHub auto-sync
     GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
     # owner/name of a PRIVATE repo for data/customers.json; empty = keep customer data on local disk only

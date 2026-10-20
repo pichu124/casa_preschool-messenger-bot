@@ -39,9 +39,10 @@ def _read_disk() -> dict:
 
 def _pull_from_github(token: str, repo: str) -> dict | None:
     """customers.json from `repo`, or None if the repo has no such file yet. Raises on any other outcome."""
+    # Raw media type: the file body itself, up to 100 MB (the default JSON one has empty `content` above 1 MB).
     headers = {
         "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json",
+        "Accept": "application/vnd.github.raw+json",
     }
     api_url = f"https://api.github.com/repos/{repo}/contents/{GITHUB_FILE_PATH}"
     resp = httpx.get(api_url, headers=headers, params={"ref": BRANCH}, timeout=15)
@@ -49,7 +50,7 @@ def _pull_from_github(token: str, repo: str) -> dict | None:
         return None
     if resp.status_code != 200:
         raise RuntimeError(f"GitHub returned {resp.status_code}")
-    customers = json.loads(base64.b64decode(resp.json()["content"]).decode("utf-8"))
+    customers = json.loads(resp.content)
     if not isinstance(customers, dict):
         raise ValueError("customers.json is not a JSON object")
     return customers
@@ -116,7 +117,7 @@ async def sync_to_github() -> bool:
 
     try:
         async with httpx.AsyncClient() as client:
-            # Get current SHA if file exists
+            # Get current SHA if file exists (metadata has it even above 1 MB, where `content` is empty)
             current_sha = None
             resp = await client.get(api_url, headers=headers, params={"ref": BRANCH}, timeout=15)
             if resp.status_code == 200:

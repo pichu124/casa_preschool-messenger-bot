@@ -241,11 +241,11 @@ def test_customers_pulled_only_from_configured_repo(monkeypatch, github_token):
     monkeypatch.setattr(customer_memory, "_loaded", False)
     remote = {"9000000000000005": {"kid_age": "5"}}
     requests = []
+    respond = github_file(remote)
 
     def fake_github(self, request):
         requests.append(str(request.url))
-        content = base64.b64encode(json.dumps(remote).encode()).decode()
-        return httpx.Response(200, json={"content": content})
+        return respond(request)
 
     monkeypatch.setattr(httpx.HTTPTransport, "handle_request", fake_github)
 
@@ -255,8 +255,19 @@ def test_customers_pulled_only_from_configured_repo(monkeypatch, github_token):
     ]
 
 
-def github_file(profiles) -> httpx.Response:
-    return httpx.Response(200, json={"content": base64.b64encode(json.dumps(profiles).encode()).decode()})
+def github_file(profiles):
+    """Contents API trả customers.json như GitHub: body thô khi xin media type raw, không thì metadata JSON
+    có `sha` và `content` base64, riêng file trên 1 MB thì `content` rỗng và `encoding` "none"."""
+    body = json.dumps(profiles).encode()
+
+    def respond(request) -> httpx.Response:
+        if request.headers.get("Accept") == "application/vnd.github.raw+json":
+            return httpx.Response(200, content=body)
+        if len(body) > 1024 * 1024:
+            return httpx.Response(200, json={"sha": "abc123", "content": "", "encoding": "none"})
+        return httpx.Response(200, json={"sha": "abc123", "content": base64.b64encode(body).decode()})
+
+    return respond
 
 
 def github_timeout(request):
@@ -275,9 +286,13 @@ def private_repo(monkeypatch, github_token):
     async def fake_github(self, request):
         assert str(request.url).startswith(CUSTOMERS_API)
         if request.method == "PUT":
-            pushed.append(json.loads(base64.b64decode(json.loads(request.content)["content"])))
+            payload = json.loads(request.content)
+            if payload.get("sha") != "abc123":
+                return httpx.Response(422, json={"message": '"sha" wasn\'t supplied.'})
+            pushed.append(json.loads(base64.b64decode(payload["content"])))
             return httpx.Response(200)
-        return httpx.Response(200, json={"sha": "abc123"})
+        # Metadata như với file trên 1 MB: chỉ có sha, không có nội dung.
+        return httpx.Response(200, json={"sha": "abc123", "content": "", "encoding": "none"})
 
     monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", fake_github)
     return pushed
@@ -301,7 +316,7 @@ def new_message_then_sync() -> bool:
 
 
 def test_restart_loads_private_repo_over_stale_disk_copy(monkeypatch, private_repo):
-    pulled = serve_pull(monkeypatch, lambda request: github_file(REMOTE_PROFILES))
+    pulled = serve_pull(monkeypatch, github_file(REMOTE_PROFILES))
 
     assert customer_memory.get_all_profiles() == REMOTE_PROFILES
     assert pulled == [("GET", f"{CUSTOMERS_API}?ref=main")]
@@ -313,17 +328,33 @@ def test_restart_loads_private_repo_over_stale_disk_copy(monkeypatch, private_re
     assert {key: private_repo[0][key] for key in REMOTE_PROFILES} == REMOTE_PROFILES
 
 
+def test_restart_loads_private_repo_file_over_1mb_and_syncs(monkeypatch, private_repo):
+    # ~150 khách, mỗi khách 30 tin history: customers.json vượt 1 MB.
+    history = [{"role": "user", "content": "Cho mình hỏi học phí hệ song ngữ ạ " * 8}] * 30
+    remote = {f"9100000000{i:06d}": {"kid_age": "4", "conversation_history": history} for i in range(150)}
+    assert len(json.dumps(remote).encode()) > 1024 * 1024
+    pulled = serve_pull(monkeypatch, github_file(remote))
+
+    assert customer_memory.get_all_profiles() == remote
+    assert pulled == [("GET", f"{CUSTOMERS_API}?ref=main")]
+
+    assert new_message_then_sync() is True
+    assert len(private_repo) == 1
+    assert set(private_repo[0]) == {*remote, NEW_CUSTOMER}
+    assert {key: private_repo[0][key] for key in remote} == remote
+
+
 @pytest.mark.parametrize(
     "respond",
     [
         lambda request: httpx.Response(500),
         lambda request: httpx.Response(403),
         github_timeout,
-        lambda request: httpx.Response(200, json={"content": base64.b64encode(b'{"9000').decode()}),
-        # File trên 1 MB: Contents API trả content rỗng.
-        lambda request: httpx.Response(200, json={"content": "", "encoding": "none"}),
+        lambda request: httpx.Response(200, content=b'{"9000'),
+        lambda request: httpx.Response(200, content=b""),
+        lambda request: httpx.Response(200, json=list(REMOTE_PROFILES)),
     ],
-    ids=["GitHub 500", "GitHub 403", "timeout", "JSON hỏng", "content rỗng"],
+    ids=["GitHub 500", "GitHub 403", "timeout", "JSON hỏng", "body rỗng", "không phải object"],
 )
 def test_failed_pull_keeps_bot_running_but_never_pushes(monkeypatch, caplog, private_repo, respond):
     serve_pull(monkeypatch, respond)

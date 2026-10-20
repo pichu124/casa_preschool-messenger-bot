@@ -2,17 +2,26 @@ import asyncio
 import hmac
 import logging
 import re
+from dataclasses import dataclass, field
+from pathlib import Path
 
 from fastapi import FastAPI, Request, HTTPException, Query, BackgroundTasks, Depends
 from fastapi.responses import PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.qa_database import QADatabase
 from app.ai_engine import AIEngine
 from app.messenger import (
+    GET_STARTED_PAYLOAD,
+    ICE_BREAKERS,
+    QUICK_REPLY_PREFIX,
+    build_quick_replies,
+    quick_reply_meaning,
     send_message,
     send_image,
     send_typing_indicator,
+    set_messenger_profile,
     get_user_profile,
     verify_webhook_signature,
 )
@@ -21,6 +30,7 @@ from app.escalation import (
     escalate_to_admin,
     get_pending_escalation,
     lead_events,
+    normalize_phone,
     publish_lead_event,
     resolve_escalation,
 )
@@ -37,6 +47,9 @@ logger = logging.getLogger(__name__)
 
 APP_VERSION = "1.6.0"
 app = FastAPI(title="Preschool Messenger Bot", version=APP_VERSION)
+# Public files (Q&A images such as the sample menu), referenced as "static/<file>" in qa_database.json.
+STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Initialize Q&A database and AI engine
 qa_db = QADatabase(settings.QA_DATABASE_PATH)
@@ -277,36 +290,106 @@ async def handle_webhook(request: Request, background_tasks: BackgroundTasks):
 
     for entry in data.get("entry", []):
         for event in entry.get("messaging", []):
-            sender_id = event.get("sender", {}).get("id")
-            message = event.get("message", {})
-            text = message.get("text")
-
-            if not sender_id or not text:
-                continue
-
-            # Don't respond to echo messages
-            if message.get("is_echo"):
+            inbound = parse_messaging_event(event)
+            if inbound is None:
                 continue
 
             # Dedup: skip if already processed
-            mid = message.get("mid", "")
-            if mid and mid in _processed_fb_mids:
-                logger.info(f"Skipping duplicate FB message: {mid}")
+            key = inbound.dedup_key
+            if key and key in _processed_fb_mids:
+                logger.info(f"Skipping duplicate FB message: {key}")
                 continue
-            if mid:
-                _processed_fb_mids.add(mid)
+            if key:
+                _processed_fb_mids.add(key)
                 # ponytail: evict ~half instead of clear() so recent mids survive and dedup keeps working
                 if len(_processed_fb_mids) > MAX_DEDUP_SIZE:
                     for _ in range(MAX_DEDUP_SIZE // 2):
                         _processed_fb_mids.pop()
 
             # Process in background so webhook returns 200 immediately
-            background_tasks.add_task(process_message, sender_id, text)
+            if inbound.text:
+                background_tasks.add_task(
+                    process_message, inbound.sender_id, inbound.text, inbound.attribution, inbound.phone_from_qr
+                )
+            else:
+                background_tasks.add_task(save_attribution, inbound.sender_id, inbound.attribution)
 
     return {"status": "ok"}
 
 
+# Sent to the model as the parent's first message when they tap Get Started.
+GET_STARTED_TEXT = "Xin chào Casa ạ"
+REFERRAL_SOURCES = {"ADS": "ads", "SHORTLINK": "link"}
+
+
+@dataclass
+class InboundEvent:
+    sender_id: str
+    text: str | None  # None: only a referral to record, nothing to answer
+    dedup_key: str
+    attribution: dict = field(default_factory=dict)
+    phone_from_qr: str | None = None
+
+
+def _attribution(referral: dict) -> dict:
+    """Profile fields from a Messenger referral (ad, m.me link). No source means organic: nothing is written."""
+    fields = {
+        "lead_source": REFERRAL_SOURCES.get(referral.get("source", "")),
+        "ad_id": referral.get("ad_id"),
+        "ad_title": (referral.get("ads_context_data") or {}).get("ad_title"),
+        "ref": referral.get("ref"),
+    }
+    return {k: v for k, v in fields.items() if v}
+
+
+def _is_phone(value) -> bool:
+    return 9 <= len(normalize_phone(value)) <= 11
+
+
+def parse_messaging_event(event: dict) -> InboundEvent | None:
+    """One webhook `messaging` event as what the bot answers or records; None when there is neither."""
+    sender_id = (event.get("sender") or {}).get("id")
+    message = event.get("message") or {}
+    postback = event.get("postback") or {}
+    if not sender_id or message.get("is_echo"):
+        return None
+
+    referral = event.get("referral") or message.get("referral") or postback.get("referral") or {}
+    attribution = _attribution(referral)
+    text = None
+    phone_from_qr = None
+    dedup_key = ""
+    if message:
+        text = message.get("text")
+        dedup_key = message.get("mid", "")
+        payload = (message.get("quick_reply") or {}).get("payload", "")
+        if payload.startswith(QUICK_REPLY_PREFIX):
+            text = quick_reply_meaning(payload) or text
+        elif payload and _is_phone(payload):
+            # Messenger's phone button: payload and text are both the number from the parent's Facebook account
+            phone_from_qr = payload
+    elif postback:
+        payload = postback.get("payload", "")
+        if payload == GET_STARTED_PAYLOAD:
+            text = GET_STARTED_TEXT
+        else:
+            text = ICE_BREAKERS.get(payload) or postback.get("title")
+        dedup_key = postback.get("mid") or f"pb:{sender_id}:{event.get('timestamp', '')}"
+
+    if not text and not attribution:
+        return None
+    return InboundEvent(sender_id, text or None, dedup_key, attribution, phone_from_qr)
+
+
+async def save_attribution(sender_id: str, attribution: dict):
+    """Referral without a message (parent opened the thread from an ad or link): remember the source, no reply."""
+    customer_memory.set_fields(sender_id, attribution)
+    logger.info(f"Referral for {sender_id}: {list(attribution)}")
+    await customer_memory.sync_to_github()
+
+
 IMAGES_PATTERN = re.compile(r"\[IMAGES:([^\]]+)\]")
+QUICK_PATTERN = re.compile(r"\[QUICK:([^\]]*)\]")
 
 
 def _extract_images(text: str) -> tuple[str, list[str]]:
@@ -321,6 +404,32 @@ def _extract_images(text: str) -> tuple[str, list[str]]:
         images = [url.strip() for url in raw.split(",") if url.strip()]
         text = IMAGES_PATTERN.sub("", text).strip()
     return text, images
+
+
+def _extract_quick_reply(text: str) -> tuple[str, str]:
+    """Strip [QUICK:key] tokens from response text. Returns (clean_text, key of the last token or "")."""
+    keys = QUICK_PATTERN.findall(text)
+    return QUICK_PATTERN.sub("", text).strip(), (keys[-1].strip() if keys else "")
+
+
+def _public_image_url(url: str) -> str:
+    """Q&A images given as "static/<file>" are served by this app at /static."""
+    if url.startswith("static/"):
+        return f"{settings.PUBLIC_BASE_URL.rstrip('/')}/{url}"
+    return url
+
+
+def _clean_extracted(extracted: dict, phone_from_qr: str | None) -> dict:
+    """The model's extraction made safe to store: the phone quick reply wins, a phone without 9-11 digits
+    (e.g. "không có") is dropped, and phone_declined is kept only as JSON true (models also return "false")."""
+    extracted = dict(extracted)
+    if phone_from_qr:
+        extracted["phone"] = phone_from_qr
+    if "phone" in extracted and not _is_phone(extracted["phone"]):
+        del extracted["phone"]
+    if extracted.get("phone_declined") is not True:
+        extracted.pop("phone_declined", None)
+    return extracted
 
 
 def _guess_category(question: str, answer: str = "") -> str:
@@ -364,8 +473,14 @@ def _guess_category(question: str, answer: str = "") -> str:
     return best_category if best_score >= 2 else ""
 
 
-async def process_message(sender_id: str, text: str):
-    """Process an incoming message and respond."""
+async def process_message(
+    sender_id: str, text: str, attribution: dict | None = None, phone_from_qr: str | None = None
+):
+    """Process an incoming message and respond.
+
+    attribution: ad/link referral fields that came with the message. phone_from_qr: the number the parent sent
+    with Messenger's phone quick reply.
+    """
     try:
         # Show typing indicator
         await send_typing_indicator(sender_id)
@@ -375,12 +490,17 @@ async def process_message(sender_id: str, text: str):
         user_name = profile.get("first_name", "ban")
         full_name = f"{profile.get('first_name', '')} {profile.get('last_name', '')}".strip()
 
+        # Before the prompt is built, so [TRẠNG THÁI TƯ VẤN] already shows the ad source
+        if attribution:
+            customer_memory.set_fields(sender_id, attribution)
+
         # Load customer profile (persisted across sessions) + cross-session history
         existing_profile = customer_memory.get_profile(sender_id)
         customer_context = customer_memory.format_profile_for_prompt(existing_profile)
         history = customer_memory.get_conversation_history(sender_id)
         gap_hours = customer_memory.get_last_seen_gap_hours(sender_id)
         had_phone = bool(existing_profile.get("phone"))
+        last_bot_message = history[-1]["content"] if history and history[-1]["role"] == "assistant" else ""
 
         # Extract customer info alongside the reply, so a phone number sent in this message is known before replying
         response, extracted = await asyncio.gather(
@@ -390,8 +510,9 @@ async def process_message(sender_id: str, text: str):
                 customer_context=customer_context,
                 gap_hours=gap_hours,
             ),
-            ai_engine.extract_customer_info(text, existing_profile),
+            ai_engine.extract_customer_info(text, existing_profile, last_bot_message=last_bot_message),
         )
+        extracted = _clean_extracted(extracted, phone_from_qr)
 
         logger.info(
             f"User {sender_id} ({user_name}): {len(text)} chars "
@@ -415,16 +536,23 @@ async def process_message(sender_id: str, text: str):
                 reply_text = ESCALATION_MESSAGE_ASK_PHONE
             await send_message(sender_id, reply_text)
         else:
-            # History keeps the [IMAGES:] token so the model knows which images were already sent
+            # History keeps the [IMAGES:] and [QUICK:] tokens so the model knows what it already sent
             reply_text = response.text
             clean_text, image_urls = _extract_images(response.text)
+            clean_text, quick_key = _extract_quick_reply(clean_text)
+            quick_replies = build_quick_replies(quick_key)
             category = _guess_category(text)
 
+            # Messenger shows quick replies only under the latest message: they go on the last one sent
             if clean_text:
-                await send_message(sender_id, clean_text)
-            for img_url in image_urls:
+                await send_message(sender_id, clean_text, quick_replies=None if image_urls else quick_replies)
+            for n, img_url in enumerate(image_urls, 1):
                 try:
-                    await send_image(sender_id, img_url)
+                    await send_image(
+                        sender_id,
+                        _public_image_url(img_url),
+                        quick_replies=quick_replies if n == len(image_urls) else None,
+                    )
                 except Exception as img_err:
                     logger.error(f"Failed to send image {img_url}: {img_err}")
 
@@ -688,3 +816,9 @@ async def setup_telegram_webhook(_: None = Depends(require_secret)):
             "secret_token": settings.TELEGRAM_WEBHOOK_SECRET,
         })
         return response.json()
+
+
+@app.post("/setup-messenger-profile")
+async def setup_messenger_profile(_: None = Depends(require_secret)):
+    """Register the Get Started button and ice breakers on the Page. Requires ?secret=."""
+    return await set_messenger_profile()

@@ -427,11 +427,14 @@ class AIEngine:
             model_used="none",
         )
 
-    async def extract_customer_info(self, user_message: str, existing_profile: dict | None = None) -> dict:
+    async def extract_customer_info(
+        self, user_message: str, existing_profile: dict | None = None, last_bot_message: str = ""
+    ) -> dict:
         """Extract customer/kid information from user message.
 
         Asks the model for PROFILE_FIELDS; returns only non-empty values.
         Only those fields of existing_profile go into the prompt, not history or summaries.
+        last_bot_message: what the bot sent just before, so a bare "không ạ" to a phone request reads as a refusal.
         """
         profile = existing_profile or {}
         known = {k: profile[k] for k in PROFILE_FIELDS if profile.get(k)}
@@ -447,7 +450,8 @@ class AIEngine:
             '- "address": địa chỉ\n'
             '- "area": khu vực nhà (VD: "Cầu Giấy", "Long Biên")\n'
             '- "phone": số điện thoại hoặc số Zalo\n'
-            '- "phone_declined": true khi phụ huynh từ chối rõ ràng để lại SĐT/Zalo (VD: "chưa muốn để số")\n'
+            '- "phone_declined": true khi phụ huynh từ chối rõ ràng để lại SĐT/Zalo (VD: "chưa muốn để số", '
+            'hoặc "không ạ" khi câu bot vừa hỏi là xin SĐT/Zalo)\n'
             '- "interested_program": "song ngữ" / "quốc tế"\n'
             '- "interested_campus": "Chùa Láng" / "Mỹ Đình" / "Kim Mã"\n'
             '- "expected_start": thời điểm dự kiến cho bé nhập học (VD: "tháng 9", "sau Tết")\n'
@@ -458,7 +462,8 @@ class AIEngine:
             "CHỈ trả về JSON object. Nếu tin nhắn không chứa thông tin mới nào, trả về {}. "
             "KHÔNG giải thích, KHÔNG markdown code block."
         )
-        user_msg = f"Tin nhắn phụ huynh: {user_message}{existing_context}"
+        bot_context = f"Câu bot vừa hỏi: {last_bot_message}\n" if last_bot_message else ""
+        user_msg = f"{bot_context}Tin nhắn phụ huynh: {user_message}{existing_context}"
 
         for model_name in settings.AI_MODEL_ORDER:
             model_name = model_name.strip()

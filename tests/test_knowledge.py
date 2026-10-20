@@ -41,7 +41,10 @@ def test_every_pair_has_valid_shape():
         assert isinstance(p["answer"], str) and p["answer"].strip()
         assert isinstance(p.get("keywords", []), list)
         for url in p.get("images", []):
-            assert url.startswith(("http://", "https://"))
+            # "static/<file>": bot tự phục vụ tại {PUBLIC_BASE_URL}/static/<file>, nên file phải có trong repo
+            assert url.startswith(("http://", "https://")) or (
+                url.startswith("static/") and (DB_PATH.parents[1] / url).is_file()
+            ), url
 
 
 def test_no_question_is_duplicated_across_pairs():

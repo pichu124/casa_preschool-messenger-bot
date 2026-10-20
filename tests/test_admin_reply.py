@@ -51,7 +51,7 @@ def sent(monkeypatch):
 
     sent = []
 
-    async def fake_send_message(recipient_id, text):
+    async def fake_send_message(recipient_id, text, **kwargs):
         sent.append((recipient_id, text))
 
     async def fake_format_admin_reply(admin_answer, original_question):

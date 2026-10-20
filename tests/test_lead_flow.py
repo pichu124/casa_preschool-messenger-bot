@@ -60,7 +60,7 @@ class FakeBot:
 def bot(monkeypatch):
     bot = FakeBot()
 
-    async def fake_send_message(recipient_id, text):
+    async def fake_send_message(recipient_id, text, **kwargs):
         assert recipient_id == CUSTOMER_ID
         bot.sent.append(text)
 
@@ -74,7 +74,7 @@ def bot(monkeypatch):
     async def fake_get_response(user_message, conversation_history=None, customer_context="", gap_hours=0.0):
         return bot.response
 
-    async def fake_extract_customer_info(user_message, existing_profile=None):
+    async def fake_extract_customer_info(user_message, existing_profile=None, **kwargs):
         return dict(bot.extracted)
 
     async def fake_send_telegram(text):
@@ -195,7 +195,7 @@ def test_reply_and_extraction_run_concurrently(monkeypatch, bot):
         await asyncio.wait_for(extract_started.wait(), timeout=1)
         return AIResponse(text=MODEL_TEXT, should_escalate=False, model_used="fake-model")
 
-    async def extract_customer_info(user_message, existing_profile=None):
+    async def extract_customer_info(user_message, existing_profile=None, **kwargs):
         extract_started.set()
         await asyncio.wait_for(reply_started.wait(), timeout=1)
         return {"phone": PHONE}
@@ -267,7 +267,7 @@ def admin_sent(monkeypatch):
     monkeypatch.setattr(settings, "TELEGRAM_WEBHOOK_SECRET", WEBHOOK_SECRET)
     sent = []
 
-    async def fake_send_message(recipient_id, text):
+    async def fake_send_message(recipient_id, text, **kwargs):
         sent.append((recipient_id, text))
 
     monkeypatch.setattr(main, "send_message", fake_send_message)

@@ -153,7 +153,7 @@ class Chat:
 def chat(monkeypatch):
     chat = Chat()
 
-    async def send_message(recipient_id, text):
+    async def send_message(recipient_id, text, **kwargs):
         assert recipient_id == CUSTOMER_ID
         chat.sent.append(text)
 
@@ -167,7 +167,7 @@ def chat(monkeypatch):
     async def get_response(user_message, conversation_history=None, customer_context="", gap_hours=0.0):
         return chat.response
 
-    async def extract_customer_info(user_message, existing_profile=None):
+    async def extract_customer_info(user_message, existing_profile=None, **kwargs):
         return dict(chat.extracted)
 
     async def sync_to_github():

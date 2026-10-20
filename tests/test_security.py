@@ -177,7 +177,7 @@ def test_telegram_webhook_rejects_without_valid_secret_token(monkeypatch, config
     escalation._pending[ESCALATION_MSG_ID] = {"customer_id": CUSTOMER_ID, "question": "Có xe đưa đón không?"}
     sent = []
 
-    async def fake_send_message(recipient_id, text):
+    async def fake_send_message(recipient_id, text, **kwargs):
         sent.append((recipient_id, text))
 
     monkeypatch.setattr(main, "send_message", fake_send_message)

@@ -232,6 +232,24 @@ def test_notify_lead_posts_to_telegram_without_logging_phone(monkeypatch, caplog
     assert escalation._pending == {}
 
 
+@pytest.mark.parametrize("escalate", [False, True], ids=["trả lời thường", "chuyển tư vấn viên"])
+def test_parent_message_text_is_not_logged(bot, caplog, escalate):
+    """Log Render không phải nơi chứa dữ liệu cá nhân: SĐT phụ huynh vừa gửi không lọt vào log nào."""
+    phone = "0912345678"
+
+    with caplog.at_level(logging.DEBUG):
+        bot.say(
+            f"Bé nhà mình 3 tuổi, số của mình là {phone} ạ",
+            reply="" if escalate else MODEL_TEXT,
+            escalate=escalate,
+            extracted={"phone": phone},
+        )
+
+    assert len(bot.leads()) == 1
+    assert [r for r in caplog.records if CUSTOMER_ID in r.getMessage()], "không bắt được log nào của tin này"
+    assert [r.getMessage() for r in caplog.records if phone in r.getMessage()] == []
+
+
 def test_notify_lead_reports_failure_when_telegram_not_configured():
     assert asyncio.run(escalation.notify_lead(CUSTOMER_ID, FB_NAME, PHONE, {}, f"Số {PHONE}")) is False
 

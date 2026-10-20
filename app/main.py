@@ -386,7 +386,7 @@ async def process_message(sender_id: str, text: str):
         new_phone = extracted.get("phone") if not had_phone else None
 
         logger.info(
-            f"User {sender_id} ({user_name}): {text[:100]} "
+            f"User {sender_id} ({user_name}): {len(text)} chars "
             f"-> Model: {response.model_used}, Escalate: {response.should_escalate}, "
             f"HasProfile: {bool(existing_profile)}, GapHours: {gap_hours:.1f}, HistoryLen: {len(history)}"
         )

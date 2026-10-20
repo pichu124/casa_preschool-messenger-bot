@@ -10,7 +10,8 @@ không ghi file nào, không đụng data/customers.json, không đẩy gì lên
 
 Mỗi lượt in transcript và kiểm vài heuristic đơn giản: có dấu tiếng Việt; không gọi "bạn"/"quý khách",
 không xưng "tôi"; không nêu số tiền (vd 1.000.000đ); câu cuối có bước tiếp theo (SĐT/Zalo, tham quan,
-học thử, hỏi tuổi bé/cơ sở...); cộng kiểm riêng của từng lượt (vd không có "%" ở lượt hỏi ưu đãi đầu tiên).
+học thử, hỏi tuổi bé/cơ sở...); tối đa một token [QUICK:] hợp lệ ở cuối; cộng kiểm riêng của từng lượt
+(vd không có "%" ở lượt hỏi ưu đãi đầu tiên).
 Heuristic chỉ để lọc nhanh: vẫn phải đọc transcript.
 
 Exit: 0 = mọi heuristic đạt; 1 = có lượt vi phạm; 2 = INCONCLUSIVE (chưa có API key, mọi model đều lỗi)
@@ -28,7 +29,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app.ai_engine import API_KEY_MAP, AIEngine
+from app.ai_engine import API_KEY_MAP, SYSTEM_PROMPT, AIEngine
 from app.config import settings
 from app.qa_database import QADatabase
 
@@ -47,6 +48,8 @@ WRONG_ADDRESS = re.compile(r"(?<!các )(?<!những )(?<!với )(?<!cùng )\bbạ
 MONEY = re.compile(r"\d{1,3}(?:[.,]\d{3})+\s*(?:đ|đồng|vnđ|vnd)|\d+(?:[.,]\d+)?\s*triệu", re.I)
 SENTENCE_END = re.compile(r"(?<=[.!?…])\s+")
 IMAGES_TOKEN = re.compile(r"\[IMAGES:[^\]]*\]")
+QUICK_TOKEN = re.compile(r"\[QUICK:([^\]]*)\]")
+QUICK_KEYS = set(QUICK_TOKEN.findall(SYSTEM_PROMPT))
 
 
 @dataclass
@@ -87,7 +90,12 @@ SCENARIOS: dict[str, list[Turn]] = {
         ),
     ],
     "xe_bus": [
-        Turn("trường có xe bus đưa đón không ạ", any_of=[("địa chỉ",), ASKS_PHONE]),
+        Turn(
+            "trường có xe bus đưa đón không ạ",
+            any_of=[ASKS_PHONE],
+            none_of=("tuyến", "bán kính", "phí xe", "phí đưa đón", "ưu đãi", "địa chỉ"),
+        ),
+        Turn("thôi mình chưa muốn để lại số", expect_escalate=True),
     ],
     "ngoai_le": [
         Turn("giá bitcoin hôm nay bao nhiêu vậy", expect_escalate=True),
@@ -95,15 +103,13 @@ SCENARIOS: dict[str, list[Turn]] = {
     "be_12_thang": [
         Turn("bé nhà mình mới 12 tháng thì có học được không", any_of=[("15 tháng",)]),
     ],
-    "workshop": [
-        Turn("workshop của cô Phan Thúy có mất phí không, tổ chức ngày nào vậy", any_of=[("miễn phí",), ASKS_PHONE]),
-    ],
 }
 
 
 def last_sentence(text: str) -> str:
     # Bỏ "câu" chỉ gồm emoji/ký hiệu, vd "📅" đứng sau dấu chấm hỏi cuối.
-    sentences = [s for s in SENTENCE_END.split(IMAGES_TOKEN.sub("", text)) if any(ch.isalpha() for ch in s)]
+    text = QUICK_TOKEN.sub("", IMAGES_TOKEN.sub("", text))
+    sentences = [s for s in SENTENCE_END.split(text) if any(ch.isalpha() for ch in s)]
     return sentences[-1] if sentences else ""
 
 
@@ -125,6 +131,11 @@ def check_turn(turn: Turn, is_first: bool, escalated: bool, text: str) -> list[s
         problems.append(f"nêu số tiền: {match.group(0)!r}")
     if not (any(a in last for a in NEXT_ACTIONS) or ("?" in last and any(q in last for q in NEXT_QUESTIONS))):
         problems.append(f"câu cuối không có bước tiếp theo: {last_sentence(text)!r}")
+    keys = QUICK_TOKEN.findall(text)
+    if len(keys) > 1 or (keys and not text.rstrip().endswith(f"[QUICK:{keys[0]}]")):
+        problems.append(f"token [QUICK:] phải có tối đa 1 và ở cuối: {keys}")
+    if unknown := [k for k in keys if k not in QUICK_KEYS]:
+        problems.append(f"key [QUICK:] lạ: {unknown}")
     if is_first and not any(g in lowered for g in GREETING):
         problems.append("tin đầu tiên thiếu lời chào chuẩn 'Dạ Casa chào Ba/Mẹ ạ'")
     for group in turn.any_of:

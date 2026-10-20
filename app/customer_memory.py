@@ -190,6 +190,62 @@ async def update_profile(customer_id: str, updates: dict) -> dict:
     return merged
 
 
+def set_fields(customer_id: str, fields: dict) -> dict:
+    """Overwrite `fields` in the profile and save to disk (sync_to_github() pushes it), without touching
+    last_seen/message_count: for data that is not a parent message (ad referral, follow-up timestamp)."""
+    if not _loaded:
+        _load_from_disk()
+    profile = {**_customers.get(customer_id, {}), **fields}
+    _customers[customer_id] = profile
+    _save_to_disk()
+    return profile
+
+
+# Consulting funnel stages, in order; lead_stage() returns the furthest one reached.
+STAGES = ("Mới", "Đã biết tuổi/cơ sở", "Đã có SĐT", "Đã hẹn tham quan/học thử")
+
+
+def _knows_place(profile: dict) -> bool:
+    return bool(profile.get("interested_campus") or profile.get("area") or profile.get("address"))
+
+
+def lead_stage(profile: dict) -> str:
+    if profile.get("visit_request"):
+        return STAGES[3]
+    if profile.get("phone"):
+        return STAGES[2]
+    if profile.get("kid_age") or _knows_place(profile):
+        return STAGES[1]
+    return STAGES[0]
+
+
+def missing_fields(profile: dict) -> list[str]:
+    """What the bot still needs to ask for. No phone once the parent declined to leave one."""
+    missing = []
+    if not profile.get("kid_age"):
+        missing.append("tuổi bé")
+    if not _knows_place(profile):
+        missing.append("cơ sở/khu vực")
+    if not profile.get("phone") and not profile.get("phone_declined"):
+        missing.append("SĐT/Zalo")
+    return missing
+
+
+def _consulting_state(profile: dict) -> str:
+    lines = [f"Giai đoạn: {lead_stage(profile)}"]
+    missing = missing_fields(profile)
+    if missing:
+        lines.append(f"Còn thiếu: {', '.join(missing)}")
+    if profile.get("phone_declined") and not profile.get("phone"):
+        lines.append("Phụ huynh đã từ chối để lại SĐT: có")
+    if profile.get("lead_source") == "ads":
+        ad_title = profile.get("ad_title")
+        lines.append(f'Nguồn: quảng cáo "{ad_title}"' if ad_title else "Nguồn: quảng cáo")
+    if profile.get("visit_request"):
+        lines.append(f"Đã hẹn: {profile['visit_request']}")
+    return "[TRẠNG THÁI TƯ VẤN]:\n" + "\n".join(f"- {line}" for line in lines)
+
+
 def format_profile_for_prompt(profile: dict) -> str:
     """Format customer profile as a context hint for the AI prompt."""
     if not profile:
@@ -212,8 +268,12 @@ def format_profile_for_prompt(profile: dict) -> str:
         parts.append(f"Quan tâm hệ: {profile['interested_program']}")
     if profile.get("interested_campus"):
         parts.append(f"Cơ sở quan tâm: {profile['interested_campus']}")
+    if profile.get("area"):
+        parts.append(f"Khu vực: {profile['area']}")
     if profile.get("address"):
         parts.append(f"Địa chỉ: {profile['address']}")
+    if profile.get("expected_start"):
+        parts.append(f"Dự kiến nhập học: {profile['expected_start']}")
     if profile.get("phone"):
         parts.append(f"SĐT: {profile['phone']}")
     if profile.get("concerns"):
@@ -227,7 +287,8 @@ def format_profile_for_prompt(profile: dict) -> str:
 
     result = ""
     if parts:
-        result = "[THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT]:\n" + "\n".join(f"- {p}" for p in parts)
+        result = "[THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT]:\n" + "\n".join(f"- {p}" for p in parts) + "\n\n"
+    result += _consulting_state(profile)
 
     # Append session summaries if available (background context from past conversations)
     summaries = profile.get("session_summaries", [])

@@ -37,8 +37,13 @@ Sau do dien cac gia tri vao file `.env`.
    - Muc **Webhooks**: click **Add Callback URL**
      - Callback URL: `https://your-domain.com/webhook` (hoac ngrok URL)
      - Verify Token: nhap gia tri giong `FB_VERIFY_TOKEN` trong file .env
-   - Subscribe to: `messages`, `messaging_postbacks`
+   - Subscribe to: `messages`, `messaging_postbacks` (nut Bat dau, cau hoi goi y), `messaging_referrals` (khach mo chat tu quang cao hoac link m.me khi da tung nhan tin), `message_echoes` (tin nhan vien tu nhan tay trong hop thu Page; bat buoc truoc khi bat tin nhac lai, muc 10)
 5. Trong **App Settings** -> **Basic**: copy **App Secret** vao `FB_APP_SECRET`
+6. Dang ky nut Bat dau (Get Started) va 4 cau hoi goi y (`ICE_BREAKERS` trong `app/messenger.py`) voi Page: chay mot lan sau khi deploy, va chay lai moi khi doi cac cau hoi do:
+   ```bash
+   curl -X POST "https://your-domain.com/setup-messenger-profile?secret=<TELEGRAM_WEBHOOK_SECRET>"
+   ```
+   Ket qua `{"result": "success"}` la xong; co `error` thi xem `FB_PAGE_ACCESS_TOKEN`.
 
 ### 4. Thiet lap Admin Escalation
 
@@ -59,6 +64,76 @@ Chi can it nhat 1 model co API key la duoc.
 - DeepSeek: https://platform.deepseek.com/api_keys
 
 Thu tu fallback cau hinh trong `AI_MODEL_ORDER`.
+
+### 6. Secret cho endpoint admin va Telegram webhook
+
+- `TELEGRAM_WEBHOOK_SECRET`: chuoi ngau nhien, chi dung ky tu `A-Z a-z 0-9 _ -` (Telegram `secret_token` chi nhan cac ky tu nay, 1-256 ky tu). Tao bang `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`.
+  - La gia tri `?secret=` cua moi endpoint admin, dong thoi la `secret_token` Telegram gui kem trong header `X-Telegram-Bot-Api-Secret-Token` toi `/telegram-webhook`.
+  - De trong thi moi endpoint admin va `/telegram-webhook` tra 403 (log khoi dong co WARNING).
+  - Sau khi dat hoac doi secret phai dang ky lai webhook Telegram, neu khong Telegram van gui secret cu va bi 403:
+    ```bash
+    curl -X POST "https://your-domain.com/setup-telegram-webhook?secret=<TELEGRAM_WEBHOOK_SECRET>"
+    ```
+- `FB_APP_SECRET`: de trong thi `/webhook` nhan request ma khong kiem chu ky Facebook (log khoi dong co WARNING). Nen dat.
+
+### 7. Luu ho so khach (`data/customers.json`)
+
+- `CUSTOMERS_GITHUB_REPO` (`owner/ten-repo`): repo bot dung de day va keo `data/customers.json` (nhanh `main`) bang `GITHUB_TOKEN`. File nay chua du lieu ca nhan cua phu huynh va tre: chi tro toi repo PRIVATE, khong bao gio tro toi repo code public nay.
+  - `GITHUB_TOKEN` phai co quyen ghi Contents tren repo do. Nen tao repo kem README de co san nhanh `main`.
+  - Luc khoi dong, repo do la nguon su that: bot keo `data/customers.json` tu repo truoc va ghi de ban tren dia. Repo chua co file (404) thi bot dung ban tren dia (khong co thi bat dau rong) va day len o tin nhan dau tien. Keo loi (mang, timeout, 5xx, 401/403, JSON hong) thi bot van tra loi voi ban tren dia nhung KHONG day len GitHub cho toi lan khoi dong sau (log ERROR), de khong de ban thieu len repo private.
+  - `data/customers.json` hien con duoc track trong repo code public nay (va nam trong image deploy). Sau khi repo private da co ban day du, nguoi quan tri nen go file khoi repo public (vd `git rm --cached data/customers.json` va them vao `.gitignore`); lich su git cu van con file nay.
+- De trong (mac dinh): ho so khach chi luu tren dia cuc bo, khong day len GitHub. Tren Render dia khong ben, nen ho so mat sau moi lan deploy hoac restart.
+
+### 8. Lead sang nhom Telegram va Google Sheet
+
+Phu huynh de lai SDT lan dau, doi SDT, hoac chot hen tham quan/hoc thu: bot gui tin vao nhom Telegram (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) va cung luc ghi mot hang vao Google Sheet qua web app Apps Script. Cach tao Sheet, script va deploy: [docs/google-sheet-leads.md](docs/google-sheet-leads.md).
+
+- `LEADS_SHEET_WEBHOOK_URL`: Web app URL cua script (`https://script.google.com/macros/s/.../exec`). De trong (mac dinh) thi chi gui Telegram, khong goi Sheet.
+- `LEADS_SHEET_TOKEN`: chuoi ngau nhien, phai trung Script Property `LEADS_TOKEN` cua script. Bot gui no trong body JSON; sai token thi script tu choi ghi.
+- URL va token cung nhau du de ghi hang vao Sheet (co du lieu ca nhan cua phu huynh): chi dat tren Render, khong dua vao chat hay repo.
+
+### 9. Anh tinh (`static/`)
+
+File trong thu muc `static/` duoc phuc vu CONG KHAI, khong can secret, tai `{PUBLIC_BASE_URL}/static/<file>` (Facebook tai anh tu URL nay, nen `PUBLIC_BASE_URL` phai la URL cong khai cua app). Chi dat anh duoc phep cong khai (vd thuc don mau), khong dat du lieu ca nhan.
+
+De bot gui anh kem cau tra loi, them duong dan vao cap Q&A trong `data/qa_database.json`:
+
+```json
+{"category": "Ăn uống", "questions": ["Cho em xem thực đơn mẫu"], "answer": "...", "images": ["static/thuc-don-mau.jpg"]}
+```
+
+### 10. Tin nhac lai khach (follow-up, mac dinh TAT)
+
+Moi gio GitHub Actions (`.github/workflows/followup.yml`, phut 17) goi `POST /followup/run`. Bot gui MOT tin co dinh (khong goi AI, `app/followup.py`) cho phu huynh dang tu van do dang, khi DU tat ca dieu kien:
+
+- Tin cuoi cua phu huynh cach day tu 3 den 23 gio (Messenger chi cho Page nhan tin trong 24 gio ke tu tin cuoi cua nguoi dung).
+- Tin cuoi trong hoi thoai la cua bot, va khong phai cau chuyen tu van vien (tu van vien dang lo).
+- Chua co SDT, chua hen tham quan/hoc thu.
+- Chua nhac lan nao ke tu tin cuoi cua phu huynh (`followup_sent_at` trong ho so khach).
+- Nhan vien chua tu nhan tay cho phu huynh trong hop thu Page ke tu tin cuoi cua phu huynh (`staff_replied_at` trong ho so khach). Bot gui moi tin kem `metadata` `casa-bot`; Facebook gui lai (echo) moi tin Page gui di, echo khong co `casa-bot` la tin nhan vien nhan tay. Can dang ky truong webhook `message_echoes` (muc 3), thieu thi bot khong biet nhan vien da nhan va van nhac.
+  - Tin tu dong cua Page trong Meta Business Suite (Instant Reply, Away message) cung tao echo khong co `casa-bot`, nen bi tinh la nhan vien da nhan va khach do se khong bao gio duoc nhac. Tat cac tin tu dong nay truoc khi bat tin nhac lai.
+- Gio Viet Nam tu 8h00 den truoc 21h00.
+
+Mau tin theo trang thai: chua biet tuoi be thi hoi tuoi; da biet tuoi nhung chua co SDT thi xin SDT/Zalo; phu huynh da tu choi de lai SDT thi KHONG xin so, moi tham quan/hoc thu 1 tuan mien phi. Graph API tu choi (ngoai cua so 24 gio, khach chan Page) thi bo qua khach do. Tin da gui duoc ghi vao lich su hoi thoai, khong tang so tin nhan cua khach. Gio trong lich su la gio may chu khong co mui gio, duoc coi la UTC (Render chay UTC).
+
+Cach bat (truoc het dang ky truong webhook `message_echoes`, muc 3; sau do can ca hai noi):
+
+1. Render: dat bien moi truong `FOLLOWUP_ENABLED=true`. Chua dat thi `/followup/run` chi dem so khach du dieu kien, khong gui gi.
+2. GitHub repo -> Settings -> Secrets and variables -> Actions:
+   - Variables: `FOLLOWUP_ENABLED` = `true` (chua dat thi workflow khong chay).
+   - Secrets: `BOT_BASE_URL` (vd `https://casa-preschool-messenger-bot.onrender.com`, khong co `/` cuoi) va `BOT_ADMIN_SECRET` (= `TELEGRAM_WEBHOOK_SECRET` tren Render).
+
+Repo nay public nen log Actions cung public: workflow chi in ma HTTP, khong in noi dung tra ve. Muon xem truoc ai se duoc nhac ma khong gui:
+
+```bash
+curl -X POST "https://your-domain.com/followup/run?secret=<TELEGRAM_WEBHOOK_SECRET>&dry_run=1&verbose=1"
+```
+
+Ket qua `{"due": n, "sent": m, "enabled": true|false}`; `verbose=1` them danh sach mau tin + 4 ky tu cuoi ID khach (khong co ten, SDT, noi dung tin).
+
+### 11. Dashboard: pheu tu van
+
+`/dashboard?secret=` co muc "Pheu tu van": tong khach, co tuoi be, co co so quan tam, co SDT, da hen tham quan/hoc thu, tu quang cao, va so khach theo giai doan (Moi -> Da biet tuoi/co so -> Da co SDT -> Da hen). Pheu tinh tu ho so khach (`data/customers.json`), khong tu `analytics.jsonl`. Cac o tin nhan, nguoi dung, escalation va ti le chuyen tu van vien tinh tu `analytics.jsonl`, file nay mat moi lan deploy, nen chi phan anh tu lan deploy gan nhat. `/customers/export` co them cot Khu vuc, Du kien nhap hoc, Hen tham quan/hoc thu, Nguon (tieu de quang cao), Giai doan, Da tu choi SDT.
 
 ## Chay ung dung
 
@@ -82,13 +157,26 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 ## API Endpoints
 
-| Method | Path | Mo ta |
-|--------|------|-------|
-| GET | `/` | Health check |
-| GET | `/webhook` | Facebook webhook verification |
-| POST | `/webhook` | Nhan tin nhan tu Messenger |
-| POST | `/reload-qa` | Tai lai Q&A database |
-| POST | `/import-excel?file_path=path` | Nhap Q&A tu Excel |
+`?secret=` la gia tri `TELEGRAM_WEBHOOK_SECRET` (xem muc 6). Chua dat bien nay thi cac endpoint can `?secret=` deu tra 403.
+
+| Method | Path | Mo ta | Xac thuc |
+|--------|------|-------|----------|
+| GET | `/` | Health check | khong |
+| GET | `/webhook` | Facebook webhook verification | `hub.verify_token` = `FB_VERIFY_TOKEN` |
+| POST | `/webhook` | Nhan tin nhan tu Messenger | chu ky `X-Hub-Signature-256` (chi khi dat `FB_APP_SECRET`) |
+| POST | `/telegram-webhook` | Nhan admin reply tu Telegram | header `X-Telegram-Bot-Api-Secret-Token` |
+| POST | `/setup-telegram-webhook` | Dang ky webhook Telegram voi secret hien tai | `?secret=` |
+| POST | `/setup-messenger-profile` | Dang ky nut Bat dau va cau hoi goi y voi Page | `?secret=` |
+| GET | `/static/<file>` | Anh tinh trong `static/` | khong (cong khai) |
+| GET | `/dashboard` | Dashboard analytics | `?secret=` |
+| GET | `/analytics/stats`, `/analytics/messages` | Du lieu analytics (JSON) | `?secret=` |
+| POST | `/analytics/reset` | Xoa du lieu analytics | `?secret=` |
+| GET | `/customers`, `/customers/export` | Ho so khach (JSON / Excel) | `?secret=` |
+| GET | `/qa-database`, `/qa-learned` | Xem Q&A (tat ca / hoc tu admin) | `?secret=` |
+| POST | `/reload-qa` | Tai lai Q&A database | `?secret=` |
+| POST | `/import-excel?file_path=path` | Nhap Q&A tu Excel | `?secret=` |
+| POST | `/test-chat` | Thu hoi thoai khong qua Facebook | `?secret=` |
+| POST | `/followup/run` | Gui tin nhac lai khach (muc 10); `dry_run=1` chi dem, `verbose=1` them danh sach | `?secret=` |
 
 ## Quan ly Q&A Database
 
@@ -112,13 +200,13 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 File Excel can co cac cot: `category | question | answer | keywords`
 
 ```bash
-curl -X POST "http://localhost:8000/import-excel?file_path=data/qa_database_sample.xlsx"
+curl -X POST "http://localhost:8000/import-excel?file_path=data/qa_database_sample.xlsx&secret=<TELEGRAM_WEBHOOK_SECRET>"
 ```
 
 ### Reload sau khi chinh sua
 
 ```bash
-curl -X POST http://localhost:8000/reload-qa
+curl -X POST "http://localhost:8000/reload-qa?secret=<TELEGRAM_WEBHOOK_SECRET>"
 ```
 
 ## Cau truc du an
@@ -131,6 +219,8 @@ app/
   ai_engine.py     - AI fallback chain (nhieu model)
   qa_database.py   - Quan ly co so du lieu Q&A
   escalation.py    - Chuyen cau hoi cho admin
+  followup.py      - Tin nhac lai khach trong cua so 24 gio
 data/
   qa_database.json - Du lieu Q&A
+static/            - Anh cong khai cho Q&A (vd thuc don mau)
 ```

@@ -33,6 +33,9 @@ tr:hover td { background: #f7fafc; }
 .badge-escalated { background: #fed7d7; color: #c53030; }
 .badge-ok { background: #c6f6d5; color: #22543d; }
 .refresh { color: #718096; font-size: 12px; margin-top: 12px; text-align: right; }
+.note { color: #718096; font-size: 12px; margin: -12px 0 24px; }
+.section-title { color: #2d3748; font-size: 16px; margin-bottom: 4px; }
+.funnel-stages { margin-bottom: 24px; }
 .loading { text-align: center; color: #a0aec0; padding: 40px; }
 </style>
 </head>
@@ -65,6 +68,55 @@ tr:hover td { background: #f7fafc; }
 <div class="value" id="escalation-rate">0%</div>
 <div class="sublabel">câu hỏi cần admin</div>
 </div>
+</div>
+<p class="note">Tin nhắn, người dùng, escalation và tỉ lệ chuyển tư vấn viên chỉ tính từ lần deploy gần nhất (analytics.jsonl mất khi deploy).</p>
+
+<h3 class="section-title">🎯 Phễu tư vấn</h3>
+<p class="subtitle">Tính từ hồ sơ khách (customers.json), không từ analytics.jsonl</p>
+<div class="stats-grid">
+<div class="stat-card highlight">
+<div class="label">Tổng khách</div>
+<div class="value" id="funnel-total">0</div>
+<div class="sublabel">có hồ sơ</div>
+</div>
+<div class="stat-card">
+<div class="label">Có tuổi bé</div>
+<div class="value" id="funnel-with_kid_age">0</div>
+<div class="sublabel" id="funnel-with_kid_age-pct">-</div>
+</div>
+<div class="stat-card">
+<div class="label">Có cơ sở quan tâm</div>
+<div class="value" id="funnel-with_campus">0</div>
+<div class="sublabel" id="funnel-with_campus-pct">-</div>
+</div>
+<div class="stat-card">
+<div class="label">Có SĐT</div>
+<div class="value" id="funnel-with_phone">0</div>
+<div class="sublabel" id="funnel-with_phone-pct">-</div>
+</div>
+<div class="stat-card">
+<div class="label">Đã hẹn tham quan/học thử</div>
+<div class="value" id="funnel-with_visit">0</div>
+<div class="sublabel" id="funnel-with_visit-pct">-</div>
+</div>
+<div class="stat-card">
+<div class="label">Từ quảng cáo</div>
+<div class="value" id="funnel-from_ads">0</div>
+<div class="sublabel" id="funnel-from_ads-pct">-</div>
+</div>
+</div>
+<div class="messages-table funnel-stages">
+<h3>📊 Khách theo giai đoạn</h3>
+<table>
+<thead>
+<tr>
+<th>Giai đoạn</th>
+<th>Số khách</th>
+<th>Tỉ lệ</th>
+</tr>
+</thead>
+<tbody id="funnel-stages"></tbody>
+</table>
 </div>
 
 <div class="charts-grid">
@@ -122,6 +174,7 @@ async function loadData() {
     document.getElementById('today-messages').textContent = stats.today_messages;
     document.getElementById('today-users').textContent = stats.today_users;
 
+    renderFunnel(stats.funnel);
     renderDailyChart(stats.daily_series);
     renderCategoryChart(stats.top_categories);
     renderMessages(messages);
@@ -131,6 +184,25 @@ async function loadData() {
     console.error('Load error:', e);
     document.getElementById('loading').textContent = 'Lỗi tải dữ liệu: ' + e.message;
   }
+}
+
+const FUNNEL_COUNTS = ['with_kid_age', 'with_campus', 'with_phone', 'with_visit', 'from_ads'];
+
+function percent(n, total) {
+  return total ? Math.round(n / total * 100) + '%' : '0%';
+}
+
+function renderFunnel(funnel) {
+  document.getElementById('funnel-total').textContent = funnel.total;
+  for (const key of FUNNEL_COUNTS) {
+    document.getElementById('funnel-' + key).textContent = funnel[key];
+    document.getElementById('funnel-' + key + '-pct').textContent = percent(funnel[key], funnel.total) + ' tổng khách';
+  }
+  document.getElementById('funnel-stages').innerHTML = Object.entries(funnel.stages).map(([stage, count]) => `<tr>
+      <td>${escapeHtml(stage)}</td>
+      <td>${count}</td>
+      <td>${percent(count, funnel.total)}</td>
+    </tr>`).join('');
 }
 
 function renderDailyChart(data) {

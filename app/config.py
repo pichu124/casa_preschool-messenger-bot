@@ -13,10 +13,20 @@ class Settings:
     # Admin escalation via Telegram
     TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
     TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
-    TELEGRAM_WEBHOOK_SECRET: str = os.getenv("TELEGRAM_WEBHOOK_SECRET", "casa-bot-secret-2024")
+    TELEGRAM_WEBHOOK_SECRET: str = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
+
+    # Leads -> Google Sheet: Apps Script web app URL (docs/google-sheet-leads.md); empty = Telegram only
+    LEADS_SHEET_WEBHOOK_URL: str = os.getenv("LEADS_SHEET_WEBHOOK_URL", "")
+    # Sent in the JSON body (Apps Script cannot read request headers); must equal the script's LEADS_TOKEN
+    LEADS_SHEET_TOKEN: str = os.getenv("LEADS_SHEET_TOKEN", "")
+
+    # Follow-up message to parents who went quiet (app/followup.py); off unless set to "true"
+    FOLLOWUP_ENABLED: bool = os.getenv("FOLLOWUP_ENABLED", "").strip().lower() == "true"
 
     # GitHub auto-sync
     GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
+    # owner/name of a PRIVATE repo for data/customers.json; empty = keep customer data on local disk only
+    CUSTOMERS_GITHUB_REPO: str = os.getenv("CUSTOMERS_GITHUB_REPO", "")
 
     # AI Model API Keys
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")

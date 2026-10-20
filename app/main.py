@@ -1,31 +1,60 @@
+import asyncio
+import hmac
 import logging
 import re
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import FastAPI, Request, HTTPException, Query, BackgroundTasks, Depends
 from fastapi.responses import PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.qa_database import QADatabase
 from app.ai_engine import AIEngine
 from app.messenger import (
+    BOT_MESSAGE_METADATA,
+    GET_STARTED_PAYLOAD,
+    ICE_BREAKERS,
+    QUICK_REPLY_PREFIX,
+    build_quick_replies,
+    quick_reply_meaning,
     send_message,
     send_image,
     send_typing_indicator,
+    set_messenger_profile,
     get_user_profile,
     verify_webhook_signature,
 )
-from app.escalation import escalate_to_admin, get_pending_escalation, resolve_escalation, send_telegram_reply
+from app.escalation import (
+    ESCALATION_HEADER,
+    ESCALATION_MESSAGE_ASK_PHONE,
+    ESCALATION_MESSAGE_HAS_PHONE,
+    ESCALATION_MESSAGE_PHONE_DECLINED,
+    escalate_to_admin,
+    get_pending_escalation,
+    lead_events,
+    publish_lead_event,
+    resolve_escalation,
+)
 from app import analytics
 from app import customer_memory
+from app.followup import run_followups
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
+# httpx logs every request URL at INFO: the Telegram bot token, the page access token, the leads Sheet URL.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 APP_VERSION = "1.6.0"
 app = FastAPI(title="Preschool Messenger Bot", version=APP_VERSION)
+# Public files (Q&A images such as the sample menu), referenced as "static/<file>" in qa_database.json.
+STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Initialize Q&A database and AI engine
 qa_db = QADatabase(settings.QA_DATABASE_PATH)
@@ -36,16 +65,26 @@ _processed_fb_mids: set[str] = set()
 _processed_tg_mids: set[int] = set()
 MAX_DEDUP_SIZE = 500
 
-ESCALATION_MESSAGE = (
-    "Dạ, cảm ơn ba/mẹ đã liên hệ với trường ạ! "
-    "Câu hỏi của mình đã được chuyển đến bộ phận tư vấn. "
-    "Bộ phận tư vấn sẽ phản hồi mình trong thời gian sớm nhất nhé ạ!"
-)
+
+def _warn_insecure_config():
+    if not settings.TELEGRAM_WEBHOOK_SECRET:
+        logger.warning("TELEGRAM_WEBHOOK_SECRET is not set: admin endpoints and /telegram-webhook are locked (403)")
+    if not settings.FB_APP_SECRET:
+        logger.warning("FB_APP_SECRET is not set: /webhook accepts Facebook requests without signature verification")
+
+
+_warn_insecure_config()
+
+
+def _secret_matches(given: str) -> bool:
+    """Constant-time check against TELEGRAM_WEBHOOK_SECRET; always False if it is not configured."""
+    expected = settings.TELEGRAM_WEBHOOK_SECRET
+    return bool(expected) and hmac.compare_digest(given.encode(), expected.encode())
 
 
 def require_secret(secret: str = ""):
     """Guard admin endpoints. Pass ?secret=<TELEGRAM_WEBHOOK_SECRET>."""
-    if secret != settings.TELEGRAM_WEBHOOK_SECRET:
+    if not _secret_matches(secret):
         raise HTTPException(status_code=403, detail="Invalid secret")
 
 
@@ -83,10 +122,8 @@ async def analytics_messages(limit: int = 20, _: None = Depends(require_secret))
 
 
 @app.get("/customers")
-async def list_customers(secret: str = ""):
-    """List all customer profiles. Requires secret."""
-    if secret != settings.TELEGRAM_WEBHOOK_SECRET:
-        raise HTTPException(status_code=403, detail="Invalid secret")
+async def list_customers(_: None = Depends(require_secret)):
+    """List all customer profiles. Requires ?secret=."""
     profiles = customer_memory.get_all_profiles()
     return {
         "total": len(profiles),
@@ -95,11 +132,8 @@ async def list_customers(secret: str = ""):
 
 
 @app.get("/customers/export")
-async def export_customers(secret: str = ""):
-    """Export customer profiles to Excel file."""
-    if secret != settings.TELEGRAM_WEBHOOK_SECRET:
-        raise HTTPException(status_code=403, detail="Invalid secret")
-
+async def export_customers(_: None = Depends(require_secret)):
+    """Export customer profiles to Excel file. Requires ?secret=."""
     import io
     import openpyxl
     from fastapi.responses import StreamingResponse
@@ -119,9 +153,15 @@ async def export_customers(secret: str = ""):
         "Tuổi bé",
         "Giới tính bé",
         "SĐT",
+        "Đã từ chối SĐT",
         "Địa chỉ",
+        "Khu vực",
         "Hệ quan tâm",
         "Cơ sở quan tâm",
+        "Dự kiến nhập học",
+        "Hẹn tham quan/học thử",
+        "Giai đoạn",
+        "Nguồn",
         "Mối quan tâm",
         "Tính cách bé",
         "Lần đầu nhắn",
@@ -166,9 +206,15 @@ async def export_customers(secret: str = ""):
             profile.get("kid_age", ""),
             profile.get("kid_gender", ""),
             profile.get("phone", ""),
+            "Có" if profile.get("phone_declined") else "",
             profile.get("address", ""),
+            profile.get("area", ""),
             profile.get("interested_program", ""),
             profile.get("interested_campus", ""),
+            profile.get("expected_start", ""),
+            profile.get("visit_request", ""),
+            customer_memory.lead_stage(profile),
+            profile.get("ad_title", ""),
             concerns,
             traits,
             first_seen,
@@ -198,10 +244,8 @@ async def export_customers(secret: str = ""):
 
 
 @app.post("/analytics/reset")
-async def analytics_reset(secret: str = ""):
-    """Delete all analytics data. Requires secret to prevent abuse."""
-    if secret != settings.TELEGRAM_WEBHOOK_SECRET:
-        raise HTTPException(status_code=403, detail="Invalid secret")
+async def analytics_reset(_: None = Depends(require_secret)):
+    """Delete all analytics data. Requires ?secret=."""
     from pathlib import Path
     path = Path(settings.ANALYTICS_LOG_PATH)
     if path.exists():
@@ -245,36 +289,146 @@ async def handle_webhook(request: Request, background_tasks: BackgroundTasks):
 
     for entry in data.get("entry", []):
         for event in entry.get("messaging", []):
-            sender_id = event.get("sender", {}).get("id")
-            message = event.get("message", {})
-            text = message.get("text")
-
-            if not sender_id or not text:
-                continue
-
-            # Don't respond to echo messages
-            if message.get("is_echo"):
+            inbound = parse_messaging_event(event)
+            if inbound is None:
                 continue
 
             # Dedup: skip if already processed
-            mid = message.get("mid", "")
-            if mid and mid in _processed_fb_mids:
-                logger.info(f"Skipping duplicate FB message: {mid}")
+            key = inbound.dedup_key
+            if key and key in _processed_fb_mids:
+                logger.info(f"Skipping duplicate FB message: {key}")
                 continue
-            if mid:
-                _processed_fb_mids.add(mid)
+            if key:
+                _processed_fb_mids.add(key)
                 # ponytail: evict ~half instead of clear() so recent mids survive and dedup keeps working
                 if len(_processed_fb_mids) > MAX_DEDUP_SIZE:
                     for _ in range(MAX_DEDUP_SIZE // 2):
                         _processed_fb_mids.pop()
 
             # Process in background so webhook returns 200 immediately
-            background_tasks.add_task(process_message, sender_id, text)
+            if isinstance(inbound, StaffReply):
+                background_tasks.add_task(save_staff_reply, inbound.customer_id, inbound.replied_at)
+            elif inbound.text:
+                background_tasks.add_task(
+                    process_message, inbound.sender_id, inbound.text, inbound.attribution, inbound.phone_from_qr
+                )
+            else:
+                background_tasks.add_task(save_attribution, inbound.sender_id, inbound.attribution)
 
     return {"status": "ok"}
 
 
+# Sent to the model as the parent's first message when they tap Get Started.
+GET_STARTED_TEXT = "Xin chào Casa ạ"
+REFERRAL_SOURCES = {"ADS": "ads", "SHORTLINK": "link"}
+
+
+@dataclass
+class InboundEvent:
+    sender_id: str
+    text: str | None  # None: only a referral to record, nothing to answer
+    dedup_key: str
+    attribution: dict = field(default_factory=dict)
+    phone_from_qr: str | None = None
+
+
+@dataclass
+class StaffReply:
+    """Staff typed a message to the parent in the Page inbox (seen as a message echo)."""
+
+    customer_id: str
+    dedup_key: str
+    replied_at: str  # ISO, UTC
+
+
+def _attribution(referral: dict) -> dict:
+    """Profile fields from a Messenger referral (ad, m.me link). No source means organic: nothing is written."""
+    fields = {
+        "lead_source": REFERRAL_SOURCES.get(referral.get("source", "")),
+        "ad_id": referral.get("ad_id"),
+        "ad_title": (referral.get("ads_context_data") or {}).get("ad_title"),
+        "ref": referral.get("ref"),
+    }
+    return {k: v for k, v in fields.items() if v}
+
+
+# A Vietnamese phone number in free text: 0, 84 or +84 (also "+84 0"), then 8 to 10 more digits with at most one
+# space, dot or dash between two digits. It may not run on into more digits ("+84 911 222 501 999" is none),
+# except into a second number starting with 0: "0912345678 0987654321" gives the first.
+PHONE_PATTERN = re.compile(r"(?<!\d)(?:\+?84[\s.\-]*0?|0)\d(?:[\s.\-]?\d){7,9}(?!\d|[\s.\-][1-9])")
+
+
+def _find_phone(value) -> str | None:
+    """The first Vietnamese phone number in `value` as written, without parentheses; None when there is none."""
+    match = PHONE_PATTERN.search(re.sub(r"[()]", "", str(value or "")))
+    return match.group() if match else None
+
+
+def _staff_reply(echo: dict) -> StaffReply | None:
+    """A message echo (sender: the Page, recipient: the parent) of a message the bot did not send; None for the
+    bot's own messages."""
+    customer_id = (echo.get("recipient") or {}).get("id")
+    message = echo["message"]
+    if not customer_id or message.get("metadata") == BOT_MESSAGE_METADATA:
+        return None
+    timestamp = echo.get("timestamp")  # milliseconds
+    replied_at = datetime.fromtimestamp(timestamp / 1000, timezone.utc) if timestamp else datetime.now(timezone.utc)
+    return StaffReply(customer_id, message.get("mid", ""), replied_at.isoformat())
+
+
+def parse_messaging_event(event: dict) -> InboundEvent | StaffReply | None:
+    """One webhook `messaging` event as what the bot answers or records; None when there is neither."""
+    message = event.get("message") or {}
+    if message.get("is_echo"):
+        return _staff_reply(event)
+    sender_id = (event.get("sender") or {}).get("id")
+    postback = event.get("postback") or {}
+    if not sender_id:
+        return None
+
+    referral = event.get("referral") or message.get("referral") or postback.get("referral") or {}
+    attribution = _attribution(referral)
+    text = None
+    phone_from_qr = None
+    dedup_key = ""
+    if message:
+        text = message.get("text")
+        dedup_key = message.get("mid", "")
+        payload = (message.get("quick_reply") or {}).get("payload", "")
+        if payload.startswith(QUICK_REPLY_PREFIX):
+            text = quick_reply_meaning(payload) or text
+        elif payload and _find_phone(payload):
+            # Messenger's phone button: payload and text are both the number from the parent's Facebook account
+            phone_from_qr = payload
+    elif postback:
+        payload = postback.get("payload", "")
+        if payload == GET_STARTED_PAYLOAD:
+            text = GET_STARTED_TEXT
+        else:
+            text = ICE_BREAKERS.get(payload) or postback.get("title")
+        dedup_key = postback.get("mid") or f"pb:{sender_id}:{event.get('timestamp', '')}"
+
+    if not text and not attribution:
+        return None
+    return InboundEvent(sender_id, text or None, dedup_key, attribution, phone_from_qr)
+
+
+async def save_attribution(sender_id: str, attribution: dict):
+    """Referral without a message (parent opened the thread from an ad or link): remember the source, no reply."""
+    customer_memory.set_fields(sender_id, attribution)
+    logger.info(f"Referral for {sender_id}: {list(attribution)}")
+    await customer_memory.sync_to_github()
+
+
+async def save_staff_reply(customer_id: str, replied_at: str):
+    """Staff answered the parent by hand in the Page inbox: app/followup.py sends no follow-up after it. No reply."""
+    customer_memory.set_fields(customer_id, {"staff_replied_at": replied_at})
+    logger.info(f"Staff replied by hand to {customer_id}")
+    await customer_memory.sync_to_github()
+
+
 IMAGES_PATTERN = re.compile(r"\[IMAGES:([^\]]+)\]")
+QUICK_PATTERN = re.compile(r"\[QUICK:([^\]]*)\]")
 
 
 def _extract_images(text: str) -> tuple[str, list[str]]:
@@ -289,6 +443,39 @@ def _extract_images(text: str) -> tuple[str, list[str]]:
         images = [url.strip() for url in raw.split(",") if url.strip()]
         text = IMAGES_PATTERN.sub("", text).strip()
     return text, images
+
+
+def _extract_quick_reply(text: str) -> tuple[str, str]:
+    """Strip [QUICK:key] tokens from response text. Returns (clean_text, key of the last token or "")."""
+    keys = QUICK_PATTERN.findall(text)
+    return QUICK_PATTERN.sub("", text).strip(), (keys[-1].strip() if keys else "")
+
+
+def _public_image_url(url: str) -> str:
+    """Q&A images given as "static/<file>" are served by this app at /static."""
+    if url.startswith("static/"):
+        return f"{settings.PUBLIC_BASE_URL.rstrip('/')}/{url}"
+    return url
+
+
+def _last_bot_message(history: list[dict]) -> str:
+    return history[-1]["content"] if history and history[-1]["role"] == "assistant" else ""
+
+
+def _clean_extracted(extracted: dict, phone_from_qr: str | None) -> dict:
+    """The model's extraction made safe to store: the phone quick reply wins, otherwise phone is the first
+    Vietnamese phone number in what the model gave ("0912345678, 0987654321" keeps the first) and is dropped when
+    there is none (e.g. "không có"); phone_declined is kept only as JSON true (models also return "false")."""
+    extracted = dict(extracted)
+    if phone_from_qr:
+        extracted["phone"] = phone_from_qr
+    elif "phone" in extracted:
+        phone = _find_phone(extracted.pop("phone"))
+        if phone:
+            extracted["phone"] = phone
+    if extracted.get("phone_declined") is not True:
+        extracted.pop("phone_declined", None)
+    return extracted
 
 
 def _guess_category(question: str, answer: str = "") -> str:
@@ -332,8 +519,14 @@ def _guess_category(question: str, answer: str = "") -> str:
     return best_category if best_score >= 2 else ""
 
 
-async def process_message(sender_id: str, text: str):
-    """Process an incoming message and respond."""
+async def process_message(
+    sender_id: str, text: str, attribution: dict | None = None, phone_from_qr: str | None = None
+):
+    """Process an incoming message and respond.
+
+    attribution: ad/link referral fields that came with the message. phone_from_qr: the number the parent sent
+    with Messenger's phone quick reply.
+    """
     try:
         # Show typing indicator
         await send_typing_indicator(sender_id)
@@ -343,45 +536,69 @@ async def process_message(sender_id: str, text: str):
         user_name = profile.get("first_name", "ban")
         full_name = f"{profile.get('first_name', '')} {profile.get('last_name', '')}".strip()
 
+        # Before the prompt is built, so [TRẠNG THÁI TƯ VẤN] already shows the ad source
+        if attribution:
+            customer_memory.set_fields(sender_id, attribution)
+
         # Load customer profile (persisted across sessions) + cross-session history
         existing_profile = customer_memory.get_profile(sender_id)
         customer_context = customer_memory.format_profile_for_prompt(existing_profile)
         history = customer_memory.get_conversation_history(sender_id)
         gap_hours = customer_memory.get_last_seen_gap_hours(sender_id)
+        had_phone = bool(existing_profile.get("phone"))
+        last_bot_message = _last_bot_message(history)
 
-        # Get AI response with customer context + persisted history + gap awareness
-        response = await ai_engine.get_response(
-            user_message=text,
-            conversation_history=history,
-            customer_context=customer_context,
-            gap_hours=gap_hours,
+        # Extract customer info alongside the reply, so a phone number sent in this message is known before replying
+        response, extracted = await asyncio.gather(
+            ai_engine.get_response(
+                user_message=text,
+                conversation_history=history,
+                customer_context=customer_context,
+                gap_hours=gap_hours,
+            ),
+            ai_engine.extract_customer_info(text, existing_profile, last_bot_message=last_bot_message),
         )
+        extracted = _clean_extracted(extracted, phone_from_qr)
 
         logger.info(
-            f"User {sender_id} ({user_name}): {text[:100]} "
+            f"User {sender_id} ({user_name}): {len(text)} chars "
             f"-> Model: {response.model_used}, Escalate: {response.should_escalate}, "
             f"HasProfile: {bool(existing_profile)}, GapHours: {gap_hours:.1f}, HistoryLen: {len(history)}"
         )
 
+        escalated = response.should_escalate or not response.text
         category = ""
-        if response.should_escalate or not response.text:
-            # Escalate to admin
+        if escalated:
             await escalate_to_admin(
                 customer_id=sender_id,
                 customer_name=full_name,
                 question=text,
             )
-            await send_message(sender_id, ESCALATION_MESSAGE)
+            if had_phone or extracted.get("phone"):
+                reply_text = ESCALATION_MESSAGE_HAS_PHONE
+            elif extracted.get("phone_declined") or existing_profile.get("phone_declined"):
+                reply_text = ESCALATION_MESSAGE_PHONE_DECLINED
+            else:
+                reply_text = ESCALATION_MESSAGE_ASK_PHONE
+            await send_message(sender_id, reply_text)
         else:
-            # Parse images from AI response
+            # History keeps the [IMAGES:] and [QUICK:] tokens so the model knows what it already sent
+            reply_text = response.text
             clean_text, image_urls = _extract_images(response.text)
+            clean_text, quick_key = _extract_quick_reply(clean_text)
+            quick_replies = build_quick_replies(quick_key)
             category = _guess_category(text)
 
+            # Messenger shows quick replies only under the latest message: they go on the last one sent
             if clean_text:
-                await send_message(sender_id, clean_text)
-            for img_url in image_urls:
+                await send_message(sender_id, clean_text, quick_replies=None if image_urls else quick_replies)
+            for n, img_url in enumerate(image_urls, 1):
                 try:
-                    await send_image(sender_id, img_url)
+                    await send_image(
+                        sender_id,
+                        _public_image_url(img_url),
+                        quick_replies=quick_replies if n == len(image_urls) else None,
+                    )
                 except Exception as img_err:
                     logger.error(f"Failed to send image {img_url}: {img_err}")
 
@@ -392,47 +609,49 @@ async def process_message(sender_id: str, text: str):
                 user_name=full_name or user_name,
                 question=text,
                 model_used=response.model_used,
-                escalated=response.should_escalate,
+                escalated=escalated,
                 category=category,
             )
         except Exception as log_err:
             logger.warning(f"Analytics logging failed: {log_err}")
 
-        # Extract and save customer info (best effort, don't block)
+        # Save customer info (best effort, the reply is already sent). Update even without new info
+        # so last_seen and message_count track every message.
         try:
-            extracted = await ai_engine.extract_customer_info(text, existing_profile)
-            if extracted or not existing_profile:
-                # Always update to track last_seen and message_count, even if no new info
-                if full_name and "parent_name" not in extracted and not existing_profile.get("parent_name"):
-                    extracted["parent_name"] = full_name
-                await customer_memory.update_profile(sender_id, extracted)
-                if extracted:
-                    logger.info(f"Updated profile for {sender_id}: {list(extracted.keys())}")
-        except Exception as extract_err:
-            logger.warning(f"Customer info extraction failed: {extract_err}")
+            if full_name and "parent_name" not in extracted and not existing_profile.get("parent_name"):
+                extracted["parent_name"] = full_name
+            events = lead_events(existing_profile, extracted)
+            updated_profile = await customer_memory.update_profile(sender_id, extracted)
+            if extracted:
+                logger.info(f"Updated profile for {sender_id}: {list(extracted.keys())}")
+            for kind in events:
+                await publish_lead_event(kind, sender_id, full_name, updated_profile, text)
+        except Exception as profile_err:
+            logger.warning(f"Customer profile update failed: {profile_err}")
 
         # Persist conversation history to customer profile (cross-session memory)
         try:
             await customer_memory.append_to_history(sender_id, "user", text)
-            if response.text:
-                await customer_memory.append_to_history(sender_id, "assistant", response.text)
+            await customer_memory.append_to_history(sender_id, "assistant", reply_text)
         except Exception as hist_err:
             logger.warning(f"Failed to persist conversation history: {hist_err}")
+
+        await customer_memory.sync_to_github()
 
     except Exception as e:
         logger.error(f"Error processing message from {sender_id}: {e}", exc_info=True)
         try:
             await send_message(
                 sender_id,
-                "Xin loi, he thong dang gap su co. Vui long thu lai sau it phut.",
+                "Dạ, hệ thống của Casa đang gặp sự cố ạ. Ba/Mẹ vui lòng nhắn lại sau ít phút giúp em nhé ạ.",
             )
         except Exception:
             pass
 
 
 @app.post("/reload-qa")
-async def reload_qa():
-    """Reload Q&A database (call after updating qa_database.json)."""
+async def reload_qa(_: None = Depends(require_secret)):
+    """Reload Q&A database (call after updating qa_database.json). Requires ?secret=."""
     qa_db.reload()
     _rebuild_ai_context()
     return {"status": "reloaded", "qa_pairs": len(qa_db.qa_pairs)}
@@ -458,13 +677,11 @@ async def get_qa_learned(_: None = Depends(require_secret)):
 
 
 @app.post("/import-excel")
-async def import_excel(file_path: str):
-    """Import Q&A from Excel file."""
+async def import_excel(file_path: str, _: None = Depends(require_secret)):
+    """Import Q&A from Excel file. Requires ?secret=."""
     try:
         qa_db.import_from_excel(file_path)
-        from app.ai_engine import SYSTEM_PROMPT
-        ai_engine.system_prompt = SYSTEM_PROMPT.format(qa_context=qa_db.build_context())
-        ai_engine._providers.clear()
+        _rebuild_ai_context()
         return {"status": "imported", "qa_pairs": len(qa_db.qa_pairs)}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -479,8 +696,8 @@ class TestMessage(BaseModel):
 
 
 @app.post("/test-chat")
-async def test_chat(body: TestMessage):
-    """Test AI response without Facebook (for development/debugging)."""
+async def test_chat(body: TestMessage, _: None = Depends(require_secret)):
+    """Test AI response without Facebook (for development/debugging). Requires ?secret=."""
     # Load profile + persisted history (same as process_message)
     existing_profile = customer_memory.get_profile(body.user_id)
     customer_context = customer_memory.format_profile_for_prompt(existing_profile)
@@ -494,9 +711,12 @@ async def test_chat(body: TestMessage):
         gap_hours=gap_hours,
     )
 
-    # Extract and save profile
+    # Extract and save profile, cleaned as in process_message
     try:
-        extracted = await ai_engine.extract_customer_info(body.message, existing_profile)
+        extracted = await ai_engine.extract_customer_info(
+            body.message, existing_profile, last_bot_message=_last_bot_message(history)
+        )
+        extracted = _clean_extracted(extracted, None)
         if extracted or not existing_profile:
             await customer_memory.update_profile(body.user_id, extracted)
     except Exception as e:
@@ -529,11 +749,17 @@ def _rebuild_ai_context():
 
 @app.post("/telegram-webhook")
 async def handle_telegram_webhook(request: Request):
-    """Handle admin replies from Telegram group."""
-    data = await request.json()
+    """Handle admin replies from Telegram group. Telegram sends the secret_token set by /setup-telegram-webhook."""
+    if not _secret_matches(request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")):
+        raise HTTPException(status_code=403, detail="Invalid secret")
+
+    try:
+        data = await request.json()
+    except ValueError:
+        data = None
+    if not isinstance(data, dict):
+        return {"status": "ignored"}
     message = data.get("message", {})
-    chat_id = message.get("chat", {}).get("id")
-    reply_msg_id = message.get("message_id")
 
     # Parse all variables before try block so they exist in except
     customer_id = None
@@ -572,8 +798,11 @@ async def handle_telegram_webhook(request: Request):
             customer_name = escalation.get("customer_name", "Khách hàng")
             question = escalation.get("question", "")
         else:
-            # Parse customer info from the original bot message text
+            # Pending escalations live on local disk and are lost on every Render deploy: recover them from
+            # the escalation text. Any other message (lead notifications included) has no question to answer.
             original_text = reply.get("text", "")
+            if not original_text.startswith(ESCALATION_HEADER):
+                return {"status": "no_escalation_found"}
             logger.warning(f"No pending escalation for msg_id={original_msg_id}, parsing from message")
 
             id_match = re.search(r"ID:\s*(\d+)", original_text)
@@ -625,8 +854,8 @@ async def handle_telegram_webhook(request: Request):
 
 
 @app.post("/setup-telegram-webhook")
-async def setup_telegram_webhook():
-    """Register Telegram webhook URL."""
+async def setup_telegram_webhook(_: None = Depends(require_secret)):
+    """Register Telegram webhook URL. Requires ?secret=."""
     import httpx
     webhook_url = f"{settings.PUBLIC_BASE_URL.rstrip('/')}/telegram-webhook"
     url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/setWebhook"
@@ -636,3 +865,19 @@ async def setup_telegram_webhook():
             "secret_token": settings.TELEGRAM_WEBHOOK_SECRET,
         })
         return response.json()
+
+
+@app.post("/setup-messenger-profile")
+async def setup_messenger_profile(_: None = Depends(require_secret)):
+    """Register the Get Started button and ice breakers on the Page. Requires ?secret=."""
+    return await set_messenger_profile()
+
+
+@app.post("/followup/run")
+async def followup_run(dry_run: bool = False, verbose: bool = False, _: None = Depends(require_secret)):
+    """Send due follow-ups (app/followup.py); counts only. verbose=1 adds template key + short id per parent,
+    never a name, phone number or message. Requires ?secret=."""
+    result = await run_followups(dry_run=dry_run)
+    if not verbose:
+        del result["followups"]
+    return result

@@ -12,7 +12,6 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 CUSTOMERS_PATH = "data/customers.json"
-REPO = "pichu124/casa_preschool-messenger-bot"
 GITHUB_FILE_PATH = "data/customers.json"
 BRANCH = "main"
 
@@ -21,51 +20,66 @@ MAX_HISTORY_MESSAGES = 30  # Trim history when exceeds this
 KEEP_AFTER_TRIM = 20  # Keep this many messages after trim/summarization
 RETURNING_GAP_HOURS = 24  # Gap > 24h = returning customer (special greeting)
 
-# In-memory cache: loaded at startup, persisted to disk + GitHub on updates
+# In-memory cache: loaded at startup, persisted to disk on updates; sync_to_github() pushes it to CUSTOMERS_GITHUB_REPO
 _customers: dict[str, dict] = {}
 _loaded = False
+# Set when the startup pull from CUSTOMERS_GITHUB_REPO failed: pushing the disk copy would overwrite the repo.
+_pull_failed = False
 
 
-def _load_from_disk():
-    """Load customer profiles from local JSON file, fallback to GitHub."""
-    global _customers, _loaded
+def _read_disk() -> dict:
     path = Path(CUSTOMERS_PATH)
     if path.exists():
         try:
-            _customers = json.loads(path.read_text(encoding="utf-8"))
-            logger.info(f"Loaded {len(_customers)} customer profiles from disk")
-            _loaded = True
-            return
+            return json.loads(path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, ValueError):
-            _customers = {}
+            pass
+    return {}
 
-    # File doesn't exist or is corrupt - try pulling from GitHub
+
+def _pull_from_github(token: str, repo: str) -> dict | None:
+    """customers.json from `repo`, or None if the repo has no such file yet. Raises on any other outcome."""
+    # Raw media type: the file body itself, up to 100 MB (the default JSON one has empty `content` above 1 MB).
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.raw+json",
+    }
+    api_url = f"https://api.github.com/repos/{repo}/contents/{GITHUB_FILE_PATH}"
+    resp = httpx.get(api_url, headers=headers, params={"ref": BRANCH}, timeout=15)
+    if resp.status_code == 404:
+        return None
+    if resp.status_code != 200:
+        raise RuntimeError(f"GitHub returned {resp.status_code}")
+    customers = json.loads(resp.content)
+    if not isinstance(customers, dict):
+        raise ValueError("customers.json is not a JSON object")
+    return customers
+
+
+def _load_from_disk():
+    """Load customer profiles. With CUSTOMERS_GITHUB_REPO set, that repo wins over the disk copy (which may be
+    stale, e.g. baked into the image); disk is used when the repo has no file yet, or read-only if the pull fails."""
+    global _customers, _loaded, _pull_failed
     token = settings.GITHUB_TOKEN
-    if token:
+    repo = settings.CUSTOMERS_GITHUB_REPO
+    remote = None
+    if token and repo:
         try:
-            headers = {
-                "Authorization": f"token {token}",
-                "Accept": "application/vnd.github.v3+json",
-            }
-            api_url = f"https://api.github.com/repos/{REPO}/contents/{GITHUB_FILE_PATH}"
-            resp = httpx.get(api_url, headers=headers, params={"ref": BRANCH}, timeout=15)
-            if resp.status_code == 200:
-                content_b64 = resp.json().get("content", "")
-                content = base64.b64decode(content_b64).decode("utf-8")
-                _customers = json.loads(content)
-                # Save to local disk for faster subsequent loads
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(content, encoding="utf-8")
-                logger.info(f"Loaded {len(_customers)} customer profiles from GitHub")
-            else:
-                logger.info(f"No customers file on GitHub ({resp.status_code}), starting empty")
-                _customers = {}
+            remote = _pull_from_github(token, repo)
         except Exception as e:
-            logger.warning(f"Failed to load customers from GitHub: {e}")
-            _customers = {}
-    else:
-        _customers = {}
+            _pull_failed = True
+            logger.error(
+                f"Failed to load customers from {repo} ({type(e).__name__}: {e}): using the disk copy, "
+                "GitHub sync for customers is OFF until restart so the repo is not overwritten"
+            )
 
+    if remote is not None:
+        _customers = remote
+        _save_to_disk()
+        logger.info(f"Loaded {len(_customers)} customer profiles from GitHub")
+    else:
+        _customers = _read_disk()
+        logger.info(f"Loaded {len(_customers)} customer profiles from disk")
     _loaded = True
 
 
@@ -79,44 +93,58 @@ def _save_to_disk():
     )
 
 
-async def _push_to_github():
-    """Push customers.json to GitHub for persistence across deploys."""
+async def sync_to_github() -> bool:
+    """Push customers.json to CUSTOMERS_GITHUB_REPO for persistence across deploys. Call once per message.
+
+    Never raises: on failure logs a warning and returns False (the local save is kept).
+    """
     token = settings.GITHUB_TOKEN
-    if not token:
-        logger.debug("GITHUB_TOKEN not set, skipping GitHub sync for customers")
+    repo = settings.CUSTOMERS_GITHUB_REPO
+    if not token or not repo:
+        logger.debug("GITHUB_TOKEN or CUSTOMERS_GITHUB_REPO not set, skipping GitHub sync for customers")
+        return False
+    if not _loaded:
+        _load_from_disk()
+    if _pull_failed:
+        logger.error(f"Skipping GitHub sync for customers: startup load from {repo} failed (restart to retry)")
         return False
 
     headers = {
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json",
     }
-    api_url = f"https://api.github.com/repos/{REPO}/contents/{GITHUB_FILE_PATH}"
+    api_url = f"https://api.github.com/repos/{repo}/contents/{GITHUB_FILE_PATH}"
 
-    async with httpx.AsyncClient() as client:
-        # Get current SHA if file exists
-        current_sha = None
-        resp = await client.get(api_url, headers=headers, params={"ref": BRANCH}, timeout=15)
-        if resp.status_code == 200:
-            current_sha = resp.json().get("sha")
+    try:
+        async with httpx.AsyncClient() as client:
+            # Get current SHA if file exists. Object media type: sha up to 100 MB (`content` empty above 1 MB);
+            # the default one does not support files above 1 MB.
+            current_sha = None
+            sha_headers = {**headers, "Accept": "application/vnd.github.object+json"}
+            resp = await client.get(api_url, headers=sha_headers, params={"ref": BRANCH}, timeout=15)
+            if resp.status_code == 200:
+                current_sha = resp.json().get("sha")
 
-        content = json.dumps(_customers, ensure_ascii=False, indent=2)
-        encoded = base64.b64encode(content.encode("utf-8")).decode("utf-8")
+            content = json.dumps(_customers, ensure_ascii=False, indent=2)
+            encoded = base64.b64encode(content.encode("utf-8")).decode("utf-8")
 
-        payload = {
-            "message": "[skip deploy] Auto-update customer profiles",
-            "content": encoded,
-            "branch": BRANCH,
-        }
-        if current_sha:
-            payload["sha"] = current_sha
+            payload = {
+                "message": "[skip deploy] Auto-update customer profiles",
+                "content": encoded,
+                "branch": BRANCH,
+            }
+            if current_sha:
+                payload["sha"] = current_sha
 
-        resp = await client.put(api_url, headers=headers, json=payload, timeout=15)
-        if resp.status_code in (200, 201):
-            logger.info(f"Customer profiles pushed to GitHub ({len(_customers)} customers)")
-            return True
-        else:
+            resp = await client.put(api_url, headers=headers, json=payload, timeout=15)
+            if resp.status_code in (200, 201):
+                logger.info(f"Customer profiles pushed to GitHub ({len(_customers)} customers)")
+                return True
             logger.error(f"Failed to push customers to GitHub: {resp.status_code} {resp.text[:200]}")
             return False
+    except Exception as e:
+        logger.warning(f"GitHub sync failed but local save succeeded: {e}")
+        return False
 
 
 def get_profile(customer_id: str) -> dict:
@@ -127,7 +155,7 @@ def get_profile(customer_id: str) -> dict:
 
 
 async def update_profile(customer_id: str, updates: dict) -> dict:
-    """Merge updates into existing profile, save to disk + GitHub.
+    """Merge updates into existing profile and save to disk (sync_to_github() pushes it).
 
     Only updates fields that have meaningful values (non-empty strings).
     Keeps existing values if new value is empty.
@@ -159,14 +187,63 @@ async def update_profile(customer_id: str, updates: dict) -> dict:
 
     _customers[customer_id] = merged
     _save_to_disk()
-
-    # Push to GitHub in background-friendly way (fire and forget)
-    try:
-        await _push_to_github()
-    except Exception as e:
-        logger.warning(f"GitHub sync failed but local save succeeded: {e}")
-
     return merged
+
+
+def set_fields(customer_id: str, fields: dict) -> dict:
+    """Overwrite `fields` in the profile and save to disk (sync_to_github() pushes it), without touching
+    last_seen/message_count: for data that is not a parent message (ad referral, follow-up timestamp)."""
+    if not _loaded:
+        _load_from_disk()
+    profile = {**_customers.get(customer_id, {}), **fields}
+    _customers[customer_id] = profile
+    _save_to_disk()
+    return profile
+
+
+# Consulting funnel stages, in order; lead_stage() returns the furthest one reached.
+STAGES = ("Mới", "Đã biết tuổi/cơ sở", "Đã có SĐT", "Đã hẹn tham quan/học thử")
+
+
+def _knows_place(profile: dict) -> bool:
+    return bool(profile.get("interested_campus") or profile.get("area") or profile.get("address"))
+
+
+def lead_stage(profile: dict) -> str:
+    if profile.get("visit_request"):
+        return STAGES[3]
+    if profile.get("phone"):
+        return STAGES[2]
+    if profile.get("kid_age") or _knows_place(profile):
+        return STAGES[1]
+    return STAGES[0]
+
+
+def missing_fields(profile: dict) -> list[str]:
+    """What the bot still needs to ask for. No phone once the parent declined to leave one."""
+    missing = []
+    if not profile.get("kid_age"):
+        missing.append("tuổi bé")
+    if not _knows_place(profile):
+        missing.append("cơ sở/khu vực")
+    if not profile.get("phone") and not profile.get("phone_declined"):
+        missing.append("SĐT/Zalo")
+    return missing
+
+
+def _consulting_state(profile: dict) -> str:
+    lines = [f"Giai đoạn: {lead_stage(profile)}"]
+    missing = missing_fields(profile)
+    if missing:
+        lines.append(f"Còn thiếu: {', '.join(missing)}")
+    if profile.get("phone_declined") and not profile.get("phone"):
+        lines.append("Phụ huynh đã từ chối để lại SĐT: có")
+    if profile.get("lead_source") == "ads":
+        ad_title = profile.get("ad_title")
+        lines.append(f'Nguồn: quảng cáo "{ad_title}"' if ad_title else "Nguồn: quảng cáo")
+    if profile.get("visit_request"):
+        lines.append(f"Đã hẹn: {profile['visit_request']}")
+    return "[TRẠNG THÁI TƯ VẤN]:\n" + "\n".join(f"- {line}" for line in lines)
 
 
 def format_profile_for_prompt(profile: dict) -> str:
@@ -191,8 +268,12 @@ def format_profile_for_prompt(profile: dict) -> str:
         parts.append(f"Quan tâm hệ: {profile['interested_program']}")
     if profile.get("interested_campus"):
         parts.append(f"Cơ sở quan tâm: {profile['interested_campus']}")
+    if profile.get("area"):
+        parts.append(f"Khu vực: {profile['area']}")
     if profile.get("address"):
         parts.append(f"Địa chỉ: {profile['address']}")
+    if profile.get("expected_start"):
+        parts.append(f"Dự kiến nhập học: {profile['expected_start']}")
     if profile.get("phone"):
         parts.append(f"SĐT: {profile['phone']}")
     if profile.get("concerns"):
@@ -206,7 +287,8 @@ def format_profile_for_prompt(profile: dict) -> str:
 
     result = ""
     if parts:
-        result = "[THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT]:\n" + "\n".join(f"- {p}" for p in parts)
+        result = "[THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT]:\n" + "\n".join(f"- {p}" for p in parts) + "\n\n"
+    result += _consulting_state(profile)
 
     # Append session summaries if available (background context from past conversations)
     summaries = profile.get("session_summaries", [])
@@ -280,13 +362,6 @@ async def append_to_history(customer_id: str, role: str, content: str):
     profile["conversation_history"] = history
     _customers[customer_id] = profile
     _save_to_disk()
-
-    # Push to GitHub (best effort)
-    try:
-        await _push_to_github()
-    except Exception as e:
-        logger.warning(f"GitHub sync failed for history append: {e}")
-
     return summarized
 
 

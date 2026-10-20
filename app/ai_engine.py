@@ -265,6 +265,13 @@ API_KEY_MAP: dict[str, str] = {
 }
 
 
+# Trường hồ sơ khách do extract_customer_info trích (lưu vào data/customers.json).
+PROFILE_FIELDS = (
+    "kid_name", "kid_age", "kid_gender", "parent_name", "address", "area", "phone", "phone_declined",
+    "interested_program", "interested_campus", "expected_start", "visit_request", "concerns", "kid_traits",
+)
+
+
 # Module-level reference to the active AIEngine instance.
 # Set by main.py after instantiation; used by customer_memory.py for summarization.
 ai_engine_instance: "AIEngine | None" = None
@@ -405,13 +412,12 @@ class AIEngine:
     async def extract_customer_info(self, user_message: str, existing_profile: dict | None = None) -> dict:
         """Extract customer/kid information from user message.
 
-        Returns dict with keys (only non-empty ones are included):
-        kid_name, kid_age, kid_gender, parent_name, address, phone,
-        interested_program, interested_campus, concerns, kid_traits
+        Asks the model for PROFILE_FIELDS; returns only non-empty values.
+        Only those fields of existing_profile go into the prompt, not history or summaries.
         """
-        existing_context = ""
-        if existing_profile:
-            existing_context = f"\nThông tin đã biết: {json.dumps(existing_profile, ensure_ascii=False)}\n"
+        profile = existing_profile or {}
+        known = {k: profile[k] for k in PROFILE_FIELDS if profile.get(k)}
+        existing_context = f"\nThông tin đã biết: {json.dumps(known, ensure_ascii=False)}\n" if known else ""
 
         extract_prompt = (
             "Bạn là hệ thống trích xuất thông tin từ tin nhắn phụ huynh gửi trường mầm non. "
@@ -421,9 +427,14 @@ class AIEngine:
             '- "kid_gender": "bé trai" hoặc "bé gái"\n'
             '- "parent_name": tên phụ huynh\n'
             '- "address": địa chỉ\n'
+            '- "area": khu vực nhà (VD: "Cầu Giấy", "Long Biên")\n'
             '- "phone": số điện thoại hoặc số Zalo\n'
+            '- "phone_declined": true khi phụ huynh từ chối rõ ràng để lại SĐT/Zalo (VD: "chưa muốn để số")\n'
             '- "interested_program": "song ngữ" / "quốc tế"\n'
             '- "interested_campus": "Chùa Láng" / "Mỹ Đình" / "Kim Mã"\n'
+            '- "expected_start": thời điểm dự kiến cho bé nhập học (VD: "tháng 9", "sau Tết")\n'
+            '- "visit_request": lịch tham quan/học thử phụ huynh ĐÃ CHỐT (VD: "tham quan buổi sáng", "học thử tuần sau"); '
+            "KHÔNG ghi khi phụ huynh mới hỏi hoặc còn cân nhắc\n"
             '- "concerns": list các mối quan tâm (VD: ["học phí", "an toàn", "ăn uống"])\n'
             '- "kid_traits": list tính cách/đặc điểm bé (VD: ["nhút nhát", "hiếu động", "biếng ăn"])\n\n'
             "CHỈ trả về JSON object. Nếu tin nhắn không chứa thông tin mới nào, trả về {}. "

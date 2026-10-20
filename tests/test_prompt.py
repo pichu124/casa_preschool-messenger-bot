@@ -89,6 +89,28 @@ def test_extract_customer_info_parses_json_after_reasoning(monkeypatch):
     assert info == {"phone": "0900000000", "kid_age": "3 tuổi"}
 
 
+def test_extract_prompt_asks_for_lead_fields_and_sends_only_profile_fields(monkeypatch):
+    recorder = RecordingProvider('{"phone_declined": true, "area": "Cầu Giấy"}')
+    engine = make_engine(monkeypatch, fake=recorder)
+    profile = {
+        "kid_age": "3 tuổi",
+        "interested_campus": "Mỹ Đình",
+        "conversation_history": [{"role": "user", "content": "LICH-SU-BI-MAT", "timestamp": "2026-10-01T08:00:00"}],
+        "session_summaries": [{"date": "2026-10-01", "summary": "TOM-TAT-CU"}],
+        "first_seen": "2026-10-01T08:00:00",
+        "message_count": 7,
+    }
+
+    info = asyncio.run(engine.extract_customer_info("nhà mình ở Cầu Giấy, chưa muốn để số đâu", profile))
+
+    assert info == {"phone_declined": True, "area": "Cầu Giấy"}
+    for field in ("area", "expected_start", "visit_request", "phone_declined"):
+        assert f'"{field}"' in recorder.system_prompt
+    assert "3 tuổi" in recorder.user_message and "Mỹ Đình" in recorder.user_message
+    for leaked in ("LICH-SU-BI-MAT", "TOM-TAT-CU", "conversation_history", "session_summaries", "message_count"):
+        assert leaked not in recorder.user_message
+
+
 def test_classify_qa_parses_json_after_reasoning(monkeypatch):
     payload = {"category": "Xe đưa đón", "keywords": ["xe bus"], "similar_questions": ["Có xe đón không?"]}
     engine = make_engine(monkeypatch, r1=FakeProvider(f"<think>Phân loại.</think>{json.dumps(payload, ensure_ascii=False)}"))

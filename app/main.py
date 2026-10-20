@@ -1,3 +1,4 @@
+import asyncio
 import hmac
 import logging
 import re
@@ -15,7 +16,13 @@ from app.messenger import (
     get_user_profile,
     verify_webhook_signature,
 )
-from app.escalation import escalate_to_admin, get_pending_escalation, resolve_escalation, send_telegram_reply
+from app.escalation import (
+    ESCALATION_HEADER,
+    escalate_to_admin,
+    get_pending_escalation,
+    notify_lead,
+    resolve_escalation,
+)
 from app import analytics
 from app import customer_memory
 
@@ -358,14 +365,19 @@ async def process_message(sender_id: str, text: str):
         customer_context = customer_memory.format_profile_for_prompt(existing_profile)
         history = customer_memory.get_conversation_history(sender_id)
         gap_hours = customer_memory.get_last_seen_gap_hours(sender_id)
+        had_phone = bool(existing_profile.get("phone"))
 
-        # Get AI response with customer context + persisted history + gap awareness
-        response = await ai_engine.get_response(
-            user_message=text,
-            conversation_history=history,
-            customer_context=customer_context,
-            gap_hours=gap_hours,
+        # Extract customer info alongside the reply, so a phone number sent in this message is known before replying
+        response, extracted = await asyncio.gather(
+            ai_engine.get_response(
+                user_message=text,
+                conversation_history=history,
+                customer_context=customer_context,
+                gap_hours=gap_hours,
+            ),
+            ai_engine.extract_customer_info(text, existing_profile),
         )
+        new_phone = extracted.get("phone") if not had_phone else None
 
         logger.info(
             f"User {sender_id} ({user_name}): {text[:100]} "
@@ -408,18 +420,19 @@ async def process_message(sender_id: str, text: str):
         except Exception as log_err:
             logger.warning(f"Analytics logging failed: {log_err}")
 
-        # Extract and save customer info (best effort, don't block)
+        # Save customer info (best effort, the reply is already sent)
         try:
-            extracted = await ai_engine.extract_customer_info(text, existing_profile)
             if extracted or not existing_profile:
                 # Always update to track last_seen and message_count, even if no new info
                 if full_name and "parent_name" not in extracted and not existing_profile.get("parent_name"):
                     extracted["parent_name"] = full_name
-                await customer_memory.update_profile(sender_id, extracted)
+                updated_profile = await customer_memory.update_profile(sender_id, extracted)
                 if extracted:
                     logger.info(f"Updated profile for {sender_id}: {list(extracted.keys())}")
-        except Exception as extract_err:
-            logger.warning(f"Customer info extraction failed: {extract_err}")
+                if new_phone:
+                    await notify_lead(sender_id, full_name, new_phone, updated_profile, text)
+        except Exception as profile_err:
+            logger.warning(f"Customer profile update failed: {profile_err}")
 
         # Persist conversation history to customer profile (cross-session memory)
         try:
@@ -583,8 +596,11 @@ async def handle_telegram_webhook(request: Request):
             customer_name = escalation.get("customer_name", "Khách hàng")
             question = escalation.get("question", "")
         else:
-            # Parse customer info from the original bot message text
+            # Pending escalations live on local disk and are lost on every Render deploy: recover them from
+            # the escalation text. Any other message (lead notifications included) has no question to answer.
             original_text = reply.get("text", "")
+            if not original_text.startswith(ESCALATION_HEADER):
+                return {"status": "no_escalation_found"}
             logger.warning(f"No pending escalation for msg_id={original_msg_id}, parsing from message")
 
             id_match = re.search(r"ID:\s*(\d+)", original_text)

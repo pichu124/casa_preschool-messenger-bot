@@ -12,6 +12,10 @@ logger = logging.getLogger(__name__)
 ESCALATION_LOG_PATH = "data/escalation_log.json"
 PENDING_ESCALATIONS_PATH = "data/pending_escalations.json"
 
+# Dòng đầu tin Telegram: /telegram-webhook chỉ dựng lại escalation từ text khi tin bắt đầu bằng ESCALATION_HEADER.
+ESCALATION_HEADER = "⚠️ CẦN TRỢ GIÚP ⚠️"
+LEAD_HEADER = "📞 KHÁCH ĐỂ LẠI SĐT"
+
 # In-memory mapping: telegram_message_id -> escalation info
 _pending: dict[int, dict] = {}
 
@@ -38,6 +42,32 @@ def _save_pending():
 _load_pending()
 
 
+async def _send_telegram(text: str) -> int | None:
+    """Send text to the admin Telegram group. Returns its message_id, None if not configured or on error."""
+    if not settings.TELEGRAM_BOT_TOKEN or not settings.TELEGRAM_CHAT_ID:
+        logger.error("Telegram not configured")
+        return None
+
+    try:
+        url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                url,
+                json={
+                    "chat_id": settings.TELEGRAM_CHAT_ID,
+                    "text": text,
+                },
+                timeout=10,
+            )
+        if response.status_code != 200:
+            logger.error(f"Telegram API error: {response.status_code} {response.text}")
+            return None
+        return response.json()["result"]["message_id"]
+    except Exception as e:
+        logger.error(f"Failed to send Telegram message: {e}")
+        return None
+
+
 async def escalate_to_admin(
     customer_id: str,
     customer_name: str,
@@ -45,12 +75,8 @@ async def escalate_to_admin(
     page_name: str = "",
 ) -> bool:
     """Send escalated question to Telegram group and track for admin reply."""
-    if not settings.TELEGRAM_BOT_TOKEN or not settings.TELEGRAM_CHAT_ID:
-        logger.error("Telegram escalation not configured")
-        return False
-
     message = (
-        f"⚠️ CẦN TRỢ GIÚP ⚠️\n\n"
+        f"{ESCALATION_HEADER}\n\n"
         f"👤 Khách hàng: {customer_name}\n"
         f"🆔 ID: {customer_id}\n"
         f"📄 Trang: {page_name}\n\n"
@@ -60,30 +86,18 @@ async def escalate_to_admin(
     )
 
     try:
-        url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                url,
-                json={
-                    "chat_id": settings.TELEGRAM_CHAT_ID,
-                    "text": message,
-                },
-                timeout=10,
-            )
-            if response.status_code != 200:
-                logger.error(f"Telegram API error: {response.status_code} {response.text}")
-                return False
+        telegram_msg_id = await _send_telegram(message)
+        if telegram_msg_id is None:
+            return False
 
-            # Save mapping: telegram_message_id -> customer info
-            result = response.json()
-            telegram_msg_id = result["result"]["message_id"]
-            _pending[telegram_msg_id] = {
-                "customer_id": customer_id,
-                "customer_name": customer_name,
-                "question": question,
-                "timestamp": datetime.now().isoformat(),
-            }
-            _save_pending()
+        # Save mapping: telegram_message_id -> customer info
+        _pending[telegram_msg_id] = {
+            "customer_id": customer_id,
+            "customer_name": customer_name,
+            "question": question,
+            "timestamp": datetime.now().isoformat(),
+        }
+        _save_pending()
 
         logger.info(f"Escalated to Telegram (msg_id={telegram_msg_id}) from {customer_name}")
         _log_escalation(customer_id, customer_name, question)
@@ -91,6 +105,38 @@ async def escalate_to_admin(
     except Exception as e:
         logger.error(f"Failed to escalate to Telegram: {e}")
         return False
+
+
+async def notify_lead(customer_id: str, customer_name: str, phone: str, profile: dict, last_message: str) -> bool:
+    """Tell the consultants on Telegram that a parent left a phone number.
+
+    Not tracked in _pending: replying to this message sends nothing to the parent.
+    """
+    def known(*values) -> str:
+        return ", ".join(str(v) for v in values if v) or "chưa rõ"
+
+    concerns = profile.get("concerns")
+    concerns = concerns if isinstance(concerns, list) else [concerns]
+
+    message = (
+        f"{LEAD_HEADER}\n\n"
+        f"👤 Facebook: {customer_name}\n"
+        f"📱 SĐT: {phone}\n"
+        f"🆔 ID: {customer_id}\n"
+        f"👶 Bé: {known(profile.get('kid_name'), profile.get('kid_age'))}\n"
+        f"🏫 Quan tâm: {known(profile.get('interested_program'), profile.get('interested_campus'))}\n"
+        f"📍 Địa chỉ: {known(profile.get('address'))}\n"
+        f"💭 Mối quan tâm: {known(*concerns)}\n\n"
+        f"💬 Tin nhắn gần nhất:\n{last_message}\n\n"
+        f"🕐 {datetime.now().strftime('%d/%m/%Y %H:%M')}\n\n"
+        f"📲 Gọi hoặc nhắn Zalo cho phụ huynh. Reply tin này không gửi tới khách."
+    )
+
+    telegram_msg_id = await _send_telegram(message)
+    if telegram_msg_id is None:
+        return False
+    logger.info(f"Lead sent to Telegram (msg_id={telegram_msg_id}) for customer {customer_id}")
+    return True
 
 
 def get_pending_escalation(telegram_msg_id: int) -> dict | None:
@@ -103,21 +149,6 @@ def resolve_escalation(telegram_msg_id: int):
     if telegram_msg_id in _pending:
         del _pending[telegram_msg_id]
         _save_pending()
-
-
-async def send_telegram_reply(chat_id: str | int, reply_to_msg_id: int, text: str):
-    """Send a reply message in Telegram."""
-    url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
-    async with httpx.AsyncClient() as client:
-        await client.post(
-            url,
-            json={
-                "chat_id": chat_id,
-                "text": text,
-                "reply_to_message_id": reply_to_msg_id,
-            },
-            timeout=10,
-        )
 
 
 def _log_escalation(customer_id: str, customer_name: str, question: str):

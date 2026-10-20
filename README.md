@@ -102,6 +102,33 @@ De bot gui anh kem cau tra loi, them duong dan vao cap Q&A trong `data/qa_databa
 {"category": "Ăn uống", "questions": ["Cho em xem thực đơn mẫu"], "answer": "...", "images": ["static/thuc-don-mau.jpg"]}
 ```
 
+### 10. Tin nhac lai khach (follow-up, mac dinh TAT)
+
+Moi gio GitHub Actions (`.github/workflows/followup.yml`, phut 17) goi `POST /followup/run`. Bot gui MOT tin co dinh (khong goi AI, `app/followup.py`) cho phu huynh dang tu van do dang, khi DU tat ca dieu kien:
+
+- Tin cuoi cua phu huynh cach day tu 3 den 23 gio (Messenger chi cho Page nhan tin trong 24 gio ke tu tin cuoi cua nguoi dung).
+- Tin cuoi trong hoi thoai la cua bot, va khong phai cau chuyen tu van vien (tu van vien dang lo).
+- Chua co SDT, chua hen tham quan/hoc thu.
+- Chua nhac lan nao ke tu tin cuoi cua phu huynh (`followup_sent_at` trong ho so khach).
+- Gio Viet Nam tu 8h00 den truoc 21h00.
+
+Mau tin theo trang thai: chua biet tuoi be thi hoi tuoi; da biet tuoi nhung chua co SDT thi xin SDT/Zalo; phu huynh da tu choi de lai SDT thi KHONG xin so, moi tham quan/hoc thu 1 tuan mien phi. Graph API tu choi (ngoai cua so 24 gio, khach chan Page) thi bo qua khach do. Tin da gui duoc ghi vao lich su hoi thoai, khong tang so tin nhan cua khach. Gio trong lich su la gio may chu khong co mui gio, duoc coi la UTC (Render chay UTC).
+
+Cach bat (can ca hai noi):
+
+1. Render: dat bien moi truong `FOLLOWUP_ENABLED=true`. Chua dat thi `/followup/run` chi dem so khach du dieu kien, khong gui gi.
+2. GitHub repo -> Settings -> Secrets and variables -> Actions:
+   - Variables: `FOLLOWUP_ENABLED` = `true` (chua dat thi workflow khong chay).
+   - Secrets: `BOT_BASE_URL` (vd `https://casa-preschool-messenger-bot.onrender.com`, khong co `/` cuoi) va `BOT_ADMIN_SECRET` (= `TELEGRAM_WEBHOOK_SECRET` tren Render).
+
+Repo nay public nen log Actions cung public: workflow chi in ma HTTP, khong in noi dung tra ve. Muon xem truoc ai se duoc nhac ma khong gui:
+
+```bash
+curl -X POST "https://your-domain.com/followup/run?secret=<TELEGRAM_WEBHOOK_SECRET>&dry_run=1&verbose=1"
+```
+
+Ket qua `{"due": n, "sent": m, "enabled": true|false}`; `verbose=1` them danh sach mau tin + 4 ky tu cuoi ID khach (khong co ten, SDT, noi dung tin).
+
 ## Chay ung dung
 
 ### Development (local)
@@ -143,6 +170,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 | POST | `/reload-qa` | Tai lai Q&A database | `?secret=` |
 | POST | `/import-excel?file_path=path` | Nhap Q&A tu Excel | `?secret=` |
 | POST | `/test-chat` | Thu hoi thoai khong qua Facebook | `?secret=` |
+| POST | `/followup/run` | Gui tin nhac lai khach (muc 10); `dry_run=1` chi dem, `verbose=1` them danh sach | `?secret=` |
 
 ## Quan ly Q&A Database
 
@@ -185,6 +213,7 @@ app/
   ai_engine.py     - AI fallback chain (nhieu model)
   qa_database.py   - Quan ly co so du lieu Q&A
   escalation.py    - Chuyen cau hoi cho admin
+  followup.py      - Tin nhac lai khach trong cua so 24 gio
 data/
   qa_database.json - Du lieu Q&A
 static/            - Anh cong khai cho Q&A (vd thuc don mau)

@@ -24,6 +24,7 @@ def isolate(monkeypatch, tmp_path):
         "LEADS_SHEET_TOKEN",
     ):
         monkeypatch.setattr(settings, name, "")
+    monkeypatch.setattr(settings, "FOLLOWUP_ENABLED", False)
     monkeypatch.setattr(settings, "AI_MODEL_ORDER", [])
     monkeypatch.setattr(settings, "ANALYTICS_LOG_PATH", str(tmp_path / "analytics.jsonl"))
 

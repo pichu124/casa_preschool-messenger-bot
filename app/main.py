@@ -39,6 +39,7 @@ from app.escalation import (
 )
 from app import analytics
 from app import customer_memory
+from app.followup import run_followups
 
 logging.basicConfig(
     level=logging.INFO,
@@ -808,3 +809,12 @@ async def setup_messenger_profile(_: None = Depends(require_secret)):
     """Register the Get Started button and ice breakers on the Page. Requires ?secret=."""
     return await set_messenger_profile()
 
+
+@app.post("/followup/run")
+async def followup_run(dry_run: bool = False, verbose: bool = False, _: None = Depends(require_secret)):
+    """Send due follow-ups (app/followup.py); counts only. verbose=1 adds template key + short id per parent,
+    never a name, phone number or message. Requires ?secret=."""
+    result = await run_followups(dry_run=dry_run)
+    if not verbose:
+        del result["followups"]
+    return result

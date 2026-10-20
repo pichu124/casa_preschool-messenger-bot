@@ -38,6 +38,7 @@ ADMIN_ENDPOINTS = [
     ("POST", "/test-chat", {"json": {"message": "Học phí bao nhiêu ạ?"}}),
     ("POST", "/setup-telegram-webhook", {}),
     ("POST", "/setup-messenger-profile", {}),
+    ("POST", "/followup/run", {}),
 ]
 ADMIN_IDS = [f"{method} {path}" for method, path, _ in ADMIN_ENDPOINTS]
 WRONG_SECRETS = [None, "", "sai", "casa-bot-secret-2024", "s3cret ", "bí-mật"]

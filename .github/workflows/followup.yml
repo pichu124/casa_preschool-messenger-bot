@@ -1,0 +1,26 @@
+# Hourly follow-up to parents who went quiet (app/followup.py). Runs only when the repo variable
+# FOLLOWUP_ENABLED is 'true'; the bot also needs FOLLOWUP_ENABLED=true on Render to actually send.
+# This repo is public, so its Actions logs are too: print only the HTTP status, never the response body.
+name: Follow-up
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  run:
+    if: vars.FOLLOWUP_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: POST /followup/run
+        env:
+          BOT_BASE_URL: ${{ secrets.BOT_BASE_URL }}
+          BOT_ADMIN_SECRET: ${{ secrets.BOT_ADMIN_SECRET }}
+        run: |
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -X POST --max-time 120 --retry 2 "${BOT_BASE_URL%/}/followup/run?secret=$BOT_ADMIN_SECRET")
+          echo "HTTP $code"
+          test "$code" = "200"

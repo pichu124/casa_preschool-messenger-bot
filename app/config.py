@@ -20,6 +20,9 @@ class Settings:
     # Sent in the JSON body (Apps Script cannot read request headers); must equal the script's LEADS_TOKEN
     LEADS_SHEET_TOKEN: str = os.getenv("LEADS_SHEET_TOKEN", "")
 
+    # Follow-up message to parents who went quiet (app/followup.py); off unless set to "true"
+    FOLLOWUP_ENABLED: bool = os.getenv("FOLLOWUP_ENABLED", "").strip().lower() == "true"
+
     # GitHub auto-sync
     GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
     # owner/name of a PRIVATE repo for data/customers.json; empty = keep customer data on local disk only

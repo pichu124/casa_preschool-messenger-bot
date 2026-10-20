@@ -20,7 +20,7 @@ from app.config import settings
 
 client = TestClient(main.app)
 # conftest thay hàm này bằng stub cấm gọi; giữ bản thật để kiểm nó không ra mạng khi chưa đặt repo.
-REAL_PUSH_CUSTOMERS = customer_memory._push_to_github
+REAL_SYNC_CUSTOMERS = customer_memory.sync_to_github
 
 # (method, path, kwargs) cho mọi endpoint admin; kwargs là input hợp lệ để chỉ secret quyết định 403.
 ADMIN_ENDPOINTS = [
@@ -175,9 +175,9 @@ def github_token(monkeypatch):
 
 def test_customers_not_pushed_without_repo(monkeypatch, github_token):
     monkeypatch.setattr(settings, "CUSTOMERS_GITHUB_REPO", "")
-    monkeypatch.setattr(customer_memory, "_push_to_github", REAL_PUSH_CUSTOMERS)
+    monkeypatch.setattr(customer_memory, "sync_to_github", REAL_SYNC_CUSTOMERS)
 
-    assert asyncio.run(REAL_PUSH_CUSTOMERS()) is False
+    assert asyncio.run(REAL_SYNC_CUSTOMERS()) is False
     profile = asyncio.run(customer_memory.update_profile("9000000000000003", {"kid_age": "3"}))
 
     assert profile["kid_age"] == "3"
@@ -205,7 +205,7 @@ def test_customers_pushed_only_to_configured_repo(monkeypatch, github_token):
 
     monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", fake_github)
 
-    assert asyncio.run(REAL_PUSH_CUSTOMERS()) is True
+    assert asyncio.run(REAL_SYNC_CUSTOMERS()) is True
     url = "https://api.github.com/repos/casa-owner/casa-private-data/contents/data/customers.json"
     assert requests == [("GET", f"{url}?ref=main"), ("PUT", url)]
 

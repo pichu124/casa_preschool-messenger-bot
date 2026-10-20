@@ -20,7 +20,7 @@ MAX_HISTORY_MESSAGES = 30  # Trim history when exceeds this
 KEEP_AFTER_TRIM = 20  # Keep this many messages after trim/summarization
 RETURNING_GAP_HOURS = 24  # Gap > 24h = returning customer (special greeting)
 
-# In-memory cache: loaded at startup, persisted to disk (+ CUSTOMERS_GITHUB_REPO if set) on updates
+# In-memory cache: loaded at startup, persisted to disk on updates; sync_to_github() pushes it to CUSTOMERS_GITHUB_REPO
 _customers: dict[str, dict] = {}
 _loaded = False
 
@@ -79,8 +79,11 @@ def _save_to_disk():
     )
 
 
-async def _push_to_github():
-    """Push customers.json to CUSTOMERS_GITHUB_REPO for persistence across deploys."""
+async def sync_to_github() -> bool:
+    """Push customers.json to CUSTOMERS_GITHUB_REPO for persistence across deploys. Call once per message.
+
+    Never raises: on failure logs a warning and returns False (the local save is kept).
+    """
     token = settings.GITHUB_TOKEN
     repo = settings.CUSTOMERS_GITHUB_REPO
     if not token or not repo:
@@ -93,31 +96,34 @@ async def _push_to_github():
     }
     api_url = f"https://api.github.com/repos/{repo}/contents/{GITHUB_FILE_PATH}"
 
-    async with httpx.AsyncClient() as client:
-        # Get current SHA if file exists
-        current_sha = None
-        resp = await client.get(api_url, headers=headers, params={"ref": BRANCH}, timeout=15)
-        if resp.status_code == 200:
-            current_sha = resp.json().get("sha")
+    try:
+        async with httpx.AsyncClient() as client:
+            # Get current SHA if file exists
+            current_sha = None
+            resp = await client.get(api_url, headers=headers, params={"ref": BRANCH}, timeout=15)
+            if resp.status_code == 200:
+                current_sha = resp.json().get("sha")
 
-        content = json.dumps(_customers, ensure_ascii=False, indent=2)
-        encoded = base64.b64encode(content.encode("utf-8")).decode("utf-8")
+            content = json.dumps(_customers, ensure_ascii=False, indent=2)
+            encoded = base64.b64encode(content.encode("utf-8")).decode("utf-8")
 
-        payload = {
-            "message": "[skip deploy] Auto-update customer profiles",
-            "content": encoded,
-            "branch": BRANCH,
-        }
-        if current_sha:
-            payload["sha"] = current_sha
+            payload = {
+                "message": "[skip deploy] Auto-update customer profiles",
+                "content": encoded,
+                "branch": BRANCH,
+            }
+            if current_sha:
+                payload["sha"] = current_sha
 
-        resp = await client.put(api_url, headers=headers, json=payload, timeout=15)
-        if resp.status_code in (200, 201):
-            logger.info(f"Customer profiles pushed to GitHub ({len(_customers)} customers)")
-            return True
-        else:
+            resp = await client.put(api_url, headers=headers, json=payload, timeout=15)
+            if resp.status_code in (200, 201):
+                logger.info(f"Customer profiles pushed to GitHub ({len(_customers)} customers)")
+                return True
             logger.error(f"Failed to push customers to GitHub: {resp.status_code} {resp.text[:200]}")
             return False
+    except Exception as e:
+        logger.warning(f"GitHub sync failed but local save succeeded: {e}")
+        return False
 
 
 def get_profile(customer_id: str) -> dict:
@@ -128,7 +134,7 @@ def get_profile(customer_id: str) -> dict:
 
 
 async def update_profile(customer_id: str, updates: dict) -> dict:
-    """Merge updates into existing profile, save to disk + GitHub.
+    """Merge updates into existing profile and save to disk (sync_to_github() pushes it).
 
     Only updates fields that have meaningful values (non-empty strings).
     Keeps existing values if new value is empty.
@@ -160,13 +166,6 @@ async def update_profile(customer_id: str, updates: dict) -> dict:
 
     _customers[customer_id] = merged
     _save_to_disk()
-
-    # Push to GitHub in background-friendly way (fire and forget)
-    try:
-        await _push_to_github()
-    except Exception as e:
-        logger.warning(f"GitHub sync failed but local save succeeded: {e}")
-
     return merged
 
 
@@ -281,13 +280,6 @@ async def append_to_history(customer_id: str, role: str, content: str):
     profile["conversation_history"] = history
     _customers[customer_id] = profile
     _save_to_disk()
-
-    # Push to GitHub (best effort)
-    try:
-        await _push_to_github()
-    except Exception as e:
-        logger.warning(f"GitHub sync failed for history append: {e}")
-
     return summarized
 
 

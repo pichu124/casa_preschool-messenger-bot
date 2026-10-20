@@ -429,6 +429,8 @@ async def process_message(sender_id: str, text: str):
         except Exception as hist_err:
             logger.warning(f"Failed to persist conversation history: {hist_err}")
 
+        await customer_memory.sync_to_github()
+
     except Exception as e:
         logger.error(f"Error processing message from {sender_id}: {e}", exc_info=True)
         try:

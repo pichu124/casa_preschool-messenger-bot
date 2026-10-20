@@ -32,7 +32,7 @@ def isolate(monkeypatch, tmp_path):
         return stub
 
     monkeypatch.setattr(github_sync, "push_qa_to_github", forbid("github_sync.push_qa_to_github"))
-    monkeypatch.setattr(customer_memory, "_push_to_github", forbid("customer_memory._push_to_github"))
+    monkeypatch.setattr(customer_memory, "sync_to_github", forbid("customer_memory.sync_to_github"))
     # Chặn mạng thật qua httpx; TestClient dùng transport riêng nên không bị ảnh hưởng.
     monkeypatch.setattr(httpx.HTTPTransport, "handle_request", forbid("mạng thật qua httpx"))
     monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", forbid("mạng thật qua httpx"))

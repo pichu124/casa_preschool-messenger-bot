@@ -92,7 +92,7 @@ class QADatabase:
         from app.github_sync import push_qa_to_github
         await push_qa_to_github(self.qa_pairs)
 
-        logger.info(f"Added new Q&A: [{category}] {question[:50]}...")
+        logger.info(f"Added new Q&A: [{category}] {' / '.join(questions)[:50]}...")
 
     def build_context(self) -> str:
         """Build a context string from all Q&A pairs for the AI prompt."""

@@ -683,22 +683,6 @@
     {
       "category": "Chính sách & quy định",
       "questions": [
-        "Nhà trường có xe bus không ạ?",
-        "Nhà trường có xe buýt không?",
-        "Nhà trường có chính sách ưu đãi xe buýt không?",
-        "Có xe đưa đón không?"
-      ],
-      "answer": "Có xe bus đưa đón theo tuyến. Hệ Quốc tế có biểu phí xe bus theo bán kính tuyến; ở hệ Song ngữ, tuyến được xây dựng dựa trên nhu cầu thực tế, mức phí và lộ trình thông báo sau khi khảo sát. Tư vấn viên cần địa chỉ nhà để kiểm tra tuyến gần nhất; nếu khu vực chưa có tuyến phù hợp sẽ tư vấn phương án đưa đón khác. Phí xe bus và ưu đãi (nếu có) tùy tuyến và cơ sở.",
-      "keywords": [
-        "xe bus",
-        "xe buýt",
-        "đưa đón",
-        "tuyến xe"
-      ]
-    },
-    {
-      "category": "Chính sách & quy định",
-      "questions": [
         "Bên hệ quốc tế có được xem camera 24/7 k",
         "Nhà trường có chính sách xem camera như thế nào?",
         "Phụ huynh có thể xem camera trường vào thời gian nào?",
@@ -891,7 +875,7 @@
         "Ngoài học phí còn những khoản phí nào?",
         "Có phát sinh chi phí gì thêm không?"
       ],
-      "answer": "Ngoài học phí còn có tiền ăn (bán trú), phí phát triển trường, phí học liệu và hoạt động ngoại khóa và đồng phục; xe bus, trông sớm, trông muộn tính riêng nếu gia đình đăng ký. Mức cụ thể tùy hệ/cơ sở; tư vấn viên sẽ gửi tổng chi phí thực tế theo tháng khi phụ huynh để lại SĐT/Zalo.",
+      "answer": "Ngoài học phí còn có tiền ăn (bán trú), phí phát triển trường, phí học liệu và hoạt động ngoại khóa và đồng phục; trông sớm, trông muộn tính riêng nếu gia đình đăng ký. Mức cụ thể tùy hệ/cơ sở; tư vấn viên sẽ gửi tổng chi phí thực tế theo tháng khi phụ huynh để lại SĐT/Zalo.",
       "keywords": [
         "chi phí",
         "khoản phí",
@@ -1536,53 +1520,6 @@
         "thời tiết",
         "hủy dã ngoại",
         "đổi lịch"
-      ]
-    },
-    {
-      "category": "Workshop",
-      "questions": [
-        "Cô Phan Thúy là ai và kinh nghiệm như thế nào?",
-        "Cô Thúy là ai?",
-        "Diễn giả workshop là ai?"
-      ],
-      "answer": "Cô Phan Thúy là chuyên gia giáo dục và tâm lý, có hơn 16 năm kinh nghiệm sư phạm mầm non và 12 năm làm hiệu trưởng các trường, rất hiểu tâm sinh lý của trẻ.",
-      "keywords": [
-        "Phan Thúy",
-        "diễn giả",
-        "workshop",
-        "chuyên gia"
-      ]
-    },
-    {
-      "category": "Workshop",
-      "questions": [
-        "Buổi Workshop sẽ chia sẻ những gì?",
-        "Workshop nói về chủ đề gì?"
-      ],
-      "answer": "Cô Phan Thúy cùng ba mẹ tháo gỡ những thắc mắc trong quá trình nuôi con, đồng thời chia sẻ về: giải mã những biểu hiện tâm lý, sinh lý đặc trưng, nhu cầu gắn kết và tâm lý muốn khẳng định sự độc lập của trẻ; cách trẻ đặt câu hỏi, mong muốn tự quyết định và phương pháp đồng hành tích cực, tôn trọng từ cha mẹ.",
-      "keywords": [
-        "nội dung workshop",
-        "nuôi con",
-        "tâm lý trẻ",
-        "đồng hành"
-      ]
-    },
-    {
-      "category": "Workshop",
-      "questions": [
-        "Buổi chia sẻ có miễn phí không?",
-        "Workshop có tổ chức Online không?",
-        "Workshop tổ chức ở đâu?",
-        "Khi nào có workshop?",
-        "Đăng ký workshop thế nào?"
-      ],
-      "answer": "Workshop hoàn toàn miễn phí, tổ chức offline tại 2 cơ sở: Mỹ Đình (Tầng 3 FLC Complex, 36 Phạm Hùng) và Chùa Láng (Tầng 1+2 Sảnh A1 tòa Hongkong Tower, 185 Huỳnh Thúc Kháng); không tổ chức online. Ngày giờ cụ thể của từng buổi được thông báo khi đăng ký; để giữ chỗ, phụ huynh để lại số điện thoại, độ tuổi của con và cơ sở quan tâm.",
-      "keywords": [
-        "workshop",
-        "miễn phí",
-        "offline",
-        "đăng ký",
-        "lịch workshop"
       ]
     }
   ]

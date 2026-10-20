@@ -22,6 +22,8 @@ def _norm(text: str) -> str:
 ANSWERS = [_norm(p["answer"]) for p in PAIRS]
 ALL_ANSWERS = "\n".join(ANSWERS)
 ALL_TEXT = "\n".join(_norm(" ".join(p["questions"]) + " " + p["answer"]) for p in PAIRS)
+# Gồm cả category và keywords: thứ bot không được nói thì cũng không được còn làm từ khóa gợi ý.
+RAW_TEXT = "\n".join(_norm(json.dumps(p, ensure_ascii=False)) for p in PAIRS)
 
 
 def _answers_with(*needles: str) -> list[str]:
@@ -170,3 +172,21 @@ def test_free_one_week_trial():
 
 def test_no_tuition_fee_amounts():
     assert not re.search(r"học phí[^.\n]{0,40}\d{1,3}([.,]\d{3}){2}", ALL_ANSWERS)
+
+
+# --- Phản hồi đợt 2 -----------------------------------------------------------
+
+def test_workshop_is_removed():
+    assert not [p["questions"][0] for p in PAIRS if _norm(p["category"]) == "workshop"]
+    assert "phan thúy" not in RAW_TEXT
+    assert "cô thúy" not in RAW_TEXT
+
+
+def test_bus_is_not_advised():
+    # Tạm thời không tư vấn xe bus: không tuyến, bán kính, phí hay ưu đãi xe bus.
+    bus = r"xe (bus|buýt)"
+    assert "bán kính" not in RAW_TEXT
+    assert not re.search(r"tuyến (xe|gần nhất|phù hợp|đưa đón)", RAW_TEXT)
+    for pattern in (rf"{bus}[^.\n]{{0,60}}(phí|ưu đãi|tuyến|tính riêng)", rf"(phí|ưu đãi)[^.\n]{{0,30}}{bus}"):
+        match = re.search(pattern, RAW_TEXT)
+        assert not match, match and match.group(0)

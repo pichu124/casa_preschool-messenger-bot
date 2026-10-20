@@ -47,6 +47,7 @@ CUSTOMER_ID = "9000000000000002"
 
 PRIVATE_REPO = "casa-owner/casa-private-data"
 CUSTOMERS_API = f"https://api.github.com/repos/{PRIVATE_REPO}/contents/data/customers.json"
+OBJECT_MEDIA_TYPE = "application/vnd.github.object+json"
 # Bản cũ trên đĩa: data/customers.json được track trong repo code nên có sẵn trong image Render.
 DISK_PROFILES = {"9000000000000006": {"kid_age": "2"}}
 REMOTE_PROFILES = {"9000000000000007": {"kid_age": "4"}, "9000000000000008": {"kid_age": "5"}}
@@ -224,9 +225,12 @@ def test_customers_pushed_only_to_configured_repo(monkeypatch, github_token):
     monkeypatch.setattr(settings, "CUSTOMERS_GITHUB_REPO", "casa-owner/casa-private-data")
     monkeypatch.setattr(customer_memory, "_customers", {"9000000000000004": {"kid_age": "4"}})
     requests = []
+    sha_accept = []
 
     async def fake_github(self, request):
         requests.append((request.method, str(request.url)))
+        if request.method == "GET":
+            sha_accept.append(request.headers.get("Accept"))
         return httpx.Response(404 if request.method == "GET" else 201)
 
     monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", fake_github)
@@ -234,6 +238,7 @@ def test_customers_pushed_only_to_configured_repo(monkeypatch, github_token):
     assert asyncio.run(REAL_SYNC_CUSTOMERS()) is True
     url = "https://api.github.com/repos/casa-owner/casa-private-data/contents/data/customers.json"
     assert requests == [("GET", f"{url}?ref=main"), ("PUT", url)]
+    assert sha_accept == [OBJECT_MEDIA_TYPE]
 
 
 def test_customers_pulled_only_from_configured_repo(monkeypatch, github_token):
@@ -256,18 +261,26 @@ def test_customers_pulled_only_from_configured_repo(monkeypatch, github_token):
 
 
 def github_file(profiles):
-    """Contents API trả customers.json như GitHub: body thô khi xin media type raw, không thì metadata JSON
-    có `sha` và `content` base64, riêng file trên 1 MB thì `content` rỗng và `encoding` "none"."""
+    """Contents API trả customers.json như GitHub: body thô khi xin media type raw; metadata JSON có `sha` và
+    `content` base64 khi xin media type object hoặc mặc định. File 1–100 MB: media type object trả `content` rỗng
+    và `encoding` "none", media type mặc định bị 403."""
     body = json.dumps(profiles).encode()
 
     def respond(request) -> httpx.Response:
-        if request.headers.get("Accept") == "application/vnd.github.raw+json":
+        accept = request.headers.get("Accept")
+        if accept == "application/vnd.github.raw+json":
             return httpx.Response(200, content=body)
         if len(body) > 1024 * 1024:
-            return httpx.Response(200, json={"sha": "abc123", "content": "", "encoding": "none"})
+            if accept == OBJECT_MEDIA_TYPE:
+                return httpx.Response(200, json={"sha": "abc123", "content": "", "encoding": "none"})
+            return github_too_large(request)
         return httpx.Response(200, json={"sha": "abc123", "content": base64.b64encode(body).decode()})
 
     return respond
+
+
+def github_too_large(request) -> httpx.Response:
+    return httpx.Response(403, json={"message": "This API returns blobs up to 1 MB in size.", "errors": [{"code": "too_large"}]})
 
 
 def github_timeout(request):
@@ -291,7 +304,9 @@ def private_repo(monkeypatch, github_token):
                 return httpx.Response(422, json={"message": '"sha" wasn\'t supplied.'})
             pushed.append(json.loads(base64.b64decode(payload["content"])))
             return httpx.Response(200)
-        # Metadata như với file trên 1 MB: chỉ có sha, không có nội dung.
+        # File trong repo private đã trên 1 MB: chỉ media type object trả metadata (sha, không có nội dung).
+        if request.headers.get("Accept") != OBJECT_MEDIA_TYPE:
+            return github_too_large(request)
         return httpx.Response(200, json={"sha": "abc123", "content": "", "encoding": "none"})
 
     monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", fake_github)

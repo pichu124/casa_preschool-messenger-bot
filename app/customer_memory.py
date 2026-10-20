@@ -117,9 +117,11 @@ async def sync_to_github() -> bool:
 
     try:
         async with httpx.AsyncClient() as client:
-            # Get current SHA if file exists (metadata has it even above 1 MB, where `content` is empty)
+            # Get current SHA if file exists. Object media type: sha up to 100 MB (`content` empty above 1 MB);
+            # the default one does not support files above 1 MB.
             current_sha = None
-            resp = await client.get(api_url, headers=headers, params={"ref": BRANCH}, timeout=15)
+            sha_headers = {**headers, "Accept": "application/vnd.github.object+json"}
+            resp = await client.get(api_url, headers=sha_headers, params={"ref": BRANCH}, timeout=15)
             if resp.status_code == 200:
                 current_sha = resp.json().get("sha")
 

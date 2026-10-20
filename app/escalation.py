@@ -25,6 +25,24 @@ LEAD_HEADERS = {
     "visit_request": "📅 KHÁCH HẸN THAM QUAN/HỌC THỬ",
 }
 
+# Sent to the parent on escalation; only invite a phone/Zalo number when we don't have one yet and the parent
+# has not declined to leave one (then the consultant's Telegram reply comes back here, in Messenger).
+ESCALATION_MESSAGE_HAS_PHONE = (
+    "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! "
+    "Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, "
+    "tư vấn viên sẽ liên hệ và trả lời Ba/Mẹ trong thời gian sớm nhất ạ."
+)
+ESCALATION_MESSAGE_ASK_PHONE = (
+    "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! "
+    "Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, bộ phận sẽ phản hồi Ba/Mẹ sớm nhất ạ. "
+    "Nếu tiện, Ba/Mẹ để lại SĐT hoặc Zalo để tư vấn viên hỗ trợ Ba/Mẹ nhanh hơn nhé ạ."
+)
+ESCALATION_MESSAGE_PHONE_DECLINED = (
+    "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! "
+    "Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, "
+    "nhân viên tư vấn sẽ trả lời Ba/Mẹ trực tiếp tại đây sớm nhất ạ."
+)
+
 # In-memory mapping: telegram_message_id -> escalation info
 _pending: dict[int, dict] = {}
 

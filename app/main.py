@@ -27,6 +27,9 @@ from app.messenger import (
 )
 from app.escalation import (
     ESCALATION_HEADER,
+    ESCALATION_MESSAGE_ASK_PHONE,
+    ESCALATION_MESSAGE_HAS_PHONE,
+    ESCALATION_MESSAGE_PHONE_DECLINED,
     escalate_to_admin,
     get_pending_escalation,
     lead_events,
@@ -59,24 +62,6 @@ ai_engine = AIEngine(qa_context=qa_db.build_context())
 _processed_fb_mids: set[str] = set()
 _processed_tg_mids: set[int] = set()
 MAX_DEDUP_SIZE = 500
-
-# Sent to the parent on escalation; only invite a phone/Zalo number when we don't have one yet and the parent
-# has not declined to leave one (then the consultant's Telegram reply comes back here, in Messenger).
-ESCALATION_MESSAGE_HAS_PHONE = (
-    "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! "
-    "Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, "
-    "tư vấn viên sẽ liên hệ và trả lời Ba/Mẹ trong thời gian sớm nhất ạ."
-)
-ESCALATION_MESSAGE_ASK_PHONE = (
-    "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! "
-    "Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, bộ phận sẽ phản hồi Ba/Mẹ sớm nhất ạ. "
-    "Nếu tiện, Ba/Mẹ để lại SĐT hoặc Zalo để tư vấn viên hỗ trợ Ba/Mẹ nhanh hơn nhé ạ."
-)
-ESCALATION_MESSAGE_PHONE_DECLINED = (
-    "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! "
-    "Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, "
-    "nhân viên tư vấn sẽ trả lời Ba/Mẹ trực tiếp tại đây sớm nhất ạ."
-)
 
 
 def _warn_insecure_config():
@@ -822,3 +807,4 @@ async def setup_telegram_webhook(_: None = Depends(require_secret)):
 async def setup_messenger_profile(_: None = Depends(require_secret)):
     """Register the Get Started button and ice breakers on the Page. Requires ?secret=."""
     return await set_messenger_profile()
+

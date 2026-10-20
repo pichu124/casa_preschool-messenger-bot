@@ -562,7 +562,12 @@ async def handle_telegram_webhook(request: Request):
     if not _secret_matches(request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")):
         raise HTTPException(status_code=403, detail="Invalid secret")
 
-    data = await request.json()
+    try:
+        data = await request.json()
+    except ValueError:
+        data = None
+    if not isinstance(data, dict):
+        return {"status": "ignored"}
     message = data.get("message", {})
 
     # Parse all variables before try block so they exist in except

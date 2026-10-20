@@ -176,6 +176,22 @@ def test_telegram_webhook_accepts_correct_secret_token(monkeypatch):
     assert resp.json() == {"status": "ignored"}
 
 
+@pytest.mark.parametrize(
+    "body",
+    [b"", b"khong phai json", b"\xff\xfe{", b"[]", b"null"],
+    ids=["body rỗng", "không phải JSON", "không phải UTF-8", "JSON mảng", "JSON null"],
+)
+def test_telegram_webhook_ignores_unparseable_body(monkeypatch, body):
+    monkeypatch.setattr(settings, "TELEGRAM_WEBHOOK_SECRET", "s3cret")
+
+    resp = client.post(
+        "/telegram-webhook", content=body, headers={TG_HEADER: "s3cret", "Content-Type": "application/json"}
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ignored"}
+
+
 @pytest.fixture
 def github_token(monkeypatch):
     monkeypatch.setattr(settings, "GITHUB_TOKEN", "ghp_fake_token")

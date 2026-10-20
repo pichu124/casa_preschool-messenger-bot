@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
@@ -86,6 +87,15 @@ Trả lời: "Dạ em hiểu lo lắng của mẹ ạ 💕 Ở Casa, mỗi tuầ
 CƠ SỞ DỮ LIỆU Q&A:
 {qa_context}
 """
+
+
+# Model suy luận (deepseek-r1 trên Groq) trả "<think>…</think>" trước câu trả lời; khối có thể
+# bị cắt dở khi chạm max_tokens nên chấp nhận cả trường hợp không có thẻ đóng.
+_THINK_RE = re.compile(r"<think>.*?(?:</think>|\Z)\s*", re.S | re.I)
+
+
+def strip_reasoning(text: str | None) -> str:
+    return _THINK_RE.sub("", text or "").strip()
 
 
 @dataclass
@@ -271,6 +281,18 @@ class AIEngine:
                 return None
         return self._providers[name]
 
+    async def _generate(
+        self, provider: AIProvider, system_prompt: str, user_message: str, history: list[dict]
+    ) -> str:
+        """Điểm gọi model duy nhất: bỏ khối <think> để nó không tới phụ huynh hay bị đọc nhầm [ESCALATE].
+
+        Chỉ còn rỗng sau khi lọc (model nghĩ hết max_tokens) thì coi như model lỗi để chuỗi dự phòng thử model kế.
+        """
+        text = strip_reasoning(await provider.generate(system_prompt, user_message, history))
+        if not text:
+            raise ValueError("model không trả câu trả lời nào ngoài khối suy luận")
+        return text
+
     async def get_response(
         self,
         user_message: str,
@@ -337,9 +359,7 @@ class AIEngine:
 
             try:
                 logger.info(f"Trying model: {model_name}")
-                response_text = await provider.generate(
-                    self.system_prompt, wrapped_message, history
-                )
+                response_text = await self._generate(provider, self.system_prompt, wrapped_message, history)
 
                 should_escalate = "[ESCALATE]" in response_text
                 if should_escalate:
@@ -397,9 +417,7 @@ class AIEngine:
             if not provider:
                 continue
             try:
-                result = await provider.generate(extract_prompt, user_msg, [])
-                # Clean up response
-                result = result.strip()
+                result = await self._generate(provider, extract_prompt, user_msg, [])
                 if result.startswith("```"):
                     result = result.split("\n", 1)[1].rsplit("```", 1)[0].strip()
                     if result.startswith("json"):
@@ -450,8 +468,7 @@ class AIEngine:
             if not provider:
                 continue
             try:
-                summary = await provider.generate(summarize_prompt, user_msg, [])
-                summary = summary.strip()
+                summary = await self._generate(provider, summarize_prompt, user_msg, [])
                 # Strip code blocks if any
                 if summary.startswith("```"):
                     summary = summary.split("\n", 1)[1].rsplit("```", 1)[0].strip()
@@ -483,7 +500,7 @@ class AIEngine:
             if not provider:
                 continue
             try:
-                return await provider.generate(format_prompt, user_msg, [])
+                return await self._generate(provider, format_prompt, user_msg, [])
             except Exception as e:
                 logger.warning(f"Format reply with {model_name} failed: {e}")
                 continue
@@ -509,9 +526,7 @@ class AIEngine:
             if not provider:
                 continue
             try:
-                result = await provider.generate(classify_prompt, user_msg, [])
-                # Extract JSON from response
-                result = result.strip()
+                result = await self._generate(provider, classify_prompt, user_msg, [])
                 if result.startswith("```"):
                     result = result.split("\n", 1)[1].rsplit("```", 1)[0].strip()
                 return json.loads(result)

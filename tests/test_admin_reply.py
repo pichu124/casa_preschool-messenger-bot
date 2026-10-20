@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 import app.main as main
 from app import escalation, github_sync
+from app.config import settings
 
 client = TestClient(main.app)
 
@@ -11,6 +12,8 @@ ESCALATION_MSG_ID = 4242
 CUSTOMER_ID = "9000000000000001"
 QUESTION = "Trường có xe đưa đón khu Long Biên không ạ?"
 ADMIN_TEXT = "Có xe tuyến Long Biên, đón 7h15 tại cổng Aeon Mall, phí 1.250.000đ/tháng"
+WEBHOOK_SECRET = "tg-secret_123"
+TELEGRAM_HEADERS = {"X-Telegram-Bot-Api-Secret-Token": WEBHOOK_SECRET}
 
 
 def telegram_reply_update(text: str) -> dict:
@@ -57,13 +60,14 @@ def test_admin_reply_reaches_customer_is_learned_and_resolves_escalation(monkeyp
     async def fake_push_qa_to_github(qa_pairs):
         return True
 
+    monkeypatch.setattr(settings, "TELEGRAM_WEBHOOK_SECRET", WEBHOOK_SECRET)
     monkeypatch.setattr(main, "send_message", fake_send_message)
     monkeypatch.setattr(main.ai_engine, "format_admin_reply", fake_format_admin_reply)
     monkeypatch.setattr(main.ai_engine, "classify_qa", fake_classify_qa)
     monkeypatch.setattr(github_sync, "push_qa_to_github", fake_push_qa_to_github)
     assert ADMIN_TEXT not in main.ai_engine.system_prompt
 
-    resp = client.post("/telegram-webhook", json=telegram_reply_update(ADMIN_TEXT))
+    resp = client.post("/telegram-webhook", json=telegram_reply_update(ADMIN_TEXT), headers=TELEGRAM_HEADERS)
 
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}

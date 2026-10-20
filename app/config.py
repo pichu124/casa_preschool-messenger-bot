@@ -13,7 +13,7 @@ class Settings:
     # Admin escalation via Telegram
     TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
     TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
-    TELEGRAM_WEBHOOK_SECRET: str = os.getenv("TELEGRAM_WEBHOOK_SECRET", "casa-bot-secret-2024")
+    TELEGRAM_WEBHOOK_SECRET: str = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
 
     # GitHub auto-sync
     GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")

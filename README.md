@@ -60,6 +60,17 @@ Chi can it nhat 1 model co API key la duoc.
 
 Thu tu fallback cau hinh trong `AI_MODEL_ORDER`.
 
+### 6. Secret cho endpoint admin va Telegram webhook
+
+- `TELEGRAM_WEBHOOK_SECRET`: chuoi ngau nhien, chi dung ky tu `A-Z a-z 0-9 _ -` (Telegram `secret_token` chi nhan cac ky tu nay, 1-256 ky tu). Tao bang `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`.
+  - La gia tri `?secret=` cua moi endpoint admin, dong thoi la `secret_token` Telegram gui kem trong header `X-Telegram-Bot-Api-Secret-Token` toi `/telegram-webhook`.
+  - De trong thi moi endpoint admin va `/telegram-webhook` tra 403 (log khoi dong co WARNING).
+  - Sau khi dat hoac doi secret phai dang ky lai webhook Telegram, neu khong Telegram van gui secret cu va bi 403:
+    ```bash
+    curl -X POST "https://your-domain.com/setup-telegram-webhook?secret=<TELEGRAM_WEBHOOK_SECRET>"
+    ```
+- `FB_APP_SECRET`: de trong thi `/webhook` nhan request ma khong kiem chu ky Facebook (log khoi dong co WARNING). Nen dat.
+
 ## Chay ung dung
 
 ### Development (local)
@@ -82,13 +93,23 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 ## API Endpoints
 
-| Method | Path | Mo ta |
-|--------|------|-------|
-| GET | `/` | Health check |
-| GET | `/webhook` | Facebook webhook verification |
-| POST | `/webhook` | Nhan tin nhan tu Messenger |
-| POST | `/reload-qa` | Tai lai Q&A database |
-| POST | `/import-excel?file_path=path` | Nhap Q&A tu Excel |
+`?secret=` la gia tri `TELEGRAM_WEBHOOK_SECRET` (xem muc 6). Chua dat bien nay thi cac endpoint can `?secret=` deu tra 403.
+
+| Method | Path | Mo ta | Xac thuc |
+|--------|------|-------|----------|
+| GET | `/` | Health check | khong |
+| GET | `/webhook` | Facebook webhook verification | `hub.verify_token` = `FB_VERIFY_TOKEN` |
+| POST | `/webhook` | Nhan tin nhan tu Messenger | chu ky `X-Hub-Signature-256` (chi khi dat `FB_APP_SECRET`) |
+| POST | `/telegram-webhook` | Nhan admin reply tu Telegram | header `X-Telegram-Bot-Api-Secret-Token` |
+| POST | `/setup-telegram-webhook` | Dang ky webhook Telegram voi secret hien tai | `?secret=` |
+| GET | `/dashboard` | Dashboard analytics | `?secret=` |
+| GET | `/analytics/stats`, `/analytics/messages` | Du lieu analytics (JSON) | `?secret=` |
+| POST | `/analytics/reset` | Xoa du lieu analytics | `?secret=` |
+| GET | `/customers`, `/customers/export` | Ho so khach (JSON / Excel) | `?secret=` |
+| GET | `/qa-database`, `/qa-learned` | Xem Q&A (tat ca / hoc tu admin) | `?secret=` |
+| POST | `/reload-qa` | Tai lai Q&A database | `?secret=` |
+| POST | `/import-excel?file_path=path` | Nhap Q&A tu Excel | `?secret=` |
+| POST | `/test-chat` | Thu hoi thoai khong qua Facebook | `?secret=` |
 
 ## Quan ly Q&A Database
 
@@ -112,13 +133,13 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 File Excel can co cac cot: `category | question | answer | keywords`
 
 ```bash
-curl -X POST "http://localhost:8000/import-excel?file_path=data/qa_database_sample.xlsx"
+curl -X POST "http://localhost:8000/import-excel?file_path=data/qa_database_sample.xlsx&secret=<TELEGRAM_WEBHOOK_SECRET>"
 ```
 
 ### Reload sau khi chinh sua
 
 ```bash
-curl -X POST http://localhost:8000/reload-qa
+curl -X POST "http://localhost:8000/reload-qa?secret=<TELEGRAM_WEBHOOK_SECRET>"
 ```
 
 ## Cau truc du an

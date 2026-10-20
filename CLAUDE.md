@@ -12,7 +12,7 @@ Bot tự trả lời Facebook Messenger cho hệ thống mầm non Casa dei Bamb
 - `./scripts/check.sh` là THE check: kiểm bộ kit cộng check của dự án (`scripts/check.local.sh`: compile `app/` + `pytest`). Chạy trước khi báo xong.
 - Môi trường: `python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt`. Phiên cloud tự làm việc này qua `.claude/hooks/session-start.sh`.
 - Một test: `.venv/bin/python -m pytest tests/test_smoke.py::test_health_check_reports_loaded_qa -q`
-- Chạy app local: `uvicorn app.main:app --reload --port 8000`. Thử hội thoại không qua Facebook: `POST /test-chat` (cần ít nhất một API key AI trong `.env`; ghi vào `data/customers.json`, và có `GITHUB_TOKEN` thì đẩy thẳng file đó lên `main`).
+- Chạy app local: `uvicorn app.main:app --reload --port 8000`. Thử hội thoại không qua Facebook: `POST /test-chat?secret=<TELEGRAM_WEBHOOK_SECRET>` (cần ít nhất một API key AI trong `.env`; ghi vào `data/customers.json`, và có `GITHUB_TOKEN` thì đẩy thẳng file đó lên `main`).
 - `./scripts/audit-agent.sh --since 7` dò sự cố từ file phiên; `/agent-audit` dò rồi sửa kèm test, mở PR nháp.
 
 ## Cách làm việc

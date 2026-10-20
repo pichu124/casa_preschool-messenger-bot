@@ -1,3 +1,4 @@
+import hmac
 import logging
 import re
 
@@ -43,9 +44,25 @@ ESCALATION_MESSAGE = (
 )
 
 
+def _warn_insecure_config():
+    if not settings.TELEGRAM_WEBHOOK_SECRET:
+        logger.warning("TELEGRAM_WEBHOOK_SECRET is not set: admin endpoints and /telegram-webhook are locked (403)")
+    if not settings.FB_APP_SECRET:
+        logger.warning("FB_APP_SECRET is not set: /webhook accepts Facebook requests without signature verification")
+
+
+_warn_insecure_config()
+
+
+def _secret_matches(given: str) -> bool:
+    """Constant-time check against TELEGRAM_WEBHOOK_SECRET; always False if it is not configured."""
+    expected = settings.TELEGRAM_WEBHOOK_SECRET
+    return bool(expected) and hmac.compare_digest(given.encode(), expected.encode())
+
+
 def require_secret(secret: str = ""):
     """Guard admin endpoints. Pass ?secret=<TELEGRAM_WEBHOOK_SECRET>."""
-    if secret != settings.TELEGRAM_WEBHOOK_SECRET:
+    if not _secret_matches(secret):
         raise HTTPException(status_code=403, detail="Invalid secret")
 
 
@@ -83,10 +100,8 @@ async def analytics_messages(limit: int = 20, _: None = Depends(require_secret))
 
 
 @app.get("/customers")
-async def list_customers(secret: str = ""):
-    """List all customer profiles. Requires secret."""
-    if secret != settings.TELEGRAM_WEBHOOK_SECRET:
-        raise HTTPException(status_code=403, detail="Invalid secret")
+async def list_customers(_: None = Depends(require_secret)):
+    """List all customer profiles. Requires ?secret=."""
     profiles = customer_memory.get_all_profiles()
     return {
         "total": len(profiles),
@@ -95,11 +110,8 @@ async def list_customers(secret: str = ""):
 
 
 @app.get("/customers/export")
-async def export_customers(secret: str = ""):
-    """Export customer profiles to Excel file."""
-    if secret != settings.TELEGRAM_WEBHOOK_SECRET:
-        raise HTTPException(status_code=403, detail="Invalid secret")
-
+async def export_customers(_: None = Depends(require_secret)):
+    """Export customer profiles to Excel file. Requires ?secret=."""
     import io
     import openpyxl
     from fastapi.responses import StreamingResponse
@@ -198,10 +210,8 @@ async def export_customers(secret: str = ""):
 
 
 @app.post("/analytics/reset")
-async def analytics_reset(secret: str = ""):
-    """Delete all analytics data. Requires secret to prevent abuse."""
-    if secret != settings.TELEGRAM_WEBHOOK_SECRET:
-        raise HTTPException(status_code=403, detail="Invalid secret")
+async def analytics_reset(_: None = Depends(require_secret)):
+    """Delete all analytics data. Requires ?secret=."""
     from pathlib import Path
     path = Path(settings.ANALYTICS_LOG_PATH)
     if path.exists():
@@ -431,8 +441,8 @@ async def process_message(sender_id: str, text: str):
 
 
 @app.post("/reload-qa")
-async def reload_qa():
-    """Reload Q&A database (call after updating qa_database.json)."""
+async def reload_qa(_: None = Depends(require_secret)):
+    """Reload Q&A database (call after updating qa_database.json). Requires ?secret=."""
     qa_db.reload()
     _rebuild_ai_context()
     return {"status": "reloaded", "qa_pairs": len(qa_db.qa_pairs)}
@@ -458,13 +468,11 @@ async def get_qa_learned(_: None = Depends(require_secret)):
 
 
 @app.post("/import-excel")
-async def import_excel(file_path: str):
-    """Import Q&A from Excel file."""
+async def import_excel(file_path: str, _: None = Depends(require_secret)):
+    """Import Q&A from Excel file. Requires ?secret=."""
     try:
         qa_db.import_from_excel(file_path)
-        from app.ai_engine import SYSTEM_PROMPT
-        ai_engine.system_prompt = SYSTEM_PROMPT.format(qa_context=qa_db.build_context())
-        ai_engine._providers.clear()
+        _rebuild_ai_context()
         return {"status": "imported", "qa_pairs": len(qa_db.qa_pairs)}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -479,8 +487,8 @@ class TestMessage(BaseModel):
 
 
 @app.post("/test-chat")
-async def test_chat(body: TestMessage):
-    """Test AI response without Facebook (for development/debugging)."""
+async def test_chat(body: TestMessage, _: None = Depends(require_secret)):
+    """Test AI response without Facebook (for development/debugging). Requires ?secret=."""
     # Load profile + persisted history (same as process_message)
     existing_profile = customer_memory.get_profile(body.user_id)
     customer_context = customer_memory.format_profile_for_prompt(existing_profile)
@@ -529,11 +537,12 @@ def _rebuild_ai_context():
 
 @app.post("/telegram-webhook")
 async def handle_telegram_webhook(request: Request):
-    """Handle admin replies from Telegram group."""
+    """Handle admin replies from Telegram group. Telegram sends the secret_token set by /setup-telegram-webhook."""
+    if not _secret_matches(request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")):
+        raise HTTPException(status_code=403, detail="Invalid secret")
+
     data = await request.json()
     message = data.get("message", {})
-    chat_id = message.get("chat", {}).get("id")
-    reply_msg_id = message.get("message_id")
 
     # Parse all variables before try block so they exist in except
     customer_id = None
@@ -625,8 +634,8 @@ async def handle_telegram_webhook(request: Request):
 
 
 @app.post("/setup-telegram-webhook")
-async def setup_telegram_webhook():
-    """Register Telegram webhook URL."""
+async def setup_telegram_webhook(_: None = Depends(require_secret)):
+    """Register Telegram webhook URL. Requires ?secret=."""
     import httpx
     webhook_url = f"{settings.PUBLIC_BASE_URL.rstrip('/')}/telegram-webhook"
     url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/setWebhook"

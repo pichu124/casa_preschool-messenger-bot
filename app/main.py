@@ -417,6 +417,10 @@ def _public_image_url(url: str) -> str:
     return url
 
 
+def _last_bot_message(history: list[dict]) -> str:
+    return history[-1]["content"] if history and history[-1]["role"] == "assistant" else ""
+
+
 def _clean_extracted(extracted: dict, phone_from_qr: str | None) -> dict:
     """The model's extraction made safe to store: the phone quick reply wins, a phone without 9-11 digits
     (e.g. "không có") is dropped, and phone_declined is kept only as JSON true (models also return "false")."""
@@ -498,7 +502,7 @@ async def process_message(
         history = customer_memory.get_conversation_history(sender_id)
         gap_hours = customer_memory.get_last_seen_gap_hours(sender_id)
         had_phone = bool(existing_profile.get("phone"))
-        last_bot_message = history[-1]["content"] if history and history[-1]["role"] == "assistant" else ""
+        last_bot_message = _last_bot_message(history)
 
         # Extract customer info alongside the reply, so a phone number sent in this message is known before replying
         response, extracted = await asyncio.gather(
@@ -663,9 +667,12 @@ async def test_chat(body: TestMessage, _: None = Depends(require_secret)):
         gap_hours=gap_hours,
     )
 
-    # Extract and save profile
+    # Extract and save profile, cleaned as in process_message
     try:
-        extracted = await ai_engine.extract_customer_info(body.message, existing_profile)
+        extracted = await ai_engine.extract_customer_info(
+            body.message, existing_profile, last_bot_message=_last_bot_message(history)
+        )
+        extracted = _clean_extracted(extracted, None)
         if extracted or not existing_profile:
             await customer_memory.update_profile(body.user_id, extracted)
     except Exception as e:

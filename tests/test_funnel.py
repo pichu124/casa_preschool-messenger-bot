@@ -1,8 +1,9 @@
 """Số liệu cho người vận hành: phễu tư vấn tính từ hồ sơ khách (không mất khi deploy như analytics.jsonl),
-và file Excel /customers/export."""
+file Excel /customers/export, và /test-chat xử lý kết quả trích xuất giống tin Messenger thật."""
 
 import io
 import re
+from types import SimpleNamespace
 
 import openpyxl
 import pytest
@@ -10,6 +11,7 @@ from fastapi.testclient import TestClient
 
 import app.main as main
 from app import analytics, customer_memory
+from app.ai_engine import AIResponse
 from app.config import settings
 
 client = TestClient(main.app)
@@ -125,3 +127,58 @@ def test_export_has_consulting_columns(admin):
     assert bare["Giai đoạn"] == "Đã biết tuổi/cơ sở"
     assert [c for c in NEW_EXPORT_COLUMNS if c != "Giai đoạn" and bare[c]] == []
 
+
+# --- /test-chat giống tin Messenger thật ---
+
+TEST_USER = "test_user_funnel"
+ASK_PHONE = "Dạ Ba/Mẹ cho em xin SĐT hoặc Zalo để tư vấn viên gửi chi tiết nhé ạ? [QUICK:phone]"
+
+
+@pytest.fixture
+def model(monkeypatch):
+    """Model giả: ghi lại câu bot vừa hỏi mà bước trích xuất nhận được; `extracted` là kết quả trích xuất thô."""
+    model = SimpleNamespace(extracted={}, last_bot_messages=[])
+
+    async def get_response(**kwargs):
+        return AIResponse(text="Dạ vâng ạ, em ghi nhận ạ.", should_escalate=False, model_used="fake-model")
+
+    async def extract_customer_info(user_message, existing_profile=None, last_bot_message=""):
+        model.last_bot_messages.append(last_bot_message)
+        return dict(model.extracted)
+
+    monkeypatch.setattr(main.ai_engine, "get_response", get_response)
+    monkeypatch.setattr(main.ai_engine, "extract_customer_info", extract_customer_info)
+    return model
+
+
+def chat(text: str) -> dict:
+    resp = client.post("/test-chat", params={"secret": WEBHOOK_SECRET}, json={"message": text, "user_id": TEST_USER})
+    assert resp.status_code == 200
+    return resp.json()["profile"]
+
+
+def test_test_chat_gives_extraction_the_bot_message_just_sent(admin, model):
+    customer_memory._customers[TEST_USER] = {
+        "conversation_history": [
+            {"role": "user", "content": "Trường có ưu đãi gì không ạ?"},
+            {"role": "assistant", "content": ASK_PHONE},
+        ]
+    }
+
+    chat("không ạ")
+
+    assert model.last_bot_messages == [ASK_PHONE]
+
+
+def test_test_chat_cleans_extraction_like_messenger(admin, model):
+    model.extracted = {"phone": "không có", "phone_declined": "false", "kid_age": "3 tuổi"}
+
+    profile = chat("Bé nhà mình 3 tuổi, mình chưa có số ạ")
+
+    assert profile["kid_age"] == "3 tuổi"
+    assert "phone" not in profile
+    assert "phone_declined" not in profile
+
+    model.extracted = {"phone_declined": True}
+
+    assert chat("Mình chưa muốn để số ạ")["phone_declined"] is True

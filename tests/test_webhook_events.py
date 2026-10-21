@@ -578,6 +578,61 @@ def test_extraction_gets_no_bot_message_on_first_message(bot):
     assert bot.last_bot_messages == [""]
 
 
+# --- Nhóm thông tin bot đã tư vấn (app/coverage.py), cho mẫu nhắc lại thứ 3 ---
+
+PROGRAM_REPLY = (
+    "Dạ các con 3–6 tuổi học Cambridge Early Years ạ. Ba/Mẹ muốn đưa bé đến tham quan vào buổi sáng hay buổi "
+    "chiều ạ? [QUICK:visit_time]"
+)
+MENU_REPLY = "Dạ thực đơn của Casa đủ nhóm chất, kết hợp giáo cụ Montessori trong giờ ăn ạ."
+
+
+def test_topics_the_bot_replied_with_are_saved_and_tokens_are_not_sent(bot):
+    bot.say("Trường dạy chương trình gì ạ?", reply=PROGRAM_REPLY)
+
+    assert customer_memory.get_profile(SENDER)["topics_covered"] == ["program", "visit_invite"]
+    assert [text for kind, text, _ in bot.sent if kind == "text" and "[" in text] == []
+
+
+def test_topics_of_later_replies_are_merged_without_duplicates(bot):
+    bot.say("Trường dạy chương trình gì ạ?", reply=PROGRAM_REPLY)
+    bot.say("Các con ăn gì ạ?", reply=MENU_REPLY)
+
+    assert customer_memory.get_profile(SENDER)["topics_covered"] == ["program", "visit_invite", "menu"]
+
+
+def test_escalated_reply_saves_no_topics(bot):
+    bot.say("Cô chủ nhiệm tên gì ạ?", reply=PROGRAM_REPLY, escalate=True)
+
+    assert "topics_covered" not in customer_memory.get_profile(SENDER)
+
+
+def test_topics_from_the_extraction_model_are_ignored(bot):
+    bot.say("Bé nhà em 3 tuổi", extracted={"kid_age": "3 tuổi", "topics_covered": ["school", "menu"]})
+    profile = customer_memory.get_profile(SENDER)
+    assert profile["kid_age"] == "3 tuổi" and "topics_covered" not in profile
+
+    bot.say("Trường dạy chương trình gì ạ?", reply=PROGRAM_REPLY, extracted={"topics_covered": ["school"]})
+
+    assert customer_memory.get_profile(SENDER)["topics_covered"] == ["program", "visit_invite"]
+
+
+@pytest.mark.parametrize(
+    ("escalate", "topics"),
+    [(False, ["program", "visit_invite"]), (True, None)],
+    ids=["trả lời", "chuyển tư vấn viên"],
+)
+def test_test_chat_saves_topics_like_messenger(monkeypatch, bot, escalate, topics):
+    monkeypatch.setattr(settings, "TELEGRAM_WEBHOOK_SECRET", WEBHOOK_SECRET)
+    bot.response = AIResponse(text=PROGRAM_REPLY, should_escalate=escalate, model_used="fake-model")
+    bot.extracted = {"topics_covered": ["school"]}
+
+    resp = client.post("/test-chat", params={"secret": WEBHOOK_SECRET}, json={"message": "Trường dạy gì ạ?"})
+
+    assert resp.status_code == 200
+    assert resp.json()["profile"].get("topics_covered") == topics
+
+
 class RecordingProvider(AIProvider):
     def __init__(self, reply):
         self.reply = reply

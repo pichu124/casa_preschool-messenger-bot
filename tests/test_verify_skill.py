@@ -8,6 +8,8 @@ import json
 import re
 import subprocess
 import sys
+import textwrap
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -15,7 +17,7 @@ import httpx
 import pytest
 
 from app.coverage import TOPICS, topics_in_reply
-from app.followup import TEMPLATES
+from app.followup import TEMPLATES, due_followups
 from app.messenger import ICE_BREAKERS, QUICK_REPLIES, build_quick_replies
 
 SKILL = Path(__file__).resolve().parent.parent / ".claude" / "skills" / "verify-casa-bot"
@@ -158,6 +160,32 @@ def test_followup_text_expected_by_the_skill_starts_every_template():
     assert starts
     for start in starts:
         assert all(t.startswith(start.rstrip()) for t in TEMPLATES.values()), start
+
+
+def test_followup_scenario_times_of_the_skill_fall_before_in_and_after_the_slot(tmp_path):
+    """Đoạn script trong features/followup.md tạo now_utc trước slot, trong slot và sau latest_send của app/followup.py."""
+    text = (SKILL / "features" / "followup.md").read_text("utf-8")
+    [script] = re.findall(r"python3 - <slug> <<'EOF'\n(.*?)\n *EOF\n", text, re.S)
+    harness = tmp_path / ".claude" / "skills" / "verify-casa-bot" / "harness"
+    harness.mkdir(parents=True)
+    (harness / "scenario.default.json").write_text(json.dumps(SCENARIO), "utf-8")
+    (tmp_path / "artifacts" / "verify" / "s").mkdir(parents=True)
+    parent_at = datetime.now(timezone.utc)
+
+    out = subprocess.run(
+        [sys.executable, "-I", "-", "s"], input=textwrap.dedent(script), cwd=tmp_path, capture_output=True, text=True
+    )
+
+    assert out.returncode == 0, out.stderr
+    history = [
+        {"role": "user", "content": "Xin chào", "timestamp": parent_at.replace(tzinfo=None).isoformat()},
+        {"role": "assistant", "content": "Dạ Casa chào Ba/Mẹ ạ", "timestamp": parent_at.replace(tzinfo=None).isoformat()},
+    ]
+    customers = {"9000000000000041": {"conversation_history": history}}
+    for name, due in (("before", []), ("in", [("9000000000000041", "ask_age")]), ("after", [])):
+        scenario = json.loads((tmp_path / "artifacts" / "verify" / "s" / f"scenario-{name}.json").read_text("utf-8"))
+        assert scenario["rules"] == SCENARIO["rules"]
+        assert due_followups(customers, datetime.fromisoformat(scenario["now_utc"])) == due, name
 
 
 CTL_STATE = {

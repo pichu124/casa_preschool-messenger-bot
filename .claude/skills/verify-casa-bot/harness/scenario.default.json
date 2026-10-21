@@ -1,0 +1,25 @@
+{
+  "_doc": "Read by fake_server.py on every request. rules: first rule whose kind matches and whose `contains` is a substring of what the parent wrote (chat, extract) or of the whole prompt (other kinds) gives the reply; a dict reply is sent as JSON. kinds: chat, extract, format_admin_reply, classify, summarize. fail: graph_send, telegram, openai, github_put (true/false), sheet (ok|false|500). now_utc: ISO time app/followup.py sees (null = real clock). fb_profile: what the Graph API returns for any PSID.",
+  "rules": [
+    {"kind": "chat", "contains": "ASK_AGE", "reply": "Dạ Casa chào Ba/Mẹ ạ 🌿 Bé nhà mình năm nay mấy tuổi ạ? [QUICK:age]"},
+    {"kind": "chat", "contains": "ASK_PHONE", "reply": "Dạ Ba/Mẹ cho em xin SĐT hoặc Zalo để tư vấn viên gửi học phí chi tiết nhé ạ. [QUICK:phone]"},
+    {"kind": "chat", "contains": "ASK_VISIT", "reply": "Dạ Ba/Mẹ muốn đưa bé đến tham quan buổi sáng hay buổi chiều ạ? [QUICK:visit_time]"},
+    {"kind": "chat", "contains": "SEND_MENU", "reply": "Dạ đây là thực đơn mẫu của Casa ạ. [IMAGES:static/thuc-don-mau.jpg][QUICK:age]"},
+    {"kind": "chat", "contains": "BAD_QUICK", "reply": "Dạ em trả lời ạ [QUICK:khong_co_nut_nay]"},
+    {"kind": "chat", "contains": "HARD_QUESTION", "reply": "[ESCALATE]"},
+    {"kind": "chat", "contains": "Bé nhà em 2 – 3 tuổi", "reply": "Dạ bé 2 – 3 tuổi học lớp Nhà trẻ ạ. Ba/Mẹ muốn tham quan buổi sáng hay buổi chiều ạ? [QUICK:visit_time]"},
+    {"kind": "extract", "contains": "PHONE_A", "reply": {"phone": "0912345678"}},
+    {"kind": "extract", "contains": "PHONE_B", "reply": {"phone": "0987654321"}},
+    {"kind": "extract", "contains": "VISIT_AM", "reply": {"visit_request": "tham quan buổi sáng"}},
+    {"kind": "extract", "contains": "Em muốn hẹn tham quan buổi sáng", "reply": {"visit_request": "tham quan buổi sáng"}},
+    {"kind": "extract", "contains": "Bé nhà em 2 – 3 tuổi", "reply": {"kid_age": "2 – 3 tuổi"}},
+    {"kind": "extract", "contains": "DECLINE", "reply": {"phone_declined": true}}
+  ],
+  "defaults": {
+    "chat": "Dạ Casa chào Ba/Mẹ ạ, em hỗ trợ ngay ạ.",
+    "extract": {}
+  },
+  "fail": {"graph_send": false, "telegram": false, "openai": false, "github_put": false, "sheet": "ok"},
+  "now_utc": null,
+  "fb_profile": {"first_name": "Test", "last_name": "Parent"}
+}

@@ -27,7 +27,7 @@ Bảo mật:
 
 1. [ ] **Mẫu tin nhắc lại thứ 3** ("Đã tư vấn tương đối đủ nhưng PH dừng trao đổi") hiện gửi cho phụ huynh **đã từ chối để lại SĐT**. "Tư vấn tương đối đủ" nghĩa là gì để bot nhận ra (vd đã biết tuổi + cơ sở + đã hỏi học phí)? Hay giữ như hiện tại?
 2. [ ] **Bật tin nhắc lại** khi nào? (Hiện TẮT.) Trước khi bật: đăng ký `message_echoes` và tắt Instant Reply/Away message của Page.
-3. [ ] **SĐT nước ngoài**: bot lưu nguyên cả cụm số (không cắt đuôi). Số nước ngoài viết kèm số 0 sau mã nước (vd "+886 0912 345 678") hiện bị lưu nhầm thành số Việt Nam phía sau. Rất hiếm với phụ huynh tại Hà Nội — có cần agent sửa không?
+3. [x] ~~SĐT nước ngoài viết kèm số 0 sau mã nước~~ (vd "+886 0912 345 678"): đã sửa, bot lưu nguyên số nước ngoài, không còn nhận nhầm thành số Việt Nam.
 4. [ ] **SĐT theo đầu số cũ** (`01x…` 11 số, máy bàn `04…`) không còn được nhận vì đã đổi đầu số từ 2018. Có cần nhận không?
 
 ## D. Dữ kiện cần trường xác nhận
@@ -44,5 +44,5 @@ Bảo mật:
 - [ ] Model Groq `deepseek-r1-distill-llama-70b` có thể đã ngừng: kiểm tra trên console Groq, đổi model nếu cần.
 - [ ] Chạy `.venv/bin/python scripts/eval_chat.py` với một API key AI để chấm hội thoại thật.
 - [ ] Sau deploy, thử trên Messenger thật: nút trả lời nhanh, nút gửi SĐT, câu hỏi gợi ý, tin từ quảng cáo; một lead thật vào nhóm Telegram và Google Sheet.
-- [ ] (Có sẵn từ trước, agent sửa được nếu bạn đồng ý) `/qa-learned` gần như luôn rỗng vì lọc theo danh mục "Học từ admin" mà bot không bao giờ gán.
-- [ ] (Có sẵn từ trước, cần bạn quyết) mỗi lần admin trả lời qua Telegram, bot tự đẩy `data/qa_database.json` lên nhánh `main` → mỗi lần là một lần deploy Render. Giữ, chuyển sang repo private như hồ sơ khách, hay tắt?
+- [x] ~~`/qa-learned` gần như luôn rỗng~~: đã sửa. Cặp Q&A admin dạy qua Telegram giờ được đánh dấu nguồn `admin` và hiện trong `/qa-learned`.
+- [ ] Mỗi lần admin trả lời qua Telegram, bot tự đẩy `data/qa_database.json` lên nhánh `main`. Commit có `[skip deploy]` nên Render **không** deploy lại (đã kiểm tài liệu Render). Còn lại một câu hỏi: repo đang public nên câu trả lời admin dạy cho bot cũng công khai. Có ổn không, hay chuyển repo sang private (xem mục B)?

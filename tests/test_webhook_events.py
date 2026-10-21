@@ -204,10 +204,11 @@ def test_unknown_quick_reply_payload_keeps_the_button_title(payload):
     assert parse_messaging_event(event) == inbound("Buổi sáng")
 
 
-def test_phone_quick_reply_gives_phone_and_keeps_text():
-    event = message_event(text=PHONE_FROM_FB, quick_reply={"payload": PHONE_FROM_FB})
+@pytest.mark.parametrize("phone", [PHONE_FROM_FB, "912345678", "+1 650 555 1234"])
+def test_phone_quick_reply_gives_phone_and_keeps_text(phone):
+    event = message_event(text=phone, quick_reply={"payload": phone})
 
-    assert parse_messaging_event(event) == inbound(PHONE_FROM_FB, phone_from_qr=PHONE_FROM_FB)
+    assert parse_messaging_event(event) == inbound(phone, phone_from_qr=phone)
 
 
 def test_get_started_postback_becomes_a_greeting():
@@ -407,6 +408,14 @@ def test_phone_quick_reply_saves_phone_and_sends_lead_without_logging_it(bot, ca
     assert [r.getMessage() for r in caplog.records if PHONE[1:] in r.getMessage()] == []
 
 
+def test_phone_quick_reply_wins_over_the_extracted_phone(bot):
+    bot.extracted = {"phone": "0987654321"}
+
+    post_webhook(message_event(text=PHONE_FROM_FB, quick_reply={"payload": PHONE_FROM_FB}))
+
+    assert customer_memory.get_profile(SENDER)["phone"] == PHONE_FROM_FB
+
+
 # --- Nút trả lời nhanh và ảnh tĩnh trong câu trả lời ---
 
 
@@ -461,7 +470,22 @@ def test_phone_declined_true_is_kept(bot):
     assert customer_memory.get_profile(SENDER)["phone_declined"] is True
 
 
-@pytest.mark.parametrize("phone", ["không có", "chưa có", "123", "091234", "+84 911 222 501 999"])
+@pytest.mark.parametrize(
+    "phone",
+    [
+        "không có",
+        "chưa có",
+        "123",
+        "091234",
+        "+84 911 222 501 999",
+        "0912345678 123",
+        "0912 345 67",
+        "212345678",
+        "12345678",
+        "+1 234 567",
+        "+1 2345 6789 0123 4567",
+    ],
+)
 def test_phone_without_9_to_11_digits_is_not_saved(bot, phone):
     bot.say("Cô chủ nhiệm tên gì ạ?", reply="", escalate=True, extracted={"phone": phone, "kid_age": "3 tuổi"})
 
@@ -490,6 +514,17 @@ def test_phone_with_9_to_11_digits_is_saved(bot, phone):
         ("(024) 3123 4567", "024 3123 4567"),
         ("(+84) 912 345 678", "+84 912 345 678"),
         ("Zalo 0912.345.678 ạ", "0912.345.678"),
+        ("912 345 678", "0912345678"),
+        ("912345678", "0912345678"),
+        ("Zalo 912.345.678 ạ", "0912345678"),
+        ("0912 - 345 - 678", "0912 - 345 - 678"),
+        ("0912  345  678", "0912  345  678"),
+        ("(0912) 345 678", "0912 345 678"),
+        ("+1 650 555 1234", "+1 650 555 1234"),
+        ("+44 20 7946 0958, 0912345678", "+44 20 7946 0958"),
+        ("0912345678 2 bé", "0912345678"),
+        ("0912345678 3 tuổi", "0912345678"),
+        ("098 765 4321 9", "098 765 4321"),
     ],
 )
 def test_first_phone_number_in_the_extracted_phone_is_saved_and_sent_as_lead(bot, caplog, phone, saved):

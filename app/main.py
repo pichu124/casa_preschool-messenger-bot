@@ -387,10 +387,11 @@ def _phone_at(run: str) -> str | None:
     """The phone number a DIGIT_RUN starts with; None when there is none.
 
     A "+" not followed by 84 starts a foreign number of 8 to 15 digits. It takes the whole run, its tail is not
-    guessed ("+33 6 12 34 56 78"), and ends only before a Vietnamese number ("+65 9123 4567 0912345678"). A
-    Vietnamese number ends at the first group boundary where it is complete. A group of 1 or 2 digits or one
-    starting with 0 may follow ("0912345678 2 bé", "0912345678 0987654321"), a longer one means it runs on
-    ("+84 911 222 501 999" is none).
+    guessed ("+33 6 12 34 56 78"), and ends only before a Vietnamese number ("+65 9123 4567 0912345678"), never
+    right after its country code: "+886 0912 345 678" and "+39 0331 123456" are foreign. A Vietnamese number
+    ends at the first group boundary where it is complete. A group of 1 or 2 digits or one starting with 0 may
+    follow ("0912345678 2 bé", "0912345678 0987654321"), a longer one means it runs on ("+84 911 222 501 999"
+    is none).
     """
     foreign = run.startswith("+") and not run.startswith("+84")
     groups = list(re.finditer(r"\d+", run))
@@ -399,7 +400,8 @@ def _phone_at(run: str) -> str | None:
         if foreign:
             digits = len(re.sub(r"\D", "", phone))
             rest = run[groups[i + 1].start() :] if i + 1 < len(groups) else ""
-            if not rest or (rest[0] == "0" and _phone_at(rest)):
+            country_code = i == 0 and digits < 8
+            if not rest or (rest[0] == "0" and not country_code and _phone_at(rest)):
                 return phone if 8 <= digits <= 15 else None
             continue
         normalized = normalize_phone(phone)

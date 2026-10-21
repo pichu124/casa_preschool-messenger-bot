@@ -14,6 +14,7 @@ import app.main as main
 from app import customer_memory
 from app.ai_engine import AIProvider
 from app.config import settings
+from app.coverage import topics_in_reply
 from app.qa_database import QADatabase
 
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "qa_database.json"
@@ -323,3 +324,132 @@ def test_kim_ma_cambridge_question_is_answered():
     answer = _norm(_pair_with_question("Kim Mã có học Cambridge không?")["answer"])
 
     assert re.search(r"kim mã[^.;]{0,80}english", answer), answer
+
+
+# --- Phản hồi đợt 5 -----------------------------------------------------------
+
+KIM_MA_MONTESSORI_AREAS = ("toán", "tiếng việt", "thực hành cuộc sống", "giác quan")
+
+
+def _sentences(text: str) -> list[str]:
+    return [s for s in re.split(r"(?<=[.?!])\s+|\n", text) if s.strip()]
+
+
+def test_school_has_more_than_ten_years():
+    # D7: "Hơn 10 năm". Kinh nghiệm cá nhân của giáo viên ("10 năm chuyên sâu Montessori") giữ nguyên.
+    assert "gần 10 năm" not in RAW_TEXT
+    assert re.search(r"hơn 10 năm[^.\n]{0,20}(montessori|hoạt động)", ALL_ANSWERS)
+
+
+def test_kim_ma_classroom_is_80_m2_per_floor_in_a_garden_villa():
+    # D1: biệt thự sân vườn xanh mát, mỗi tầng 1 lớp học rộng 80 m².
+    assert "điều kiện thực tế của địa điểm" not in RAW_TEXT
+    kim_ma = _answers_with("kim mã", "biệt thự sân vườn", "mỗi tầng là 1 lớp học")
+    assert len(kim_ma) >= 2, "thiếu câu diện tích lớp / so sánh cơ sở cho Kim Mã"
+    for answer in kim_ma:
+        assert re.search(r"kim mã[^.\n]{0,120}80 ?m2", answer), answer
+    area = _norm(_pair_with_question("Diện tích lớp học của trường khoảng bao nhiêu m²?")["answer"])
+    for campus, size in (("chùa láng", r"90 ?- ?100 ?m2"), ("mỹ đình", r"80 ?- ?90 ?m2"), ("kim mã", r"80 ?m2")):
+        assert re.search(rf"{campus}[^.\n]{{0,120}}{size}", area), campus
+
+
+def test_kim_ma_facilities_answers_are_still_detected_as_facilities():
+    for question in ("Diện tích lớp ở Kim Mã bao nhiêu?", "Cơ sở vật chất ở Kim Mã như thế nào?"):
+        assert "facilities" in topics_in_reply(_pair_with_question(question)["answer"]), question
+
+
+@pytest.mark.parametrize("question", ["Kim Mã học toán như thế nào?", "Hệ Song ngữ học những gì ngoài tiếng Anh?"])
+def test_kim_ma_continues_montessori_in_its_areas(question):
+    # D2: Montessori theo các lĩnh vực trường kể (không tự thêm lĩnh vực thứ 5) + ngoại khóa phong phú.
+    reply = _pair_with_question(question)["answer"]
+    answer = _norm(reply)
+
+    assert "kim mã" in answer and "montessori" in answer and "english" in answer
+    for area in KIM_MA_MONTESSORI_AREAS:
+        assert area in answer, area
+    assert "ngoại khóa phong phú" in answer
+    assert {"program", "extracurricular"} <= set(topics_in_reply(reply))
+
+
+def test_tuition_is_never_paid_monthly():
+    # D3: không đóng theo tháng; kỳ ngắn nhất là quý. Kỳ 6/12 tháng trong chính sách hoàn phí giữ nguyên.
+    payment = _norm(_pair_with_question("Có đóng học phí theo tháng được không?")["answer"])
+    assert re.search(r"không[^.\n]{0,40}theo tháng", payment) and "quý" in payment
+    assert "6 tháng" in payment and "12 tháng" in payment
+    for answer in ANSWERS:
+        for sentence in _sentences(answer):
+            if "học phí" in sentence and re.search(r"(theo|hằng|mỗi) tháng", sentence):
+                assert "không" in sentence, sentence
+
+
+def test_camera_can_be_viewed_at_the_office_during_office_hours():
+    # D4: trong giờ hành chính, không cần có sự việc cụ thể.
+    assert "sự việc cụ thể" not in RAW_TEXT
+    camera = _norm(_pair_with_question("Phụ huynh có được xem camera không?")["answer"])
+    assert "văn phòng" in camera and "giờ hành chính" in camera
+    assert re.search(r"không[^.\n]{0,40}trực tiếp trên điện thoại", camera)
+
+
+def test_resident_discount_names_the_two_buildings():
+    # D5: cư dân tòa Hongkong Tower (Chùa Láng) và FLC Complex (Mỹ Đình); Kim Mã không có.
+    resident = _norm(_pair_with_question("Cư dân tòa nhà có được ưu đãi không?")["answer"])
+    assert re.search(r"cư dân[^.\n]{0,120}hongkong tower[^.\n]{0,20}chùa láng", resident), resident
+    assert re.search(r"cư dân[^.\n]{0,160}flc complex[^.\n]{0,20}mỹ đình", resident), resident
+
+
+def test_upfront_fees_are_rounded_by_month_until_june_and_collected_in_july():
+    # D6: nhập học giữa năm → phí phát triển trường, phí học liệu và hoạt động ngoại khóa thu tròn theo tháng tới
+    # hết tháng 6; thu tròn năm vào tháng 7. Các dữ kiện cũ giữ nguyên.
+    questions = ("Nếu bé nhập học giữa tháng thì học phí được tính thế nào?", "Nhập học giữa năm thì các khoản phí đầu kỳ tính thế nào?")
+    for question in questions:
+        answer = _norm(_pair_with_question(question)["answer"])
+        assert "phí phát triển trường" in answer and "phí học liệu và hoạt động ngoại khóa" in answer, question
+        assert re.search(r"tròn theo tháng[^.\n]{0,60}tháng bé nhập học[^.\n]{0,30}tháng 6", answer), question
+        assert re.search(r"tròn năm[^.\n]{0,40}tháng 7", answer), question
+    assert _answers_with("số ngày thực tế đi học", "tháng đầu")
+    assert _answers_with("tối thiểu 1 tháng", "tối đa 6 tháng")
+    assert _answers_with("5 ngày làm việc đầu tiên của quý", "nộp muộn")
+    assert _answers_with("trước 7:00", "quý tiếp theo")
+
+
+# --- Vòng sửa sau review đợt 5 ------------------------------------------------
+
+FIVE_AREAS_QUESTIONS = ("5 lĩnh vực Montessori là những gì?", "5 lĩnh vực đó gồm những gì?")
+# Lĩnh vực trường chưa kể (vd "văn hóa") thì bot không được tự thêm vào 5 lĩnh vực Montessori.
+UNLISTED_AREAS = ("văn hóa", "văn hoá", "ngôn ngữ", "khoa học", "địa lý", "nghệ thuật")
+
+
+def _full_sentences(text: str) -> list[str]:
+    return [s for s in re.split(r"(?<=[.?!…])\s+|\n", text) if s.strip()]
+
+
+def test_kim_ma_cambridge_answers_say_cambridge_is_for_3_to_6():
+    # Quy tắc chương trình: Cambridge cho trẻ 3–6 tuổi; 15 tháng–3 tuổi chưa học Cambridge.
+    for answer in _answers_with("kim mã", "cambridge"):
+        assert any("cambridge" in s and "3-6 tuổi" in s for s in _full_sentences(answer)), answer
+    kim_ma = _norm(_pair_with_question("Chương trình học ở cơ sở Kim Mã như thế nào?")["answer"])
+    assert re.search(r"(dưới 3 tuổi|15 tháng-3 tuổi)[^.]{0,80}montessori", kim_ma), kim_ma
+
+
+def test_montessori_five_areas_names_only_the_areas_the_school_listed():
+    pairs = [_pair_with_question(q) for q in FIVE_AREAS_QUESTIONS]
+    assert pairs[0] is pairs[1]
+    reply = pairs[0]["answer"]
+    answer = _norm(reply)
+    for area in KIM_MA_MONTESSORI_AREAS:
+        assert area in answer, area
+    assert "tư vấn viên" in answer and "sđt/zalo" in answer and "tham quan" in answer, answer
+    assert "program" in topics_in_reply(reply)
+    for text in ANSWERS:
+        for sentence in _full_sentences(text):
+            if "5 lĩnh vực" in sentence:
+                assert not any(a in sentence for a in UNLISTED_AREAS), sentence
+            if "lĩnh vực" in sentence:
+                assert "văn hóa" not in sentence and "văn hoá" not in sentence, sentence
+
+
+def test_playground_answer_does_not_claim_kim_ma_garden_play():
+    reply = _pair_with_question("Trường có sân chơi không?")["answer"]
+
+    assert "biệt thự sân vườn" not in _norm(reply)
+    assert "facilities" in topics_in_reply(reply)

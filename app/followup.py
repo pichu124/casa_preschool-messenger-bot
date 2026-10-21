@@ -27,24 +27,24 @@ SEND_HOURS_VN = range(8, 21)  # 8:00 to 20:59 Vietnam time
 # The consultant has the conversation: no follow-up after these.
 HANDED_TO_CONSULTANT = (ESCALATION_MESSAGE_HAS_PHONE, ESCALATION_MESSAGE_ASK_PHONE, ESCALATION_MESSAGE_PHONE_DECLINED)
 
-# The school's wording, verbatim.
+# The school's wording, verbatim, under the school's labels (_template_key picks one).
 TEMPLATES = {
+    # 1. Child's age not known yet
     "ask_age": (
         "Dạ em chào Ba/Mẹ ạ. Em xin phép nhắn lại để tiếp tục hỗ trợ Ba/Mẹ tìm hiểu về Casa. Ba/Mẹ cho em xin "
         "độ tuổi hiện tại của bé, để em có thể gửi đúng thông tin về chương trình và lớp học phù hợp với con ạ. "
         "Nếu Ba/Mẹ cần thêm thông tin nào khác, em cũng luôn sẵn sàng hỗ trợ."
     ),
+    # 2. Age known, no phone number yet
     "ask_phone": (
-        "Dạ em chào Ba/Mẹ ạ. Em xin phép nhắn lại một chút. Không biết Ba/Mẹ còn cần em hỗ trợ thêm thông tin "
-        "nào về chương trình, học phí hay lớp phù hợp với bé không ạ? Nếu thuận tiện, Ba/Mẹ có thể để lại "
-        "SĐT/Zalo để Casa tư vấn kỹ hơn cho mình nhé."
+        "Dạ em chào Ba/Mẹ ạ. Không biết Ba/Mẹ còn cần em hỗ trợ thêm thông tin nào về chương trình, học phí hay "
+        "lớp phù hợp với bé không ạ? Nếu thuận tiện, Ba/Mẹ có thể để lại SĐT/Zalo để Casa tư vấn kỹ hơn cho mình nhé."
     ),
-    # The school's message for a parent who stopped after a fairly full consultation (app/coverage.py); asks for
-    # no phone number, so it also goes to a parent whose child's age is known and who declined to leave one.
+    # 3. Fairly full consultation (app/coverage.py), then the parent stopped
     "invite_visit": (
-        "Dạ em chào Ba/Mẹ ạ. Em xin phép hỏi thêm một chút, không biết Ba/Mẹ còn điều gì đang cân nhắc khi tìm "
-        "trường cho con không ạ? Nếu cần, Casa có thể hỗ trợ Ba/Mẹ tìm hiểu kỹ hơn về chương trình học hoặc sắp "
-        "xếp một buổi tham quan để gia đình trực tiếp cảm nhận môi trường của con."
+        "Dạ em chào Ba/Mẹ ạ. Không biết Ba/Mẹ còn điều gì đang băn khoăn hay cần em tư vấn thêm không ạ? Nếu cần, "
+        "Casa có thể hỗ trợ Ba/Mẹ tìm hiểu kỹ hơn về chương trình học hoặc sắp xếp một buổi tham quan để gia đình "
+        "trực tiếp cảm nhận môi trường học của con."
     ),
 }
 
@@ -72,9 +72,6 @@ def _template_key(profile: dict) -> str:
         return "invite_visit"
     if not profile.get("kid_age"):
         return "ask_age"
-    # invite_visit is the only template that asks for no phone number
-    if profile.get("phone_declined"):
-        return "invite_visit"
     return "ask_phone"
 
 

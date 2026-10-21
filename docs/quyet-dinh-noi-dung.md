@@ -54,30 +54,56 @@ f. có nới
    5. Cung cấp chương trình tặng 1 tuần học thử miễn phí
    6. Cung cấp được thông tin về cơ sở vật chất, không gian lớp học, mời phụ huynh đặt lịch tham quan
 
+## 2d. Phản hồi của trường, đợt 5 (nguyên văn)
+
+2. Hỏi trường hai ca tin nhắc lại:
+   1. Chưa biết tuổi bé:
+“Dạ em chào Ba/Mẹ ạ. Em xin phép nhắn lại để tiếp tục hỗ trợ Ba/Mẹ tìm hiểu về Casa. Ba/Mẹ cho em xin độ tuổi hiện tại của bé, để em có thể gửi đúng thông tin về chương trình và lớp học phù hợp với con ạ. Nếu Ba/Mẹ cần thêm thông tin nào khác, em cũng luôn sẵn sàng hỗ trợ.”
+   2. Đã biết tuổi bé, chưa có SĐT:
+“Dạ em chào Ba/Mẹ ạ. Không biết Ba/Mẹ còn cần em hỗ trợ thêm thông tin nào về chương trình, học phí hay lớp phù hợp với bé không ạ? Nếu thuận tiện, Ba/Mẹ có thể để lại SĐT/Zalo để Casa tư vấn kỹ hơn cho mình nhé.”
+   3. Đã tư vấn tương đối đủ nhưng PH dừng trao đổi:
+“Dạ em chào Ba/Mẹ ạ. Không biết Ba/Mẹ còn điều gì đang băn khoăn hay cần em tư vấn thêm không ạ? Nếu cần, Casa có thể hỗ trợ Ba/Mẹ tìm hiểu kỹ hơn về chương trình học hoặc sắp xếp một buổi tham quan để gia đình trực tiếp cảm nhận môi trường học của con.”
+
+3. Câu mới cần trường trả lời: Các bạn sẽ tiếp tục học theo phương pháp Montessori trong đó các bạn sẽ phát triển đúng theo 5 lĩnh vực theo phương pháp bao gồm toán, tiếng việt...
+
+Mục D:
+1. Diện tích lớp ở Kim Mã: - Cơ sở Kim Mã không gian biệt thự sân vườn xanh mát, mỗi tầng là 1 lớp học rộng 80m² rất thoáng cho bé
+2. Toán và khám phá ở Kim Mã: Các bạn sẽ tiếp tục học theo phương pháp Montessori trong đó các bạn sẽ phát triển đúng theo 5 lĩnh vực theo phương pháp bao gồm toán, tiếng việt... thực hành cuộc sống, giác quan.... ngoài ra có các chương trình ngọa khóa phong phú
+3. Đóng học phí theo tháng: học phí có cho đóng theo tháng không -> không, tất cả đều thu theo quý
+4. Camera: phụ huynh được xem bất kỳ lúc nào trong giờ hành chính, hay chỉ khi có sự việc cụ thể? trong giờ hành chính
+5. "Cư dân tòa nhà" là tòa nào: Hongkong Tower (cơ sở Chùa Láng) và FLC Complex (cơ sở Mỹ Đình)
+6. Dữ kiện giữ từ dữ liệu cũ (Bảo lưu tối thiểu 1 tháng, tối đa 6 tháng. Đóng phí trong 5 ngày làm việc đầu quý, quá hạn có phí nộp muộn. Báo nghỉ trước 7:00 sáng (qua LittleLives hoặc email) thì tiền ăn ngày nghỉ được trừ vào quý sau. Nhập học giữa tháng thì học phí tháng đầu tính theo số ngày đi học thực tế.) — các điểm này còn đúng không? bổ sung thêm nhập học giữa tháng tiền đầu kỳ như phí phát triển trường, học liệu và hoạt động ngoại khóa sẽ thu tròn theo tháng bé nhập học tới hết tháng 6 của năm học. Nhà trường sẽ thu tròn năm/khoản vào tháng 7 hàng năm
+7. Số năm hoạt động: Hơn 10 năm
+
 ## 3. Cách bot áp dụng
 
 - Nhận bé từ 15 tháng, đã đi vững.
 - Học phí: không nêu con số, không gửi bảng phí trên chat. Hỏi tuổi bé + cơ sở, kể giá trị trước, rồi xin SĐT/Zalo để tư vấn viên tư vấn/gửi bảng phí. Phụ huynh không cho số mà vẫn muốn biết → chuyển nhân viên trả lời trực tiếp (`[ESCALATE]`).
+- Kỳ đóng học phí (mục 2d, D3): không đóng theo tháng; kỳ ngắn nhất là quý. Kỳ 6 tháng / 12 tháng của chính sách hoàn phí vẫn giữ (cách hiểu của lead, chờ trường xác nhận: `docs/dot-4-can-bo-sung.md`, mục D). Hỏi "đóng theo tháng được không" → không, tối thiểu theo quý.
+- Khoản đầu kỳ (mục 2d, D6): phí phát triển trường, phí học liệu và hoạt động ngoại khóa thu tròn năm vào tháng 7 hằng năm; bé nhập học giữa năm học thì thu tròn theo tháng, từ tháng bé nhập học tới hết tháng 6 của năm học. Học phí tháng đầu vẫn tính theo số ngày đi học thực tế. Không nêu số tiền.
 - Ưu đãi theo kỳ đóng và khuyến mãi: xin SĐT trước; không cho số → chỉ nói "ưu đãi hấp dẫn, tùy từng đợt/chương trình", không nêu %.
 - Ưu đãi anh chị em ruột / cư dân tòa nhà: nói là có, xin SĐT; không cho số → hỏi cơ sở rồi nêu đúng chính sách cơ sở đó:
-  - Hệ Quốc tế (Mỹ Đình, Chùa Láng): bé thứ 2 giảm 10% tới khi anh/em ra trường; cư dân tòa nhà giảm thêm 5% tới khi ra trường.
+  - Hệ Quốc tế (Mỹ Đình, Chùa Láng): bé thứ 2 giảm 10% tới khi anh/em ra trường; cư dân tòa nhà giảm thêm 5% tới khi ra trường. Cư dân tòa nhà là cư dân tòa Hongkong Tower (cơ sở Chùa Láng) và tòa FLC Complex (cơ sở Mỹ Đình) (mục 2d, D5).
   - Hệ Song ngữ (Kim Mã): bé thứ 2 giảm 5% tới khi anh/em ra trường; không có chính sách cư dân.
 - Đồng phục: bắt buộc theo quy định; không nhắc voucher.
 - Đón muộn từ 17h30 có khung phí riêng; có gói trông muộn, trông sớm theo tháng. Không nêu số tiền.
 - Đón con: cô hỗ trợ dẫn bé xuống sảnh khi phụ huynh có việc gấp.
-- Diện tích lớp: Mỹ Đình 80–90 m²; Chùa Láng 90–100 m².
+- Diện tích lớp: Mỹ Đình 80–90 m²; Chùa Láng 90–100 m²; Kim Mã là không gian biệt thự sân vườn xanh mát, mỗi tầng là 1 lớp học rộng 80 m², rất thoáng cho bé (mục 2d, D1). Câu trả lời về diện tích lớp nêu đủ 3 cơ sở.
+- Camera (mục 2d, D4): không xem trực tiếp trên điện thoại; phụ huynh đến văn phòng trường xem camera bất kỳ lúc nào trong giờ hành chính, không cần có sự việc cụ thể.
+- Số năm (mục 2d, D7): Casa / nền tảng Montessori của trường "hơn 10 năm" (không dùng "gần 10 năm"). Số năm kinh nghiệm của từng giáo viên giữ nguyên.
 - Dã ngoại: 6 chuyến/năm.
 - Chương trình: 3–6 tuổi học Cambridge Early Years là khung chính, Montessori là phương pháp và giáo cụ bổ trợ; 15 tháng–3 tuổi xây nền tảng qua Montessori, làm quen tiếng Anh với giáo viên nước ngoài.
   - Cambridge theo hệ (mục 2c): hệ Quốc tế (Chùa Láng, Mỹ Đình) học trọn 3 môn English, Mathematics, Let's Explore (khám phá khoa học, thế giới xung quanh); hệ Song ngữ Kim Mã học Cambridge 1 môn English. Không nói Kim Mã học Mathematics hay Let's Explore; câu trả lời chung về chương trình nêu rõ khác biệt này. Tên môn dùng "Let's Explore", không dùng "Understanding the World".
+  - Kim Mã (mục 2d, D2): ngoài Cambridge môn English, các con tiếp tục học theo phương pháp Montessori, phát triển theo 5 lĩnh vực của phương pháp, gồm toán, tiếng Việt, thực hành cuộc sống, giác quan…; ngoài ra có các chương trình ngoại khóa phong phú. Chỉ nêu các lĩnh vực trường đã kể, không tự thêm lĩnh vực thứ 5 (chờ trường: `docs/dot-4-can-bo-sung.md`, mục D).
 - Bỏ toàn bộ nội dung workshop của cô Phan Thúy (sheet "Workshop" trong kịch bản). Câu trả lời về sự kiện chung của trường (Family Day, workshop, lễ hội…) vẫn giữ — chờ trường xác nhận (docs/dot-3-can-bo-sung.md, mục C6).
 - Xe bus: hiện Nhà trường chưa có tuyến xe bus; khi đủ phụ huynh đăng ký, Nhà trường sẽ mở tuyến. Bot mời để lại khu vực nhà + SĐT/Zalo để ghi nhận nhu cầu.
 - Khi phụ huynh chê đắt (CARE): không gợi ý hệ/cơ sở khác như phương án rẻ hơn; nêu giá trị khác biệt và mời học thử/tham quan.
-- Câu hỏi gợi ý, nút trả lời nhanh, mẫu tin nhắc lại: theo mục 2b. Tin nhắc lại vẫn tắt.
+- Câu hỏi gợi ý, nút trả lời nhanh: theo mục 2b. Mẫu tin nhắc lại: nguyên văn mục 2d. Tin nhắc lại vẫn tắt.
 - Chọn mẫu tin nhắc lại (`app/followup.py`), theo thứ tự:
   1. Đã tư vấn tương đối đủ (mục 2c.3) → mẫu 3 (mời tham quan). Điều kiện 1 = bot đã biết tuổi bé **và** cơ sở phụ huynh quan tâm (chỉ biết khu vực nhà thì chưa đủ). Điều kiện 2–6 = câu bot đã gửi có nói tới: trường/cơ sở (địa chỉ), chương trình học, ngoại khóa, thực đơn/dinh dưỡng, học thử 1 tuần miễn phí, cơ sở vật chất/không gian lớp, và lời mời tham quan (`app/coverage.py` dò trên câu bot gửi, lưu ở `topics_covered`).
-  2. Chưa biết tuổi bé → mẫu 1 (hỏi tuổi), kể cả khi phụ huynh đã từ chối để lại số (mẫu 1 không xin số).
-  3. Đã biết tuổi, phụ huynh đã từ chối để lại số, chưa tư vấn đủ → mẫu 3 (mẫu duy nhất không xin số; lựa chọn của người vận hành, chờ trường xác nhận).
-  4. Còn lại → mẫu 2 (xin SĐT/Zalo).
+  2. Chưa biết tuổi bé → mẫu 1 (hỏi tuổi).
+  3. Còn lại (đã biết tuổi, chưa có SĐT, chưa tư vấn đủ) → mẫu 2 (xin SĐT/Zalo), kể cả khi phụ huynh đã từ chối để lại số — theo nhãn mẫu của trường (mục 2d).
+  Nguyên văn 3 mẫu: mục 2d (thay bản ở mục 2b.c).
 - SĐT: nhận cả số thiếu số 0 đầu, viết tách lạ, số nước ngoài.
 - Thực đơn mẫu: gửi thẳng cho phụ huynh ảnh `static/thuc-don-mau.jpg` (trường `images` của cặp Q&A thực đơn chung; JPG chuyển từ ảnh trường gửi để Messenger nhận chắc chắn). Món ví dụ trong câu trả lời lấy đúng từ ảnh (thứ Hai), không thêm món ngoài ảnh; 5 bữa: sáng, nhẹ sáng, trưa, chiều, phụ chiều.
 - Không hỏi thẳng ngân sách; có thể hỏi gia đình cân nhắc hệ Quốc tế hay Song ngữ.
@@ -90,17 +116,24 @@ f. có nới
   1. Hệ Quốc tế Chùa Láng: Tầng 1+2 Sảnh A1 tòa Hongkong Tower, 185 Huỳnh Thúc Kháng, phường Láng, Hà Nội
   2. Hệ Quốc tế Mỹ Đình: Tầng 3 FLC Complex, 36 Phạm Hùng, phường Từ Liêm, Hà Nội
   3. Hệ Song ngữ Kim Mã: 23 ngõ 294 Kim Mã, phường Ngọc Hà, Hà Nội
+- Casa hoạt động hơn 10 năm.
+- Cơ sở Kim Mã: không gian biệt thự sân vườn xanh mát, mỗi tầng là 1 lớp học rộng 80 m².
 - Hệ Quốc tế: giáo viên nước ngoài đồng hành cả ngày 8h30–17h00. Hệ Song ngữ: 1 giáo viên nước ngoài tại cơ sở, lớp 0–3 tuổi ~1–1,5 giờ/ngày, lớp 3–6 tuổi ~2–2,5 giờ/ngày.
+- Kim Mã: Cambridge môn English + phương pháp Montessori (toán, tiếng Việt, thực hành cuộc sống, giác quan…) + ngoại khóa phong phú.
 - Giờ đón chuẩn 17h30.
 - Khai giảng chính thức 05/09 hằng năm; nhận hồ sơ và nhập học quanh năm.
 - Tặng 1 tuần học thử hoàn toàn miễn phí.
 - Cam kết không tăng học phí trong suốt thời gian con theo học.
+- Học phí không đóng theo tháng; kỳ đóng: quý (ngắn nhất), 6 tháng, 12 tháng. Đóng trong 5 ngày làm việc đầu quý, quá hạn có phí nộp muộn.
+- Nhập học giữa tháng: học phí tháng đầu tính theo số ngày đi học thực tế. Khoản đầu kỳ (phí phát triển trường, phí học liệu và hoạt động ngoại khóa): thu tròn năm vào tháng 7 hằng năm; nhập học giữa năm học thì thu tròn theo tháng, từ tháng bé nhập học tới hết tháng 6.
+- Báo nghỉ trước 7:00 sáng (LittleLives hoặc email) → tiền ăn ngày nghỉ trừ vào quý sau.
+- Ưu đãi cư dân tòa nhà (hệ Quốc tế): cư dân tòa Hongkong Tower (Chùa Láng) và FLC Complex (Mỹ Đình); Kim Mã không có.
 - Đại sứ Casa: giới thiệu thành công 1 gia đình học tại Chùa Láng hoặc Mỹ Đình → voucher 3.000.000đ.
-- Bảo lưu: báo trước 30 ngày; không áp dụng tháng Tết và tháng hè; đã đóng hết học phí thì phí bảo lưu 3.000.000đ, trừ lại khi con quay lại; còn dư học phí thì không cần đóng.
+- Bảo lưu: báo trước 30 ngày; tối thiểu 1 tháng, tối đa 6 tháng; không áp dụng tháng Tết và tháng hè; đã đóng hết học phí thì phí bảo lưu 3.000.000đ, trừ lại khi con quay lại; còn dư học phí thì không cần đóng.
 - Nghỉ giữa chừng (báo trước 30 ngày): hoàn 60% (đóng theo quý), 70% (6 tháng), 80% (12 tháng) phần học phí cơ bản còn lại.
 - Nghỉ ốm từ 30 ngày, có giấy xác nhận y tế → hoàn 70% học phí tương ứng.
 - Tỷ lệ cô – trò: lớp 0–3 tuổi 4 cô / 23–25 bé; lớp 3–6 tuổi 3 cô / 25–27 bé.
-- Camera: không xem trực tiếp trên điện thoại; xem tại văn phòng theo quy trình; cập nhật hằng ngày qua LittleLives.
+- Camera: không xem trực tiếp trên điện thoại; phụ huynh xem tại văn phòng trường bất kỳ lúc nào trong giờ hành chính; cập nhật hằng ngày qua LittleLives.
 
 ## 5. 7 nguyên tắc tư vấn (từ kịch bản)
 

@@ -276,6 +276,12 @@ def test_cambridge_subjects_are_taught_per_system():
             assert "Mathematics" not in clause and "Let's Explore" not in clause, clause
 
 
+def test_kim_ma_is_not_taught_as_english_only():
+    # Phản hồi đợt 5 (D2): ngoài Cambridge môn English, Kim Mã tiếp tục học toán, tiếng Việt… theo Montessori.
+    assert "Kim Mã chỉ học" not in SYSTEM_PROMPT
+    assert re.search(r"Kim Mã[^.;\n]{0,40}English[^.;\n]{0,10}toán[^.;\n]{0,20}Montessori", SYSTEM_PROMPT)
+
+
 def test_system_prompt_instructions_stay_compact():
     instructions = SYSTEM_PROMPT.replace("{qa_context}", "")
     assert len(instructions) <= 10_000, len(instructions)

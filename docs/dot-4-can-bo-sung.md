@@ -26,7 +26,7 @@ Bảo mật:
 ## C. Quyết định của trường
 
 1. [x] ~~**Mẫu tin nhắc lại thứ 3**: "tư vấn tương đối đủ" nghĩa là gì?~~ Đã làm theo 6 điều kiện của trường (`docs/quyet-dinh-noi-dung.md`, mục 2c và 3).
-   - [ ] Cần xác nhận: phụ huynh đã cho biết tuổi, **từ chối để lại SĐT** nhưng bot **chưa tư vấn đủ** → hiện vẫn gửi mẫu 3 (mẫu duy nhất không xin số). Giữ, hay không gửi tin nhắc nào?
+   - [x] ~~Ca từ chối để lại SĐT~~: trường gửi lại 3 mẫu kèm nhãn (đợt 5) → chọn theo nhãn: chưa biết tuổi → mẫu 1; đã biết tuổi, chưa có SĐT, chưa tư vấn đủ → mẫu 2 (kể cả đã từ chối để số); tư vấn đủ → mẫu 3.
 2. [ ] **Bật tin nhắc lại** khi nào? (Hiện TẮT.) Trước khi bật: đăng ký `message_echoes` và tắt Instant Reply/Away message của Page.
 3. [x] ~~SĐT nước ngoài viết kèm số 0 sau mã nước~~ (vd "+886 0912 345 678"): đã sửa, bot lưu nguyên số nước ngoài, không còn nhận nhầm thành số Việt Nam.
 4. [ ] **SĐT theo đầu số cũ** (`01x…` 11 số, máy bàn `04…`) không còn được nhận vì đã đổi đầu số từ 2018. Có cần nhận không?
@@ -34,13 +34,15 @@ Bảo mật:
 ## D. Dữ kiện cần trường xác nhận
 
 - [x] ~~Kim Mã có học Cambridge Early Years không?~~ Có, 1 môn English; hệ Quốc tế học đủ 3 môn (`docs/quyet-dinh-noi-dung.md`, mục 2c).
-- [ ] Diện tích lớp ở Kim Mã?
-- [ ] Kim Mã học Cambridge môn English; còn toán và khám phá khoa học ở Kim Mã học theo khung/phương pháp nào? (Phụ huynh hỏi kỹ thì bot chưa có thông tin.)
-- [ ] Có cho đóng học phí theo tháng không (hiện chỉ biết quý / 6 tháng / 12 tháng)?
-- [ ] Camera: xem tại văn phòng "bất kỳ lúc nào trong giờ hành chính" hay "khi có sự việc cụ thể, theo quy trình"?
-- [ ] "Cư dân tòa nhà" là cư dân tòa nào (Hongkong Tower, FLC…)?
-- [ ] Dữ kiện giữ từ dữ liệu cũ: bảo lưu tối thiểu 1 – tối đa 6 tháng; hạn đóng phí 5 ngày làm việc đầu quý; báo nghỉ trước 7:00 để trừ tiền ăn; nhập học giữa tháng tính theo ngày.
-- [ ] Số năm hoạt động: "gần 10 năm" hay "hơn 10 năm"?
+- [x] ~~Diện tích lớp ở Kim Mã?~~ Biệt thự sân vườn xanh mát, mỗi tầng là 1 lớp học rộng 80 m² (`docs/quyet-dinh-noi-dung.md`, mục 2d).
+- [x] ~~Toán và khám phá khoa học ở Kim Mã học theo khung/phương pháp nào?~~ Tiếp tục học theo phương pháp Montessori (toán, tiếng Việt, thực hành cuộc sống, giác quan…), cộng ngoại khóa phong phú.
+- [x] ~~Có cho đóng học phí theo tháng không?~~ Không; kỳ ngắn nhất là quý.
+- [x] ~~Camera: xem tại văn phòng lúc nào?~~ Bất kỳ lúc nào trong giờ hành chính.
+- [x] ~~"Cư dân tòa nhà" là cư dân tòa nào?~~ Hongkong Tower (cơ sở Chùa Láng) và FLC Complex (cơ sở Mỹ Đình).
+- [x] ~~Dữ kiện giữ từ dữ liệu cũ~~: vẫn đúng; bổ sung khoản đầu kỳ (phí phát triển trường, phí học liệu và hoạt động ngoại khóa) thu tròn năm vào tháng 7, nhập học giữa năm thì thu tròn theo tháng tới hết tháng 6.
+- [x] ~~Số năm hoạt động?~~ "Hơn 10 năm".
+- [ ] Lĩnh vực thứ 5 của Montessori ở Kim Mã là gì (trường kể toán, tiếng Việt, thực hành cuộc sống, giác quan…)?
+- [ ] Học phí: còn cho đóng theo 6 tháng / 12 tháng không, hay chỉ theo quý? (Trường trả lời "tất cả đều thu theo quý"; bot hiện vẫn nói kỳ quý / 6 tháng / 12 tháng như chính sách hoàn phí.)
 
 ## E. Kỹ thuật
 

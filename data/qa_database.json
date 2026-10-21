@@ -108,9 +108,10 @@
       "questions": [
         "Có xem được đánh giá/feedback từ phụ huynh khác không ạ?",
         "Phụ huynh khác đánh giá trường thế nào?",
-        "Trường có uy tín không?"
+        "Trường có uy tín không?",
+        "Trường hoạt động được bao lâu rồi?"
       ],
-      "answer": "Casa đã đồng hành cùng nhiều gia đình qua nhiều năm. Cách có cái nhìn chân thực nhất là đến tham quan trực tiếp, gặp thầy cô và các bé đang học tại trường, hoặc để con trải nghiệm 1 tuần học thử miễn phí.",
+      "answer": "Casa đã đồng hành cùng nhiều gia đình qua hơn 10 năm hoạt động. Cách có cái nhìn chân thực nhất là đến tham quan trực tiếp, gặp thầy cô và các bé đang học tại trường, hoặc để con trải nghiệm 1 tuần học thử miễn phí.",
       "keywords": [
         "đánh giá",
         "feedback",
@@ -128,7 +129,7 @@
         "Kim Mã có học Cambridge không?",
         "Hệ Song ngữ có học Cambridge không?"
       ],
-      "answer": "Với trẻ 3–6 tuổi, Casa triển khai Cambridge Early Years là khung chương trình chính, đồng thời dùng phương pháp và giáo cụ Montessori để bổ trợ, tăng trải nghiệm thực hành và hỗ trợ trẻ theo nhịp độ riêng. Mức học Cambridge khác nhau theo hệ: hệ Quốc tế (Chùa Láng, Mỹ Đình) học trọn chương trình với 3 môn English, Mathematics, Let's Explore (khám phá khoa học và thế giới xung quanh), bao phủ đủ 6 lĩnh vực phát triển của Cambridge Early Years; hệ Song ngữ Kim Mã học Cambridge Early Years 1 môn English. Với trẻ 15 tháng–3 tuổi, các con chưa học Cambridge mà được xây nền tảng qua Montessori và các hoạt động phát triển ngôn ngữ, giác quan, vận động, tự lập, xã hội – cảm xúc.",
+      "answer": "Với trẻ 3–6 tuổi, Casa triển khai Cambridge Early Years là khung chương trình chính, đồng thời dùng phương pháp và giáo cụ Montessori để bổ trợ, tăng trải nghiệm thực hành và hỗ trợ trẻ theo nhịp độ riêng. Mức học Cambridge khác nhau theo hệ: hệ Quốc tế (Chùa Láng, Mỹ Đình) học trọn chương trình với 3 môn English, Mathematics, Let's Explore (khám phá khoa học và thế giới xung quanh), bao phủ đủ 6 lĩnh vực phát triển của Cambridge Early Years; hệ Song ngữ Kim Mã học Cambridge Early Years 1 môn English. Bên cạnh môn English, các con tiếp tục học theo phương pháp Montessori, phát triển theo 5 lĩnh vực của phương pháp, gồm toán, tiếng Việt, thực hành cuộc sống, giác quan… Với trẻ 15 tháng–3 tuổi, các con chưa học Cambridge mà được xây nền tảng qua Montessori và các hoạt động phát triển ngôn ngữ, giác quan, vận động, tự lập, xã hội – cảm xúc.",
       "keywords": [
         "chương trình học",
         "Cambridge Early Years",
@@ -137,6 +138,41 @@
         "3–6 tuổi",
         "Kim Mã",
         "hệ Quốc tế"
+      ]
+    },
+    {
+      "category": "Chương trình học",
+      "questions": [
+        "Kim Mã học toán như thế nào?",
+        "Hệ Song ngữ học những gì ngoài tiếng Anh?",
+        "Chương trình học ở cơ sở Kim Mã như thế nào?",
+        "Kim Mã có học theo Montessori không?"
+      ],
+      "answer": "Ở hệ Song ngữ Kim Mã, trẻ 3–6 tuổi học Cambridge Early Years môn English. Bên cạnh môn English, các con tiếp tục học theo phương pháp Montessori, phát triển theo 5 lĩnh vực của phương pháp, gồm toán, tiếng Việt, thực hành cuộc sống, giác quan… Trẻ dưới 3 tuổi chưa học Cambridge mà được xây nền tảng qua Montessori và làm quen tiếng Anh với giáo viên nước ngoài. Ngoài ra, các con có các chương trình ngoại khóa phong phú.",
+      "keywords": [
+        "Kim Mã",
+        "hệ Song ngữ",
+        "Montessori",
+        "toán",
+        "tiếng Việt",
+        "thực hành cuộc sống",
+        "giác quan"
+      ]
+    },
+    {
+      "category": "Chương trình học",
+      "questions": [
+        "5 lĩnh vực Montessori là những gì?",
+        "5 lĩnh vực đó gồm những gì?"
+      ],
+      "answer": "Theo phương pháp Montessori, các con phát triển theo 5 lĩnh vực của phương pháp, gồm toán, tiếng Việt, thực hành cuộc sống, giác quan… Tư vấn viên của Casa sẽ giới thiệu chi tiết chương trình theo độ tuổi của bé khi phụ huynh để lại SĐT/Zalo, hoặc phụ huynh có thể đến tham quan trường để trực tiếp xem các con học với giáo cụ Montessori.",
+      "keywords": [
+        "Montessori",
+        "5 lĩnh vực",
+        "toán",
+        "tiếng Việt",
+        "thực hành cuộc sống",
+        "giác quan"
       ]
     },
     {
@@ -161,7 +197,7 @@
         "Casa có những lĩnh vực học tập nào?",
         "Con học những môn gì ở trường?"
       ],
-      "answer": "Môn học Cambridge khác nhau theo hệ. Hệ Quốc tế (Chùa Láng, Mỹ Đình) học trọn 3 môn English, Mathematics và Let's Explore: English gồm nghe, nói, giao tiếp, phonics và nền tảng đọc viết; Mathematics gồm số lượng, hình dạng, không gian, đo lường, dữ liệu và tư duy toán học; Let's Explore là khám phá khoa học, công nghệ, con người, thời gian và môi trường xung quanh. Qua các hoạt động trong ngày, trẻ hệ Quốc tế đồng thời phát triển đủ 6 lĩnh vực của Cambridge Early Years, gồm cả Creative Expression, Physical Development và Personal, Social & Emotional Development. Hệ Song ngữ Kim Mã học Cambridge môn English, kết hợp phương pháp và giáo cụ Montessori.",
+      "answer": "Môn học Cambridge (dành cho trẻ 3–6 tuổi) khác nhau theo hệ. Hệ Quốc tế (Chùa Láng, Mỹ Đình) học trọn 3 môn English, Mathematics và Let's Explore: English gồm nghe, nói, giao tiếp, phonics và nền tảng đọc viết; Mathematics gồm số lượng, hình dạng, không gian, đo lường, dữ liệu và tư duy toán học; Let's Explore là khám phá khoa học, công nghệ, con người, thời gian và môi trường xung quanh. Qua các hoạt động trong ngày, trẻ hệ Quốc tế đồng thời phát triển đủ 6 lĩnh vực của Cambridge Early Years, gồm cả Creative Expression, Physical Development và Personal, Social & Emotional Development. Hệ Song ngữ Kim Mã học Cambridge môn English. Bên cạnh đó, các con tiếp tục học theo phương pháp Montessori, phát triển theo 5 lĩnh vực của phương pháp, gồm toán, tiếng Việt, thực hành cuộc sống, giác quan… Trẻ 15 tháng–3 tuổi chưa học Cambridge mà được xây nền tảng qua Montessori.",
       "keywords": [
         "English",
         "Mathematics",
@@ -179,7 +215,7 @@
         "Điểm khác biệt của chương trình tiếng Anh Casa là gì?",
         "Sao nên chọn Casa?"
       ],
-      "answer": "Casa tập trung 3 điểm: (1) Cambridge Early Years: hệ Quốc tế học trọn chương trình 3 môn English, Mathematics, Let's Explore; hệ Song ngữ Kim Mã học Cambridge môn English. (2) Môi trường tiếng Anh thường xuyên: ở hệ Quốc tế, giáo viên nước ngoài toàn thời gian giúp tiếng Anh hiện diện tự nhiên trong nhiều hoạt động trong ngày. (3) Cá nhân hóa trên nền tảng Montessori: bên cạnh giờ học chung, trẻ có thời gian làm việc cá nhân và nhóm nhỏ để giáo viên quan sát, hỗ trợ theo khả năng và nhịp độ của từng trẻ.",
+      "answer": "Casa tập trung 3 điểm: (1) Cambridge Early Years cho trẻ 3–6 tuổi: hệ Quốc tế học trọn chương trình 3 môn English, Mathematics, Let's Explore; hệ Song ngữ Kim Mã học Cambridge môn English. (2) Môi trường tiếng Anh thường xuyên: ở hệ Quốc tế, giáo viên nước ngoài toàn thời gian giúp tiếng Anh hiện diện tự nhiên trong nhiều hoạt động trong ngày. (3) Cá nhân hóa trên nền tảng Montessori: bên cạnh giờ học chung, trẻ có thời gian làm việc cá nhân và nhóm nhỏ để giáo viên quan sát, hỗ trợ theo khả năng và nhịp độ của từng trẻ.",
       "keywords": [
         "khác biệt",
         "Cambridge",
@@ -196,7 +232,7 @@
         "Phương pháp Montessori tại Casa được triển khai theo tinh thần nào?",
         "Casa có phải trường Montessori không?"
       ],
-      "answer": "Có. Cambridge Early Years là khung chương trình chính cho trẻ 3–6 tuổi; Montessori được Casa sử dụng để bổ trợ về phương pháp, giáo cụ và cách tổ chức trải nghiệm học tập. Nền tảng gần 10 năm Montessori giúp trẻ có nhiều cơ hội thao tác với vật thật, tự trải nghiệm, làm việc độc lập và học theo nhịp độ phù hợp; đây cũng là cơ sở để giáo viên quan sát và hỗ trợ từng trẻ tốt hơn. Trẻ 15 tháng–3 tuổi được xây nền tảng thông qua Montessori và các trải nghiệm phù hợp lứa tuổi.",
+      "answer": "Có. Cambridge Early Years là khung chương trình chính cho trẻ 3–6 tuổi; Montessori được Casa sử dụng để bổ trợ về phương pháp, giáo cụ và cách tổ chức trải nghiệm học tập. Nền tảng hơn 10 năm Montessori giúp trẻ có nhiều cơ hội thao tác với vật thật, tự trải nghiệm, làm việc độc lập và học theo nhịp độ phù hợp; đây cũng là cơ sở để giáo viên quan sát và hỗ trợ từng trẻ tốt hơn. Trẻ 15 tháng–3 tuổi được xây nền tảng thông qua Montessori và các trải nghiệm phù hợp lứa tuổi.",
       "keywords": [
         "Montessori",
         "giáo cụ",
@@ -393,7 +429,7 @@
         "Sự khác nhau giữa hệ Song ngữ và hệ Quốc tế là gì?",
         "Nên chọn hệ Quốc tế hay Song ngữ?"
       ],
-      "answer": "Hệ Quốc tế (cơ sở Chùa Láng, Mỹ Đình): giáo viên nước ngoài đồng hành cả ngày từ 8h30–17h00, không chỉ dạy mà còn cùng ăn, cùng chơi, cùng sinh hoạt với con, nên con tiếp xúc tiếng Anh tự nhiên như ngôn ngữ hằng ngày chứ không chỉ theo tiết. Hệ Song ngữ (cơ sở Kim Mã): có 1 giáo viên nước ngoài tại cơ sở, dạy theo khung giờ cố định: lớp dưới 3 tuổi khoảng 1–1,5 giờ/ngày, lớp 3–6 tuổi khoảng 2–2,5 giờ/ngày. Về chương trình, hệ Quốc tế học trọn Cambridge Early Years 3 môn English, Mathematics, Let's Explore; hệ Song ngữ Kim Mã học Cambridge môn English. Hệ phù hợp tùy mục tiêu tiếng Anh và điều kiện của gia đình.",
+      "answer": "Hệ Quốc tế (cơ sở Chùa Láng, Mỹ Đình): giáo viên nước ngoài đồng hành cả ngày từ 8h30–17h00, không chỉ dạy mà còn cùng ăn, cùng chơi, cùng sinh hoạt với con, nên con tiếp xúc tiếng Anh tự nhiên như ngôn ngữ hằng ngày chứ không chỉ theo tiết. Hệ Song ngữ (cơ sở Kim Mã): có 1 giáo viên nước ngoài tại cơ sở, dạy theo khung giờ cố định: lớp dưới 3 tuổi khoảng 1–1,5 giờ/ngày, lớp 3–6 tuổi khoảng 2–2,5 giờ/ngày. Về chương trình, với trẻ 3–6 tuổi, hệ Quốc tế học trọn Cambridge Early Years 3 môn English, Mathematics, Let's Explore; hệ Song ngữ Kim Mã học Cambridge môn English và tiếp tục học theo phương pháp Montessori. Hệ phù hợp tùy mục tiêu tiếng Anh và điều kiện của gia đình.",
       "keywords": [
         "hệ Quốc tế",
         "hệ Song ngữ",
@@ -696,7 +732,7 @@
         "Trường có camera không? Phụ huynh có thể xem camera trực tiếp không?",
         "Phụ huynh có được xem camera không?"
       ],
-      "answer": "Trường có hệ thống camera phục vụ quản lý và đảm bảo an toàn cho các con. Để bảo vệ quyền riêng tư của học sinh và giáo viên, Casa không mở camera xem trực tiếp trên điện thoại cá nhân của phụ huynh (kể cả hệ Quốc tế). Khi cần kiểm tra một sự việc cụ thể, phụ huynh đến văn phòng trường trong giờ hành chính để xem camera theo quy trình. Hằng ngày, giáo viên cập nhật hình ảnh, sinh hoạt và học tập của con qua ứng dụng LittleLives, cũng là kênh trao đổi chính thức giữa gia đình và nhà trường.",
+      "answer": "Trường có hệ thống camera phục vụ quản lý và đảm bảo an toàn cho các con. Để bảo vệ quyền riêng tư của học sinh và giáo viên, Casa không mở camera xem trực tiếp trên điện thoại cá nhân của phụ huynh (kể cả hệ Quốc tế). Phụ huynh có thể đến văn phòng trường để xem camera bất kỳ lúc nào trong giờ hành chính. Hằng ngày, giáo viên cập nhật hình ảnh, sinh hoạt và học tập của con qua ứng dụng LittleLives, cũng là kênh trao đổi chính thức giữa gia đình và nhà trường.",
       "keywords": [
         "camera",
         "xem camera",
@@ -803,7 +839,7 @@
         "Học phí hệ Quốc tế bao nhiêu?",
         "Học phí cơ sở Kim Mã bao nhiêu?"
       ],
-      "answer": "Học phí khác nhau theo hệ/cơ sở (hệ Quốc tế Chùa Láng, Mỹ Đình; hệ Song ngữ Kim Mã) và độ tuổi của bé (nhóm 15 tháng–3 tuổi, nhóm 3–6 tuổi), nên cần biết tuổi bé và cơ sở gia đình quan tâm để báo đúng mức phí. Học phí đi kèm các giá trị: giáo viên nước ngoài toàn thời gian ở hệ Quốc tế, chương trình Cambridge Early Years kết hợp Montessori, cam kết không tăng học phí trong suốt thời gian con theo học. Bảng phí chi tiết do tư vấn viên gửi khi phụ huynh để lại SĐT/Zalo.",
+      "answer": "Học phí khác nhau theo hệ/cơ sở (hệ Quốc tế Chùa Láng, Mỹ Đình; hệ Song ngữ Kim Mã) và độ tuổi của bé (nhóm 15 tháng–3 tuổi, nhóm 3–6 tuổi), nên cần biết tuổi bé và cơ sở gia đình quan tâm để báo đúng mức phí. Học phí đi kèm các giá trị: giáo viên nước ngoài toàn thời gian ở hệ Quốc tế, chương trình Cambridge Early Years cho trẻ 3–6 tuổi kết hợp Montessori, cam kết không tăng học phí trong suốt thời gian con theo học. Bảng phí chi tiết do tư vấn viên gửi khi phụ huynh để lại SĐT/Zalo.",
       "keywords": [
         "học phí",
         "bảng phí",
@@ -837,9 +873,11 @@
         "Ưu đãi học phí của hệ Quốc tế là gì?",
         "Ưu đãi học phí của hệ Song ngữ là gì?",
         "Hai anh em cùng học có được giảm không?",
-        "Cư dân tòa nhà có được ưu đãi không?"
+        "Cư dân tòa nhà có được ưu đãi không?",
+        "Ưu đãi cư dân áp dụng cho tòa nào?",
+        "Nhà em ở Hongkong Tower hoặc FLC có được ưu đãi cư dân không?"
       ],
-      "answer": "Ưu đãi khi đóng theo kỳ tùy từng chương trình/đợt. Ưu đãi anh/chị/em ruột và cư dân tòa nhà khác nhau theo cơ sở. Hệ Quốc tế (Mỹ Đình, Chùa Láng): bé thứ 2 giảm 10% khi 2 anh/chị/em ruột cùng theo học, áp dụng tới khi anh/em ra trường; cư dân tòa nhà được giảm thêm 5% tới khi ra trường. Hệ Song ngữ Kim Mã: bé thứ 2 giảm 5% khi 2 anh/chị/em ruột cùng theo học, tới khi anh/em ra trường. Cơ sở Kim Mã không áp dụng ưu đãi cư dân tòa nhà.",
+      "answer": "Ưu đãi khi đóng theo kỳ tùy từng chương trình/đợt. Ưu đãi anh/chị/em ruột và cư dân tòa nhà khác nhau theo cơ sở. Hệ Quốc tế (Mỹ Đình, Chùa Láng): bé thứ 2 giảm 10% khi 2 anh/chị/em ruột cùng theo học, áp dụng tới khi anh/em ra trường; cư dân tòa nhà được giảm thêm 5% tới khi ra trường, áp dụng cho cư dân tòa Hongkong Tower (cơ sở Chùa Láng) và tòa FLC Complex (cơ sở Mỹ Đình). Hệ Song ngữ Kim Mã: bé thứ 2 giảm 5% khi 2 anh/chị/em ruột cùng theo học, tới khi anh/em ra trường. Cơ sở Kim Mã không áp dụng ưu đãi cư dân tòa nhà.",
       "keywords": [
         "anh chị em ruột",
         "bé thứ 2",
@@ -908,9 +946,11 @@
       "category": "Học phí & ưu đãi",
       "questions": [
         "Thời hạn thanh toán học phí như thế nào?",
-        "Học phí đóng theo tháng hay theo quý?"
+        "Học phí đóng theo tháng hay theo quý?",
+        "Có đóng học phí theo tháng được không?",
+        "Đóng học phí hằng tháng được không ạ?"
       ],
-      "answer": "Học phí đóng theo kỳ: quý, 6 tháng hoặc 12 tháng. Biểu học phí thường được gửi vào đầu quý; phụ huynh thanh toán trong 5 ngày làm việc đầu tiên của quý hoặc trong vòng 5 ngày kể từ khi nhận thông báo, quá hạn sẽ áp dụng phí nộp muộn theo chính sách.",
+      "answer": "Nhà trường không thu học phí theo tháng; học phí đóng theo kỳ, ngắn nhất là theo quý: quý, 6 tháng hoặc 12 tháng. Biểu học phí thường được gửi vào đầu quý; phụ huynh thanh toán trong 5 ngày làm việc đầu tiên của quý hoặc trong vòng 5 ngày kể từ khi nhận thông báo, quá hạn sẽ áp dụng phí nộp muộn theo chính sách.",
       "keywords": [
         "thanh toán",
         "thời hạn",
@@ -925,11 +965,27 @@
         "Nếu bé nhập học giữa tháng thì học phí được tính thế nào?",
         "Vào học giữa tháng có phải đóng cả tháng không?"
       ],
-      "answer": "Nếu nhập học giữa tháng, học phí tháng đầu tiên được tính theo số ngày thực tế đi học; mức tính theo ngày khác nhau tùy hệ đào tạo và độ tuổi.",
+      "answer": "Nếu nhập học giữa tháng, học phí tháng đầu tiên được tính theo số ngày thực tế đi học; mức tính theo ngày khác nhau tùy hệ đào tạo và độ tuổi. Riêng các khoản đầu kỳ (phí phát triển trường, phí học liệu và hoạt động ngoại khóa) được thu tròn theo tháng, tính từ tháng bé nhập học tới hết tháng 6 của năm học; nhà trường thu tròn năm các khoản này vào tháng 7 hằng năm.",
       "keywords": [
         "nhập học giữa tháng",
         "tính theo ngày",
         "tháng đầu"
+      ]
+    },
+    {
+      "category": "Học phí & ưu đãi",
+      "questions": [
+        "Nhập học giữa năm thì các khoản phí đầu kỳ tính thế nào?",
+        "Phí phát triển trường, phí học liệu thu vào lúc nào?",
+        "Vào học giữa năm có phải đóng cả năm phí phát triển trường không?"
+      ],
+      "answer": "Các khoản đầu kỳ (phí phát triển trường, phí học liệu và hoạt động ngoại khóa) được nhà trường thu tròn năm vào tháng 7 hằng năm. Nếu bé nhập học giữa năm học, các khoản này được thu tròn theo tháng, tính từ tháng bé nhập học tới hết tháng 6 của năm học. Mức cụ thể tùy hệ/cơ sở; tư vấn viên sẽ gửi chi tiết khi phụ huynh để lại SĐT/Zalo.",
+      "keywords": [
+        "phí đầu kỳ",
+        "phí phát triển trường",
+        "phí học liệu",
+        "nhập học giữa năm",
+        "tháng 7"
       ]
     },
     {
@@ -1171,9 +1227,10 @@
       "category": "Cơ sở vật chất",
       "questions": [
         "Diện tích lớp học của trường khoảng bao nhiêu m²?",
-        "Lớp học có rộng không?"
+        "Lớp học có rộng không?",
+        "Diện tích lớp ở Kim Mã bao nhiêu?"
       ],
-      "answer": "Các lớp học được thiết kế rộng rãi để các con học tập, vận động và tham gia hoạt động trong ngày. Tại cơ sở Chùa Láng, diện tích lớp học khoảng 90–100 m². Tại cơ sở Mỹ Đình, diện tích lớp học khoảng 80–90 m². Với cơ sở Kim Mã, phụ huynh có thể tham quan để xem không gian thực tế.",
+      "answer": "Các lớp học được thiết kế rộng rãi để các con học tập, vận động và tham gia hoạt động trong ngày. Tại cơ sở Chùa Láng, diện tích lớp học khoảng 90–100 m². Tại cơ sở Mỹ Đình, diện tích lớp học khoảng 80–90 m². Cơ sở Kim Mã là không gian biệt thự sân vườn xanh mát, mỗi tầng là 1 lớp học rộng 80 m², rất thoáng cho bé.",
       "keywords": [
         "diện tích",
         "lớp học",
@@ -1185,9 +1242,11 @@
       "category": "Cơ sở vật chất",
       "questions": [
         "Ba cơ sở Casa có cơ sở vật chất giống nhau hoàn toàn không?",
-        "Các cơ sở có giống nhau không?"
+        "Các cơ sở có giống nhau không?",
+        "Cơ sở vật chất ở Kim Mã như thế nào?",
+        "Cơ sở Kim Mã có rộng không?"
       ],
-      "answer": "Casa áp dụng tiêu chuẩn chung của hệ thống về môi trường giáo dục, an toàn, chương trình và chăm sóc trẻ, nhưng mỗi cơ sở có vị trí và mặt bằng khác nhau nên diện tích, thiết kế lớp học và một số khu chức năng không hoàn toàn giống nhau. Ví dụ, lớp học tại Chùa Láng khoảng 90–100 m²; tại Mỹ Đình (FLC) khoảng 80–90 m², có phòng Gym và thư viện. Cơ sở Kim Mã tổ chức không gian theo điều kiện thực tế của địa điểm.",
+      "answer": "Casa áp dụng tiêu chuẩn chung của hệ thống về môi trường giáo dục, an toàn, chương trình và chăm sóc trẻ, nhưng mỗi cơ sở có vị trí và mặt bằng khác nhau nên diện tích, thiết kế lớp học và một số khu chức năng không hoàn toàn giống nhau. Ví dụ, lớp học tại Chùa Láng khoảng 90–100 m²; tại Mỹ Đình (FLC) khoảng 80–90 m², có phòng Gym và thư viện. Cơ sở Kim Mã là không gian biệt thự sân vườn xanh mát, mỗi tầng là 1 lớp học rộng 80 m², rất thoáng cho bé.",
       "keywords": [
         "cơ sở vật chất",
         "so sánh cơ sở",

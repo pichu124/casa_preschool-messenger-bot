@@ -41,6 +41,7 @@ from app.escalation import (
 )
 from app import analytics
 from app import customer_memory
+from app.coverage import topics_in_reply
 from app.followup import run_followups
 
 logging.basicConfig(
@@ -387,10 +388,11 @@ def _phone_at(run: str) -> str | None:
     """The phone number a DIGIT_RUN starts with; None when there is none.
 
     A "+" not followed by 84 starts a foreign number of 8 to 15 digits. It takes the whole run, its tail is not
-    guessed ("+33 6 12 34 56 78"), and ends only before a Vietnamese number ("+65 9123 4567 0912345678"). A
-    Vietnamese number ends at the first group boundary where it is complete. A group of 1 or 2 digits or one
-    starting with 0 may follow ("0912345678 2 bé", "0912345678 0987654321"), a longer one means it runs on
-    ("+84 911 222 501 999" is none).
+    guessed ("+33 6 12 34 56 78"), and ends only before a Vietnamese number ("+65 9123 4567 0912345678"), never
+    right after its country code: "+886 0912 345 678" and "+39 0331 123456" are foreign. A Vietnamese number
+    ends at the first group boundary where it is complete. A group of 1 or 2 digits or one starting with 0 may
+    follow ("0912345678 2 bé", "0912345678 0987654321"), a longer one means it runs on ("+84 911 222 501 999"
+    is none).
     """
     foreign = run.startswith("+") and not run.startswith("+84")
     groups = list(re.finditer(r"\d+", run))
@@ -399,7 +401,8 @@ def _phone_at(run: str) -> str | None:
         if foreign:
             digits = len(re.sub(r"\D", "", phone))
             rest = run[groups[i + 1].start() :] if i + 1 < len(groups) else ""
-            if not rest or (rest[0] == "0" and _phone_at(rest)):
+            country_code = i == 0 and digits < 8
+            if not rest or (rest[0] == "0" and not country_code and _phone_at(rest)):
                 return phone if 8 <= digits <= 15 else None
             continue
         normalized = normalize_phone(phone)
@@ -523,8 +526,10 @@ def _last_bot_message(history: list[dict]) -> str:
 def _clean_extracted(extracted: dict, phone_from_qr: str | None) -> dict:
     """The model's extraction made safe to store: the phone quick reply wins, otherwise phone is the first
     phone number in what the model gave ("0912345678, 0987654321" keeps the first) and is dropped when
-    there is none (e.g. "không có"); phone_declined is kept only as JSON true (models also return "false")."""
+    there is none (e.g. "không có"); phone_declined is kept only as JSON true (models also return "false");
+    topics_covered is only ever what the bot replied with (topics_in_reply)."""
     extracted = dict(extracted)
+    extracted.pop("topics_covered", None)
     if phone_from_qr:
         extracted["phone"] = phone_from_qr
     elif "phone" in extracted:
@@ -626,6 +631,7 @@ async def process_message(
 
         escalated = response.should_escalate or not response.text
         category = ""
+        covered = []
         if escalated:
             await escalate_to_admin(
                 customer_id=sender_id,
@@ -646,6 +652,7 @@ async def process_message(
             clean_text, quick_key = _extract_quick_reply(clean_text)
             quick_replies = build_quick_replies(quick_key)
             category = _guess_category(text)
+            covered = topics_in_reply(response.text)
 
             # Messenger shows quick replies only under the latest message: they go on the last one sent
             if clean_text:
@@ -678,6 +685,8 @@ async def process_message(
         try:
             if full_name and "parent_name" not in extracted and not existing_profile.get("parent_name"):
                 extracted["parent_name"] = full_name
+            if covered:
+                extracted["topics_covered"] = covered
             events = lead_events(existing_profile, extracted)
             updated_profile = await customer_memory.update_profile(sender_id, extracted)
             if extracted:
@@ -727,7 +736,10 @@ async def get_qa_database(_: None = Depends(require_secret)):
 @app.get("/qa-learned")
 async def get_qa_learned(_: None = Depends(require_secret)):
     """View only Q&A pairs learned from admin replies. Requires ?secret=."""
-    learned = [p for p in qa_db.qa_pairs if p.get("category") == "Học từ admin"]
+    # Cặp cũ không có "source" nhưng từng được lưu với category "Học từ admin".
+    learned = [
+        p for p in qa_db.qa_pairs if p.get("source") == "admin" or p.get("category") == "Học từ admin"
+    ]
     return {
         "total": len(learned),
         "learned_pairs": learned,
@@ -775,6 +787,10 @@ async def test_chat(body: TestMessage, _: None = Depends(require_secret)):
             body.message, existing_profile, last_bot_message=_last_bot_message(history)
         )
         extracted = _clean_extracted(extracted, None)
+        if response.text and not response.should_escalate:
+            covered = topics_in_reply(response.text)
+            if covered:
+                extracted["topics_covered"] = covered
         if extracted or not existing_profile:
             await customer_memory.update_profile(body.user_id, extracted)
     except Exception as e:
@@ -894,7 +910,7 @@ async def handle_telegram_webhook(request: Request):
 
         # 4. Save new Q&A to database with proper classification
         all_questions = [question] + similar_questions
-        await qa_db.add_qa_pair(category, all_questions, admin_text, keywords)
+        await qa_db.add_qa_pair(category, all_questions, admin_text, keywords, source="admin")
 
         # 5. Rebuild AI context so it knows the new Q&A
         _rebuild_ai_context()

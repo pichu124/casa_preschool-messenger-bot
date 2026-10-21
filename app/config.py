@@ -35,6 +35,15 @@ class Settings:
     DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY", "")
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
 
+    # Model IDs; defaults replace models the providers retired (see README "Model AI")
+    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "").strip() or "gpt-4o-mini"
+    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "").strip() or "openai/gpt-oss-120b"
+    # Used by provider "groq_llama" in AI_MODEL_ORDER (name kept for existing deployments)
+    GROQ_SECOND_MODEL: str = os.getenv("GROQ_SECOND_MODEL", "").strip() or "qwen/qwen3.8-27b"
+    MISTRAL_MODEL: str = os.getenv("MISTRAL_MODEL", "").strip() or "mistral-small-latest"
+    DEEPSEEK_MODEL: str = os.getenv("DEEPSEEK_MODEL", "").strip() or "deepseek-flash"
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "").strip() or "gemini-3.5-flash"
+
     # AI Model fallback order
     AI_MODEL_ORDER: list[str] = os.getenv("AI_MODEL_ORDER", "openai,groq,gemini,mistral,deepseek").split(",")
 

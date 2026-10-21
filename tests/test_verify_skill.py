@@ -1,15 +1,20 @@
 """Skill verify-casa-bot (kịch bản model giả, feature map, docstring harness) khớp nút và ice breaker trong
-app/messenger.py: đổi chữ ở đó mà quên skill thì test này đỏ. Harness không cho app chạy với biến proxy."""
+app/messenger.py: đổi chữ ở đó mà quên skill thì test này đỏ. Harness không cho app chạy với biến proxy hay key
+Gemini thật; fake trả lời SDK google-genai thật theo kịch bản."""
 
+import asyncio
 import importlib.util
 import json
 import re
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
+import httpx
 import pytest
 
+from app.coverage import TOPICS, topics_in_reply
 from app.followup import TEMPLATES
 from app.messenger import ICE_BREAKERS, QUICK_REPLIES, build_quick_replies
 
@@ -87,6 +92,35 @@ def test_scenario_extracts_the_age_button_title_as_kid_age():
     for rule in ages:
         (title,) = [t for t, meaning in QUICK_REPLIES["age"] if rule["contains"] in meaning]
         assert rule["reply"]["kid_age"] == title
+
+
+def chat_reply(contains):
+    return next(r["reply"] for r in RULES if r["kind"] == "chat" and r["contains"] == contains)
+
+
+def test_tour_replies_of_the_scenario_together_give_every_topic_of_a_full_consultation():
+    tour = [chat_reply(name) for name in ("TOUR_CAMPUS", "TOUR_MENU", "TOUR_EXTRA")]
+
+    assert {topic for reply in tour for topic in topics_in_reply(reply)} == set(TOPICS)
+    # …0049 in features/followup.md stops before TOUR_EXTRA, so only TOUR_EXTRA may give the extracurricular topic
+    path_0049 = [chat_reply("Bé nhà em 2-3 tuổi"), chat_reply("TOUR_CAMPUS"), chat_reply("TOUR_MENU")]
+    assert "extracurricular" not in {topic for reply in path_0049 for topic in topics_in_reply(reply)}
+
+
+@pytest.mark.parametrize("name", ["TOUR_CAMPUS", "TOUR_MENU", "TOUR_EXTRA"])
+def test_tour_replies_carry_no_token_but_quick_replies_of_real_buttons(name):
+    reply = chat_reply(name)
+
+    rest = re.sub(r"\[QUICK:\w+\]", "", reply)
+    assert "[" not in rest and "]" not in rest, rest
+    for key in re.findall(r"\[QUICK:(\w+)\]", reply):
+        assert QUICK_REPLIES.get(key), key
+
+
+def test_scenario_extracts_a_campus_button_title_as_interested_campus():
+    campuses = [r["reply"]["interested_campus"] for r in RULES if r["kind"] == "extract" and "interested_campus" in r["reply"]]
+    assert campuses
+    assert set(campuses) <= {title for title, _ in QUICK_REPLIES["campus"]}
 
 
 def test_rules_named_in_the_skill_exist_in_the_default_scenario():
@@ -178,3 +212,80 @@ def test_ctl_up_refuses_a_proxy_in_env_overrides(name):
 
 def test_ctl_up_accepts_no_proxy_in_env_overrides():
     assert ctl.app_env(CTL_STATE, {"NO_PROXY": "localhost"})["NO_PROXY"] == "localhost"
+
+
+def test_ctl_up_accepts_a_fake_gemini_key():
+    env = ctl.app_env(CTL_STATE, {"GEMINI_API_KEY": "fake", "AI_MODEL_ORDER": "gemini"})
+
+    assert (env["GEMINI_API_KEY"], env["AI_MODEL_ORDER"]) == ("fake", "gemini")
+
+
+def test_ctl_up_refuses_a_real_looking_gemini_key():
+    with pytest.raises(SystemExit, match="--env GEMINI_API_KEY must start with fake"):
+        ctl.app_env(CTL_STATE, {"GEMINI_API_KEY": "AIzaSyNotFake"})
+
+
+def test_launcher_refuses_a_real_looking_gemini_key(tmp_path):
+    result = run_launcher(tmp_path, GITHUB_TOKEN="fake-token", GEMINI_API_KEY="AIzaSyNotFake")
+
+    assert result.returncode == 1
+    assert "refusing to start: GEMINI_API_KEY must be a fake" in result.stderr
+
+
+_fake_spec = importlib.util.spec_from_file_location("casa_verify_fake", SKILL / "harness" / "fake_server.py")
+fake = importlib.util.module_from_spec(_fake_spec)
+_fake_spec.loader.exec_module(fake)
+
+
+@pytest.fixture
+def gemini_via_fake(monkeypatch):
+    """Engine thật + SDK google-genai thật; transport httpx trả lời bằng fake_server.route (như launcher viết lại)."""
+    from app import ai_engine
+    from app.config import settings
+
+    monkeypatch.setattr(fake, "args", SimpleNamespace(scenario=str(SKILL / "harness" / "scenario.default.json")))
+    records = []
+
+    async def transport(self, request):
+        body = json.loads(await request.aread())
+        code, out, extra = fake.route(request.method, request.url.host, request.url.path, dict(request.headers), body)
+        records.append({"host": request.url.host, "path": request.url.path, "body": body, **extra})
+        return httpx.Response(code, json=out, request=request)
+
+    monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", transport)
+    monkeypatch.setattr(settings, "AI_MODEL_ORDER", ["gemini"])
+    monkeypatch.setattr(settings, "GEMINI_MODEL", "verify-gem-x")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "fake")
+    monkeypatch.setitem(ai_engine.API_KEY_MAP, "gemini", "fake")
+    monkeypatch.setattr(ai_engine, "ai_engine_instance", ai_engine.ai_engine_instance)
+    return ai_engine.AIEngine("Q: trường ở đâu\nA: Hà Nội"), records
+
+
+def test_fake_gemini_answers_a_parent_message_by_the_scenario(gemini_via_fake):
+    engine, records = gemini_via_fake
+
+    response = asyncio.run(engine.get_response("ASK_AGE Cho em hỏi về trường ạ"))
+
+    assert response.model_used == "gemini"
+    assert response.text == next(r["reply"] for r in RULES if r["contains"] == "ASK_AGE")
+    (rec,) = records
+    assert rec["host"] == "generativelanguage.googleapis.com"
+    assert rec["path"] == "/v1beta/models/verify-gem-x:generateContent"
+    assert (rec["kind"], rec["rule"], rec["model"]) == ("chat", "ASK_AGE", "verify-gem-x")
+    assert rec["body"]["systemInstruction"]["parts"][0]["text"].startswith("Em là tư vấn viên tuyển sinh")
+
+
+def test_fake_gemini_extracts_by_the_scenario(gemini_via_fake):
+    engine, records = gemini_via_fake
+
+    assert asyncio.run(engine.extract_customer_info("PHONE_A số em đây ạ")) == {"phone": "0912345678"}
+    assert (records[0]["kind"], records[0]["rule"]) == ("extract", "PHONE_A")
+
+
+def test_outbox_cuts_the_gemini_system_instruction():
+    body = {"systemInstruction": {"parts": [{"text": "x" * 5000}]}, "contents": [{"role": "user", "parts": [{"text": "hi"}]}]}
+
+    cut = fake._for_outbox(body)
+
+    assert cut["systemInstruction"]["parts"][0]["text"] == "x" * 200 + "…(5000 chars)"
+    assert cut["contents"] == body["contents"]

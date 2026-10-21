@@ -7,12 +7,16 @@
     {"kind": "chat", "contains": "SEND_MENU", "reply": "Dạ đây là thực đơn mẫu của Casa ạ. [IMAGES:static/thuc-don-mau.jpg][QUICK:age]"},
     {"kind": "chat", "contains": "BAD_QUICK", "reply": "Dạ em trả lời ạ [QUICK:khong_co_nut_nay]"},
     {"kind": "chat", "contains": "HARD_QUESTION", "reply": "[ESCALATE]"},
+    {"kind": "chat", "contains": "TOUR_CAMPUS", "reply": "Dạ cơ sở Mỹ Đình của Casa ở Tầng 3 FLC Complex, 36 Phạm Hùng ạ. Lớp học rộng 80–90 m², bé 3–6 tuổi học chương trình Cambridge Early Years kết hợp Montessori. Ba/Mẹ muốn đưa bé đến tham quan buổi sáng hay buổi chiều ạ? [QUICK:visit_time]"},
+    {"kind": "chat", "contains": "TOUR_MENU", "reply": "Dạ thực đơn của Casa thay đổi mỗi ngày và đủ các nhóm chất cho bé ạ. Casa tặng bé 1 tuần học thử miễn phí, Ba/Mẹ muốn cho bé học thử tuần nào ạ? [QUICK:trial_week]"},
+    {"kind": "chat", "contains": "TOUR_EXTRA", "reply": "Dạ các hoạt động ngoại khóa của Casa gồm Science, Cooking, Art, Music, cùng 6 chuyến dã ngoại mỗi năm ạ."},
     {"kind": "chat", "contains": "Bé nhà em 2-3 tuổi", "reply": "Dạ bé 2-3 tuổi học lớp Nhà trẻ ạ. Ba/Mẹ muốn tham quan buổi sáng hay buổi chiều ạ? [QUICK:visit_time]"},
     {"kind": "extract", "contains": "PHONE_A", "reply": {"phone": "0912345678"}},
     {"kind": "extract", "contains": "PHONE_B", "reply": {"phone": "0987654321"}},
     {"kind": "extract", "contains": "VISIT_AM", "reply": {"visit_request": "tham quan buổi sáng"}},
     {"kind": "extract", "contains": "Em muốn hẹn tham quan buổi sáng", "reply": {"visit_request": "tham quan buổi sáng"}},
     {"kind": "extract", "contains": "Bé nhà em 2-3 tuổi", "reply": {"kid_age": "2-3 tuổi"}},
+    {"kind": "extract", "contains": "TOUR_CAMPUS", "reply": {"interested_campus": "Mỹ Đình"}},
     {"kind": "extract", "contains": "DECLINE", "reply": {"phone_declined": true}}
   ],
   "defaults": {

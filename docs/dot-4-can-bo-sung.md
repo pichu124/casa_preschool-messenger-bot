@@ -4,7 +4,7 @@ Thay cho `docs/dot-3-can-bo-sung.md` (các mục đợt 3 đã xong được b�
 
 ## A. File cần gửi
 
-- [ ] **Thực đơn mẫu**: ảnh JPG/PNG (dưới 8 MB mỗi ảnh). Agent đặt vào `static/` và gắn vào câu hỏi về thực đơn; bot gửi thẳng cho phụ huynh. Mọi file trong `static/` đều công khai.
+- [x] ~~**Thực đơn mẫu**~~: đã nhận ảnh của trường, lưu thành `static/thuc-don-mau.jpg` và gắn vào câu hỏi thực đơn chung; bot gửi thẳng cho phụ huynh. Mọi file trong `static/` đều công khai.
 
 ## B. Cấu hình sau khi merge vào `main` (người vận hành)
 
@@ -25,14 +25,17 @@ Bảo mật:
 
 ## C. Quyết định của trường
 
-1. [ ] **Mẫu tin nhắc lại thứ 3** ("Đã tư vấn tương đối đủ nhưng PH dừng trao đổi") hiện gửi cho phụ huynh **đã từ chối để lại SĐT**. "Tư vấn tương đối đủ" nghĩa là gì để bot nhận ra (vd đã biết tuổi + cơ sở + đã hỏi học phí)? Hay giữ như hiện tại?
+1. [x] ~~**Mẫu tin nhắc lại thứ 3**: "tư vấn tương đối đủ" nghĩa là gì?~~ Đã làm theo 6 điều kiện của trường (`docs/quyet-dinh-noi-dung.md`, mục 2c và 3).
+   - [ ] Cần xác nhận: phụ huynh đã cho biết tuổi, **từ chối để lại SĐT** nhưng bot **chưa tư vấn đủ** → hiện vẫn gửi mẫu 3 (mẫu duy nhất không xin số). Giữ, hay không gửi tin nhắc nào?
 2. [ ] **Bật tin nhắc lại** khi nào? (Hiện TẮT.) Trước khi bật: đăng ký `message_echoes` và tắt Instant Reply/Away message của Page.
-3. [ ] **SĐT nước ngoài**: bot lưu nguyên cả cụm số (không cắt đuôi). Số nước ngoài viết kèm số 0 sau mã nước (vd "+886 0912 345 678") hiện bị lưu nhầm thành số Việt Nam phía sau. Rất hiếm với phụ huynh tại Hà Nội — có cần agent sửa không?
+3. [x] ~~SĐT nước ngoài viết kèm số 0 sau mã nước~~ (vd "+886 0912 345 678"): đã sửa, bot lưu nguyên số nước ngoài, không còn nhận nhầm thành số Việt Nam.
 4. [ ] **SĐT theo đầu số cũ** (`01x…` 11 số, máy bàn `04…`) không còn được nhận vì đã đổi đầu số từ 2018. Có cần nhận không?
 
 ## D. Dữ kiện cần trường xác nhận
 
-- [ ] Kim Mã có học Cambridge Early Years không? Diện tích lớp ở Kim Mã?
+- [x] ~~Kim Mã có học Cambridge Early Years không?~~ Có, 1 môn English; hệ Quốc tế học đủ 3 môn (`docs/quyet-dinh-noi-dung.md`, mục 2c).
+- [ ] Diện tích lớp ở Kim Mã?
+- [ ] Kim Mã học Cambridge môn English; còn toán và khám phá khoa học ở Kim Mã học theo khung/phương pháp nào? (Phụ huynh hỏi kỹ thì bot chưa có thông tin.)
 - [ ] Có cho đóng học phí theo tháng không (hiện chỉ biết quý / 6 tháng / 12 tháng)?
 - [ ] Camera: xem tại văn phòng "bất kỳ lúc nào trong giờ hành chính" hay "khi có sự việc cụ thể, theo quy trình"?
 - [ ] "Cư dân tòa nhà" là cư dân tòa nào (Hongkong Tower, FLC…)?
@@ -41,8 +44,10 @@ Bảo mật:
 
 ## E. Kỹ thuật
 
-- [ ] Model Groq `deepseek-r1-distill-llama-70b` có thể đã ngừng: kiểm tra trên console Groq, đổi model nếu cần.
-- [ ] Chạy `.venv/bin/python scripts/eval_chat.py` với một API key AI để chấm hội thoại thật.
+- [x] ~~Model AI đã ngừng~~: đã thay model Groq `deepseek-r1-distill-llama-70b` và `llama-3.3-70b-versatile`, DeepSeek `deepseek-chat`, Gemini `gemini-2.0-flash`. Gemini chuyển sang thư viện `google-genai`. Tên model đặt được qua biến môi trường (README, mục "Model AI").
+- [ ] **Xác minh tên model mới bằng API key thật** (phiên agent không có key): `openai/gpt-oss-120b`, `qwen/qwen3.8-27b` (Groq), `deepseek-flash`, `gemini-3.5-flash` (khả năng sai cao nhất). Xem danh sách model ở trang console/`/models` của từng nhà cung cấp; tên sai thì đặt biến `*_MODEL` trên Render, không cần sửa code.
+- [ ] OpenAI `gpt-4o-mini` ngừng ngày **2027-01-14**: trước mốc này chọn model thay và đặt `OPENAI_MODEL` trên Render.
+- [ ] Chạy `.venv/bin/python scripts/eval_chat.py` với một API key AI để chấm hội thoại thật (nhất là sau khi đổi model).
 - [ ] Sau deploy, thử trên Messenger thật: nút trả lời nhanh, nút gửi SĐT, câu hỏi gợi ý, tin từ quảng cáo; một lead thật vào nhóm Telegram và Google Sheet.
-- [ ] (Có sẵn từ trước, agent sửa được nếu bạn đồng ý) `/qa-learned` gần như luôn rỗng vì lọc theo danh mục "Học từ admin" mà bot không bao giờ gán.
-- [ ] (Có sẵn từ trước, cần bạn quyết) mỗi lần admin trả lời qua Telegram, bot tự đẩy `data/qa_database.json` lên nhánh `main` → mỗi lần là một lần deploy Render. Giữ, chuyển sang repo private như hồ sơ khách, hay tắt?
+- [x] ~~`/qa-learned` gần như luôn rỗng~~: đã sửa. Cặp Q&A admin dạy qua Telegram giờ được đánh dấu nguồn `admin` và hiện trong `/qa-learned`.
+- [ ] Mỗi lần admin trả lời qua Telegram, bot tự đẩy `data/qa_database.json` lên nhánh `main`. Commit có `[skip deploy]` nên Render **không** deploy lại (đã kiểm tài liệu Render). Còn lại một câu hỏi: repo đang public nên câu trả lời admin dạy cho bot cũng công khai. Có ổn không, hay chuyển repo sang private (xem mục B)?

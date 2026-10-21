@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 from app import customer_memory
 from app.config import settings
+from app.coverage import fully_consulted
 from app.escalation import (
     ESCALATION_MESSAGE_ASK_PHONE,
     ESCALATION_MESSAGE_HAS_PHONE,
@@ -38,7 +39,8 @@ TEMPLATES = {
         "nào về chương trình, học phí hay lớp phù hợp với bé không ạ? Nếu thuận tiện, Ba/Mẹ có thể để lại "
         "SĐT/Zalo để Casa tư vấn kỹ hơn cho mình nhé."
     ),
-    # The school's message for a parent who stopped after a fairly full consultation; asks for no phone number.
+    # The school's message for a parent who stopped after a fairly full consultation (app/coverage.py); asks for
+    # no phone number, so it also goes to a parent whose child's age is known and who declined to leave one.
     "invite_visit": (
         "Dạ em chào Ba/Mẹ ạ. Em xin phép hỏi thêm một chút, không biết Ba/Mẹ còn điều gì đang cân nhắc khi tìm "
         "trường cho con không ạ? Nếu cần, Casa có thể hỗ trợ Ba/Mẹ tìm hiểu kỹ hơn về chương trình học hoặc sắp "
@@ -66,10 +68,13 @@ def _as_utc(value) -> datetime | None:
 
 
 def _template_key(profile: dict) -> str:
-    if profile.get("phone_declined"):
+    if fully_consulted(profile):
         return "invite_visit"
     if not profile.get("kid_age"):
         return "ask_age"
+    # invite_visit is the only template that asks for no phone number
+    if profile.get("phone_declined"):
+        return "invite_visit"
     return "ask_phone"
 
 

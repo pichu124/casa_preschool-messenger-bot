@@ -21,6 +21,7 @@ from fastapi.testclient import TestClient
 import app.main as main
 from app import customer_memory, followup
 from app.config import settings
+from app.coverage import TOPICS
 from app.escalation import (
     ESCALATION_MESSAGE_ASK_PHONE,
     ESCALATION_MESSAGE_HAS_PHONE,
@@ -42,6 +43,8 @@ PHONE = "0900000201"
 PARENT_TEXT = "Trường mình có cơ sở nào gần Cầu Giấy không ạ?"
 BOT_TEXT = "Dạ Casa có cơ sở Chùa Láng, Mỹ Đình và Kim Mã ạ. Bé nhà mình năm nay mấy tuổi ạ?"
 ASK_PHONE_WORDS = ("SĐT", "Zalo", "số điện thoại")
+# Đủ 6 điều kiện "đã tư vấn tương đối đủ" của trường (phản hồi đợt 4)
+CONSULTED = {"kid_age": "3 tuổi", "interested_campus": "Mỹ Đình", "topics_covered": list(TOPICS)}
 
 
 def server_time(dt: datetime) -> str:
@@ -89,7 +92,18 @@ DUE_CASES = [
     ("chưa biết tuổi bé", profile(interested_campus="Mỹ Đình"), NOW, "ask_age"),
     ("biết tuổi, chưa có SĐT", profile(kid_age="3 tuổi"), NOW, "ask_phone"),
     ("phone_declined", profile(kid_age="3 tuổi", phone_declined=True), NOW, "invite_visit"),
-    ("phone_declined, chưa biết tuổi", profile(phone_declined=True), NOW, "invite_visit"),
+    ("phone_declined, chưa biết tuổi", profile(phone_declined=True), NOW, "ask_age"),
+    ("tư vấn đủ, chưa có SĐT", profile(**CONSULTED), NOW, "invite_visit"),
+    ("tư vấn đủ, từ chối SĐT", profile(**CONSULTED, phone_declined=True), NOW, "invite_visit"),
+    ("tư vấn đủ, có phone", profile(**CONSULTED, phone=PHONE), NOW, None),
+    ("thiếu một nhóm", profile(**{**CONSULTED, "topics_covered": list(TOPICS[:-1])}), NOW, "ask_phone"),
+    ("đủ nhóm, thiếu cơ sở", profile(kid_age="3 tuổi", topics_covered=list(TOPICS)), NOW, "ask_phone"),
+    (
+        "có tuổi, từ chối SĐT, chưa tư vấn đủ",
+        profile(kid_age="3 tuổi", interested_campus="Mỹ Đình", topics_covered=["program"], phone_declined=True),
+        NOW,
+        "invite_visit",
+    ),
     ("chỉ có referral, không history", {"lead_source": "ads", "ad_title": "Học thử 1 tuần"}, NOW, None),
 ]
 
@@ -99,6 +113,17 @@ def test_due_followups_edge_cases(customer, now, template_key):
     expected = [(CID, template_key)] if template_key else []
 
     assert followup.due_followups({CID: customer}, now) == expected
+
+
+@pytest.mark.parametrize(
+    "customer",
+    [c[1] for c in DUE_CASES if c[1].get("phone_declined") and c[3]],
+    ids=[c[0] for c in DUE_CASES if c[1].get("phone_declined") and c[3]],
+)
+def test_parent_who_declined_phone_is_never_asked_for_it_again(customer):
+    [(_, key)] = followup.due_followups({CID: customer}, NOW)
+
+    assert [word for word in ASK_PHONE_WORDS if word in followup.TEMPLATES[key]] == []
 
 
 def test_history_timestamp_without_timezone_is_read_as_utc():
@@ -132,7 +157,8 @@ SCHOOL_TEMPLATES = {
         "nào về chương trình, học phí hay lớp phù hợp với bé không ạ? Nếu thuận tiện, Ba/Mẹ có thể để lại "
         "SĐT/Zalo để Casa tư vấn kỹ hơn cho mình nhé."
     ),
-    # Đã tư vấn tương đối đủ nhưng phụ huynh dừng trao đổi (bot áp khi phụ huynh đã từ chối để lại SĐT)
+    # Đã tư vấn tương đối đủ nhưng phụ huynh dừng trao đổi (bot cũng áp khi đã biết tuổi bé và phụ huynh từ chối
+    # để lại SĐT)
     "invite_visit": (
         "Dạ em chào Ba/Mẹ ạ. Em xin phép hỏi thêm một chút, không biết Ba/Mẹ còn điều gì đang cân nhắc khi tìm "
         "trường cho con không ạ? Nếu cần, Casa có thể hỗ trợ Ba/Mẹ tìm hiểu kỹ hơn về chương trình học hoặc sắp "
@@ -246,6 +272,29 @@ def test_enabled_sends_once_to_due_customers_and_records_it(monkeypatch, outbox,
     assert (again["due"], again["sent"]) == (0, 0)
     assert len(outbox.sent) == 2
     assert synced == [1]
+
+
+def test_followup_to_a_consulted_parent_leaves_topics_covered_as_is(monkeypatch, outbox, synced):
+    """Tin nhắc lại không qua bộ dò nhóm thông tin, dù mẫu 3 có lời mời tham quan."""
+    monkeypatch.setattr(settings, "FOLLOWUP_ENABLED", True)
+    partial = ["program", "menu"]
+    consulted_id, partial_id = "9000000000000214", "9000000000000215"
+    customer_memory._customers.update(
+        {
+            consulted_id: profile(**CONSULTED),
+            partial_id: profile(kid_age="3 tuổi", phone_declined=True, topics_covered=partial),
+        }
+    )
+
+    result = asyncio.run(followup.run_followups(dry_run=False))
+
+    assert result["sent"] == 2
+    assert outbox.sent == [
+        (consulted_id, followup.TEMPLATES["invite_visit"]),
+        (partial_id, followup.TEMPLATES["invite_visit"]),
+    ]
+    assert customer_memory.get_profile(consulted_id)["topics_covered"] == list(TOPICS)
+    assert customer_memory.get_profile(partial_id)["topics_covered"] == partial
 
 
 def test_send_error_skips_that_customer_only(monkeypatch, outbox, synced, caplog):

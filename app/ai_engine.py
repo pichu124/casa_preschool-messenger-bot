@@ -33,7 +33,7 @@ THÔNG TIN CỐT LÕI (luôn đúng)
 CÁCH TƯ VẤN (theo kịch bản tuyển sinh của trường)
 1. Phễu: chào → hỏi tuổi bé + khu vực nhà/cơ sở quan tâm → tư vấn theo nhóm tuổi → học phí → bước tiếp theo. Điều đã biết (lịch sử, [THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT]) thì không hỏi lại.
    - 15 tháng–3 tuổi: chăm sóc, thích nghi, xây nền tảng ngôn ngữ, vận động, giác quan, tự lập, cảm xúc – xã hội qua Montessori; làm quen tiếng Anh tự nhiên cùng giáo viên nước ngoài toàn thời gian (hệ Quốc tế).
-   - 3–6 tuổi: đúng độ tuổi học Cambridge Early Years (English – Mathematics – Understanding the World), kết hợp phương pháp và giáo cụ Montessori để con thực hành theo nhịp độ riêng.
+   - 3–6 tuổi: Cambridge Early Years kết hợp Montessori. Hệ Quốc tế học trọn 3 môn English – Mathematics – Let's Explore (khám phá thế giới); Kim Mã chỉ học môn English.
    - Bé dưới 15 tháng hoặc chưa đi vững: nhẹ nhàng nói con còn hơi nhỏ, trường nhận từ 15 tháng khi bé đi vững; xin ngày sinh của bé để tư vấn thời điểm phù hợp.
 2. Học phí:
    - Chưa biết tuổi bé VÀ cơ sở quan tâm thì KHÔNG nói con số; hỏi 2 thông tin này trước.
@@ -95,7 +95,7 @@ Phụ huynh: "[FIRST_MESSAGE] cho hoi hoc phi ntn a"
 Em: "Dạ Casa chào Ba/Mẹ ạ 🌿 Cảm ơn Ba/Mẹ đã quan tâm đến Casa dei Bambini. Học phí khác nhau theo độ tuổi của bé và cơ sở (Chùa Láng, Mỹ Đình – hệ Quốc tế hay Kim Mã – hệ Song ngữ) ạ. Ba/Mẹ cho em xin bé nhà mình được bao nhiêu tháng tuổi và gia đình ở khu vực nào để em tư vấn đúng nhé ạ? [QUICK:age]"
 
 (Đã biết bé Bông 3 tuổi) Phụ huynh: "truong co day tieng anh khong"
-Em: "Dạ có ạ. Bé Bông 3 tuổi đúng độ tuổi học Cambridge Early Years kết hợp Montessori. Ở hệ Quốc tế, giáo viên nước ngoài đồng hành cả ngày 8h30–17h00; ở hệ Song ngữ Kim Mã, lớp 3–6 tuổi học với giáo viên nước ngoài khoảng 2–2,5 giờ/ngày ạ. Ba/Mẹ muốn đưa bé đến tham quan lớp thực tế vào buổi sáng hay buổi chiều ạ? [QUICK:visit_time]"
+Em: "Dạ có ạ. Bé Bông 3 tuổi đúng độ tuổi học tiếng Anh theo Cambridge Early Years. Ở hệ Quốc tế, giáo viên nước ngoài đồng hành cả ngày 8h30–17h00; ở hệ Song ngữ Kim Mã, lớp 3–6 tuổi học với giáo viên nước ngoài khoảng 2–2,5 giờ/ngày ạ. Ba/Mẹ muốn đưa bé đến tham quan lớp thực tế vào buổi sáng hay buổi chiều ạ? [QUICK:visit_time]"
 
 Phụ huynh: "con em nhat nhung, em so con khong theo dc cac ban"
 Em: "Dạ em rất hiểu nỗi lo của mẹ ạ 💕 Ở Casa, số lượng bé mới mỗi tuần có giới hạn để mỗi bé mới đều có cô đồng hành sát sao giai đoạn đầu; các cô cho con làm quen từ từ, không ép con tham gia khi chưa sẵn sàng ạ. Nếu mẹ muốn, em xếp cho bé 1 tuần học thử miễn phí để mẹ yên tâm xem con thích nghi thế nào, mình tiện tuần này hay tuần sau ạ? [QUICK:trial_week]"
@@ -116,7 +116,7 @@ CƠ SỞ DỮ LIỆU Q&A:
 """
 
 
-# Model suy luận (deepseek-r1 trên Groq) trả "<think>…</think>" trước câu trả lời; khối có thể
+# Model suy luận (vd qwen3 trên Groq) trả "<think>…</think>" trước câu trả lời; khối có thể
 # bị cắt dở khi chạm max_tokens nên chấp nhận cả trường hợp không có thẻ đóng.
 _THINK_RE = re.compile(r"<think>.*?(?:</think>|\Z)\s*", re.S | re.I)
 
@@ -149,7 +149,7 @@ class OpenAIProvider(AIProvider):
         messages.append({"role": "user", "content": user_message})
 
         response = await self.client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=settings.OPENAI_MODEL,
             messages=messages,
             max_tokens=1024,
             temperature=0.3,
@@ -168,7 +168,7 @@ class GroqProvider(AIProvider):
         messages.append({"role": "user", "content": user_message})
 
         response = await self.client.chat.completions.create(
-            model="deepseek-r1-distill-llama-70b",
+            model=settings.GROQ_MODEL,
             messages=messages,
             max_tokens=1024,
             temperature=0.3,
@@ -176,8 +176,8 @@ class GroqProvider(AIProvider):
         return response.choices[0].message.content
 
 
-class GroqLlamaProvider(AIProvider):
-    """Fallback Groq provider using Llama model."""
+class GroqSecondProvider(AIProvider):
+    """Second Groq model (GROQ_SECOND_MODEL); key "groq_llama" kept for existing AI_MODEL_ORDER."""
 
     def __init__(self):
         from groq import AsyncGroq
@@ -189,7 +189,7 @@ class GroqLlamaProvider(AIProvider):
         messages.append({"role": "user", "content": user_message})
 
         response = await self.client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=settings.GROQ_SECOND_MODEL,
             messages=messages,
             max_tokens=1024,
             temperature=0.3,
@@ -208,7 +208,7 @@ class MistralProvider(AIProvider):
         messages.append({"role": "user", "content": user_message})
 
         response = await self.client.chat.complete_async(
-            model="mistral-small-latest",
+            model=settings.MISTRAL_MODEL,
             messages=messages,
             max_tokens=1024,
             temperature=0.3,
@@ -232,7 +232,7 @@ class DeepSeekProvider(AIProvider):
         messages.append({"role": "user", "content": user_message})
 
         response = await self.client.chat.completions.create(
-            model="deepseek-chat",
+            model=settings.DEEPSEEK_MODEL,
             messages=messages,
             max_tokens=1024,
             temperature=0.3,
@@ -242,21 +242,29 @@ class DeepSeekProvider(AIProvider):
 
 class GeminiProvider(AIProvider):
     def __init__(self):
-        import google.generativeai as genai
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel("gemini-2.0-flash")
+        from google import genai
+        self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
     async def generate(self, system_prompt: str, user_message: str, conversation_history: list[dict]) -> str:
-        # Build conversation for Gemini
-        full_prompt = f"{system_prompt}\n\n"
-        for msg in conversation_history:
-            role = "Khach hang" if msg["role"] == "user" else "Tu van vien"
-            full_prompt += f"{role}: {msg['content']}\n"
-        full_prompt += f"Khach hang: {user_message}\nTu van vien:"
+        from google.genai import types
 
-        response = await self.model.generate_content_async(
-            full_prompt,
-            generation_config={"max_output_tokens": 1024, "temperature": 0.3},
+        contents = [
+            types.Content(
+                role="user" if msg["role"] == "user" else "model",
+                parts=[types.Part.from_text(text=msg["content"])],
+            )
+            for msg in conversation_history
+        ]
+        contents.append(types.Content(role="user", parts=[types.Part.from_text(text=user_message)]))
+
+        response = await self.client.aio.models.generate_content(
+            model=settings.GEMINI_MODEL,
+            contents=contents,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                max_output_tokens=1024,
+                temperature=0.3,
+            ),
         )
         return response.text
 
@@ -264,7 +272,7 @@ class GeminiProvider(AIProvider):
 PROVIDER_MAP: dict[str, type[AIProvider]] = {
     "openai": OpenAIProvider,
     "groq": GroqProvider,
-    "groq_llama": GroqLlamaProvider,
+    "groq_llama": GroqSecondProvider,
     "mistral": MistralProvider,
     "deepseek": DeepSeekProvider,
     "gemini": GeminiProvider,

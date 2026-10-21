@@ -2,12 +2,18 @@
 
 Mỗi test ứng với một quyết định; sửa dữ liệu chứ đừng nới test, trừ khi trường đổi quyết định.
 """
+import asyncio
 import json
 import re
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
+import app.main as main
+from app import customer_memory
+from app.ai_engine import AIProvider
+from app.config import settings
 from app.qa_database import QADatabase
 
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "qa_database.json"
@@ -211,3 +217,109 @@ def test_bus_has_no_route_radius_fee_or_offer():
     for pattern in (rf"{BUS}[^.\n]{{0,60}}(phí|ưu đãi|tính riêng)", rf"(phí|ưu đãi)[^.\n]{{0,30}}{BUS}"):
         match = re.search(pattern, RAW_TEXT)
         assert not match, match and match.group(0)
+
+
+# --- Phản hồi đợt 4 -----------------------------------------------------------
+
+MENU_IMAGE = "static/thuc-don-mau.jpg"
+MENU_QUESTION = "Thực đơn của trường như thế nào ạ?"
+
+
+def _pair_with_question(question: str) -> dict:
+    return next(p for p in PAIRS if question in p["questions"])
+
+
+def test_sample_menu_image_is_a_jpeg_messenger_accepts():
+    data = (DB_PATH.parents[1] / MENU_IMAGE).read_bytes()
+
+    assert data[:3] == b"\xff\xd8\xff" and data[-2:] == b"\xff\xd9"
+    assert len(data) < 8 * 1024 * 1024
+
+
+def test_general_menu_question_sends_the_sample_menu():
+    assert _pair_with_question(MENU_QUESTION).get("images") == [MENU_IMAGE]
+    # Cặp chỉ hỏi cháo/ăn thô không kèm ảnh thực đơn.
+    assert "images" not in _pair_with_question("Trường có nấu cháo cho bé không?")
+
+
+def test_menu_answer_matches_the_sample_menu_image():
+    menu = _norm(_pair_with_question(MENU_QUESTION)["answer"])
+
+    for meal in ("bữa sáng", "bữa nhẹ sáng", "bữa trưa", "bữa chiều", "phụ chiều"):
+        assert meal in menu, meal
+    for dish in ("bún mọc", "cơm tám thơm", "cá sốt cà chua", "sữa tươi vinamilk không đường"):
+        assert dish in menu, dish
+    for old_dish in ("tứ xuyên", "bún thịt nấu chua", "phở bò sốt vang", "thịt ngâm mắm"):
+        assert old_dish not in RAW_TEXT, old_dish
+
+
+def test_menu_reply_sends_the_real_menu_image_parents_can_open(monkeypatch):
+    """Model đọc dòng Images của cặp thực đơn trong Q&A thật; bot gửi ảnh tới URL công khai, và URL đó mở được."""
+    images_line = re.compile(rf"Q: {re.escape(MENU_QUESTION)}[^\n]*\n   A: [^\n]*\n   Images: ([^\n]+)")
+
+    class MenuModel(AIProvider):
+        async def generate(self, system_prompt, user_message, conversation_history):
+            match = images_line.search(system_prompt)
+            return f"Dạ đây là thực đơn mẫu của Casa ạ. [IMAGES:{match.group(1)}]" if match else "Dạ vâng ạ."
+
+    sent = []
+
+    async def send_message(recipient_id, text, quick_replies=None):
+        sent.append(("text", text))
+
+    async def send_image(recipient_id, image_url, quick_replies=None):
+        sent.append(("image", image_url))
+
+    async def nothing(*args, **kwargs):
+        return {}
+
+    monkeypatch.setattr(settings, "PUBLIC_BASE_URL", "https://casa.example/")
+    monkeypatch.setattr(settings, "AI_MODEL_ORDER", ["menu"])
+    monkeypatch.setattr(main.ai_engine, "_providers", {"menu": MenuModel()})
+    monkeypatch.setattr(main.ai_engine, "extract_customer_info", nothing)
+    monkeypatch.setattr(main, "send_message", send_message)
+    monkeypatch.setattr(main, "send_image", send_image)
+    monkeypatch.setattr(main, "send_typing_indicator", nothing)
+    monkeypatch.setattr(main, "get_user_profile", nothing)
+    monkeypatch.setattr(customer_memory, "sync_to_github", nothing)
+
+    asyncio.run(main.process_message("9000000000000601", "Cho em xem thực đơn của trường"))
+
+    assert sent == [
+        ("text", "Dạ đây là thực đơn mẫu của Casa ạ."),
+        ("image", "https://casa.example/static/thuc-don-mau.jpg"),
+    ]
+    resp = TestClient(main.app).get("/static/thuc-don-mau.jpg")
+    assert resp.status_code == 200 and resp.headers["content-type"] == "image/jpeg"
+
+
+FULL_CAMBRIDGE = ("mathematics", "let's explore", "understanding the world", "toán")
+
+
+def _clauses(text: str) -> list[str]:
+    return [c for c in re.split(r"[.;:\n]", text) if c.strip()]
+
+
+def test_only_international_system_studies_all_three_cambridge_subjects():
+    # Phản hồi đợt 4 (G2): hệ Quốc tế học đủ English, Mathematics, Let's Explore; Kim Mã chỉ môn English.
+    assert "understanding the world" not in RAW_TEXT
+    for answer in ANSWERS:
+        for clause in _clauses(answer):
+            if "kim mã" in clause or "song ngữ" in clause:
+                assert not any(s in clause for s in FULL_CAMBRIDGE), clause
+        if "mathematics" in answer or "let's explore" in answer:
+            assert "quốc tế" in answer, answer
+
+
+@pytest.mark.parametrize("question", ["Hiện Casa đang áp dụng chương trình học nào?", "Con học những môn gì ở trường?"])
+def test_programme_answer_states_cambridge_subjects_per_system(question):
+    answer = _norm(_pair_with_question(question)["answer"])
+
+    assert re.search(r"quốc tế[^.;]{0,120}english[^.;]{0,40}mathematics[^.;]{0,40}let's explore", answer), answer
+    assert re.search(r"kim mã[^.;]{0,80}english", answer), answer
+
+
+def test_kim_ma_cambridge_question_is_answered():
+    answer = _norm(_pair_with_question("Kim Mã có học Cambridge không?")["answer"])
+
+    assert re.search(r"kim mã[^.;]{0,80}english", answer), answer

@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 
 import openpyxl
@@ -76,16 +77,30 @@ class QADatabase:
         with open(self.path, "w", encoding="utf-8") as f:
             json.dump({"qa_pairs": self.qa_pairs}, f, ensure_ascii=False, indent=2)
 
-    async def add_qa_pair(self, category: str, questions: str | list[str], answer: str, keywords: list[str] | None = None):
-        """Add a new Q&A pair, save locally, and sync to GitHub."""
+    async def add_qa_pair(
+        self,
+        category: str,
+        questions: str | list[str],
+        answer: str,
+        keywords: list[str] | None = None,
+        source: str | None = None,
+    ):
+        """Add a new Q&A pair, save locally, and sync to GitHub.
+
+        source (vd "admin") đánh dấu nguồn của cặp, kèm learned_at theo UTC.
+        """
         if isinstance(questions, str):
             questions = [questions]
-        self.qa_pairs.append({
+        pair = {
             "category": category,
             "questions": questions,
             "answer": answer,
             "keywords": keywords or [],
-        })
+        }
+        if source:
+            pair["source"] = source
+            pair["learned_at"] = datetime.now(timezone.utc).isoformat()
+        self.qa_pairs.append(pair)
         self.save()
 
         # Sync to GitHub so data persists across deploys

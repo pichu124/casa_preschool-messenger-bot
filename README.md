@@ -65,6 +65,31 @@ Chi can it nhat 1 model co API key la duoc.
 
 Thu tu fallback cau hinh trong `AI_MODEL_ORDER`.
 
+#### Model AI (bien moi truong)
+
+Ten model cua tung nha cung cap dat qua bien moi truong; khong dat bien, hoac dat gia tri rong/chi co khoang trang, thi dung mac dinh:
+
+| Bien | Provider trong `AI_MODEL_ORDER` | Mac dinh |
+|---|---|---|
+| `OPENAI_MODEL` | `openai` | `gpt-4o-mini` |
+| `GROQ_MODEL` | `groq` | `openai/gpt-oss-120b` |
+| `GROQ_SECOND_MODEL` | `groq_llama` (ten giu nguyen de khong pha cau hinh cu) | `qwen/qwen3.8-27b` |
+| `MISTRAL_MODEL` | `mistral` | `mistral-small-latest` |
+| `DEEPSEEK_MODEL` | `deepseek` | `deepseek-flash` |
+| `GEMINI_MODEL` | `gemini` | `gemini-3.5-flash` |
+
+Cac mac dinh nay thay model da bi nha cung cap ngung (Groq `deepseek-r1-distill-llama-70b`, `llama-3.3-70b-versatile`; DeepSeek `deepseek-chat`; Gemini `gemini-2.0-flash`). Chung lay tu tai lieu nha cung cap (2026-10), **CHUA duoc xac minh bang API key**; rieng `gemini-3.5-flash` con chua chac la ID dung. Truoc khi dua len Render, kiem tung model co trong danh sach cua nha cung cap:
+
+```bash
+curl -s https://api.openai.com/v1/models -H "Authorization: Bearer $OPENAI_API_KEY"
+curl -s https://api.groq.com/openai/v1/models -H "Authorization: Bearer $GROQ_API_KEY"
+curl -s https://api.mistral.ai/v1/models -H "Authorization: Bearer $MISTRAL_API_KEY"
+curl -s https://api.deepseek.com/models -H "Authorization: Bearer $DEEPSEEK_API_KEY"
+curl -s https://generativelanguage.googleapis.com/v1beta/models -H "x-goog-api-key: $GEMINI_API_KEY"
+```
+
+Roi cham hoi thoai voi model that: `.venv/bin/python scripts/eval_chat.py` (exit 0 = dat; 2 = chua co API key hoac moi model deu loi). Model sai ten chi hien trong log (`Model ... failed`) va bot chuyen sang model tiep theo trong `AI_MODEL_ORDER`.
+
 ### 6. Secret cho endpoint admin va Telegram webhook
 
 - `TELEGRAM_WEBHOOK_SECRET`: chuoi ngau nhien, chi dung ky tu `A-Z a-z 0-9 _ -` (Telegram `secret_token` chi nhan cac ky tu nay, 1-256 ky tu). Tao bang `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`.

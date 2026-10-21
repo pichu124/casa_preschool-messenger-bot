@@ -41,8 +41,10 @@ Bảo mật:
 
 ## E. Kỹ thuật
 
-- [ ] Model Groq `deepseek-r1-distill-llama-70b` có thể đã ngừng: kiểm tra trên console Groq, đổi model nếu cần.
-- [ ] Chạy `.venv/bin/python scripts/eval_chat.py` với một API key AI để chấm hội thoại thật.
+- [x] ~~Model AI đã ngừng~~: đã thay model Groq `deepseek-r1-distill-llama-70b` và `llama-3.3-70b-versatile`, DeepSeek `deepseek-chat`, Gemini `gemini-2.0-flash`. Gemini chuyển sang thư viện `google-genai`. Tên model đặt được qua biến môi trường (README, mục "Model AI").
+- [ ] **Xác minh tên model mới bằng API key thật** (phiên agent không có key): `openai/gpt-oss-120b`, `qwen/qwen3.8-27b` (Groq), `deepseek-flash`, `gemini-3.5-flash` (khả năng sai cao nhất). Xem danh sách model ở trang console/`/models` của từng nhà cung cấp; tên sai thì đặt biến `*_MODEL` trên Render, không cần sửa code.
+- [ ] OpenAI `gpt-4o-mini` ngừng ngày **2027-01-14**: trước mốc này chọn model thay và đặt `OPENAI_MODEL` trên Render.
+- [ ] Chạy `.venv/bin/python scripts/eval_chat.py` với một API key AI để chấm hội thoại thật (nhất là sau khi đổi model).
 - [ ] Sau deploy, thử trên Messenger thật: nút trả lời nhanh, nút gửi SĐT, câu hỏi gợi ý, tin từ quảng cáo; một lead thật vào nhóm Telegram và Google Sheet.
 - [x] ~~`/qa-learned` gần như luôn rỗng~~: đã sửa. Cặp Q&A admin dạy qua Telegram giờ được đánh dấu nguồn `admin` và hiện trong `/qa-learned`.
 - [ ] Mỗi lần admin trả lời qua Telegram, bot tự đẩy `data/qa_database.json` lên nhánh `main`. Commit có `[skip deploy]` nên Render **không** deploy lại (đã kiểm tài liệu Render). Còn lại một câu hỏi: repo đang public nên câu trả lời admin dạy cho bot cũng công khai. Có ổn không, hay chuyển repo sang private (xem mục B)?

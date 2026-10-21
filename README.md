@@ -129,9 +129,17 @@ De bot gui anh kem cau tra loi, them duong dan vao cap Q&A trong `data/qa_databa
 
 ### 10. Tin nhac lai khach (follow-up, mac dinh TAT)
 
-Moi gio GitHub Actions (`.github/workflows/followup.yml`, phut 17) goi `POST /followup/run`. Bot gui MOT tin co dinh (khong goi AI, `app/followup.py`) cho phu huynh dang tu van do dang, khi DU tat ca dieu kien:
+Moi gio 2 lan, phut 17 va phut 47, GitHub Actions (`.github/workflows/followup.yml`) goi `POST /followup/run` (GitHub Actions hay chay tre hoac bo luot theo lich, nen chay 2 lan cho chac; moi phu huynh van chi nhan 1 tin vi bot ghi `followup_sent_at` va khong cho 2 lan chay chong nhau). Bot gui MOT tin co dinh (khong goi AI, `app/followup.py`) cho phu huynh dang tu van do dang, NGAY TRUOC khi het cua so 24 gio cua Messenger.
 
-- Tin cuoi cua phu huynh cach day tu 3 den 23 gio (Messenger chi cho Page nhan tin trong 24 gio ke tu tin cuoi cua nguoi dung).
+Vi sao: Messenger chi cho Page gui tin thuong trong 24 gio ke tu tin cuoi cua phu huynh; sau do Graph API tu choi, va gan tag `HUMAN_AGENT` cho tin tu dong de vuot qua la vi pham chinh sach Messenger. Nen bot doi lau nhat co the roi moi nhac:
+
+- Han chot = tin cuoi cua phu huynh + 23 gio (chua 1 gio truoc khi cua so dong).
+- Gui muon nhat = han chot khi han chot tu 10h00 den 20h59 (2 gio truoc han chot khong som hon 8h00); ngoai ra lui ve 20h59 gan nhat truoc han chot. Vi du: tin cuoi 11h00 (han chot 10h00 hom sau) thi gui 8h00 den 10h00 sang hom sau; tin cuoi 20h50 thi 17h50 den 19h50 hom sau; tin cuoi 10h00 (han chot 9h00 hom sau) thi 18h59 den 20h59 cung ngay; tin cuoi 23h00 (han chot 22h00 hom sau) thi 18h59 den 20h59 hom sau; tin cuoi 3h00 sang (han chot 2h00 hom sau) thi 18h59 den 20h59 cung ngay.
+- Bot nhac trong 2 gio truoc thoi diem gui muon nhat, va ca 2 gio do luon nam tron trong khung gui (8h00 den 20h59 gio Viet Nam), nen moi phu huynh deu co it nhat 3 lan chay (phut 17 va 47), lan dau con it nhat 1 gio truoc thoi diem gui muon nhat.
+
+Bot chi nhac khi DU tat ca dieu kien:
+
+- Dang trong khoang gui o tren, va tin cuoi cua phu huynh cach day it nhat 3 gio.
 - Tin cuoi trong hoi thoai la cua bot, va khong phai cau chuyen tu van vien (tu van vien dang lo).
 - Chua co SDT, chua hen tham quan/hoc thu.
 - Chua nhac lan nao ke tu tin cuoi cua phu huynh (`followup_sent_at` trong ho so khach).
@@ -139,7 +147,7 @@ Moi gio GitHub Actions (`.github/workflows/followup.yml`, phut 17) goi `POST /fo
   - Tin tu dong cua Page trong Meta Business Suite (Instant Reply, Away message) cung tao echo khong co `casa-bot`, nen bi tinh la nhan vien da nhan va khach do se khong bao gio duoc nhac. Tat cac tin tu dong nay truoc khi bat tin nhac lai.
 - Gio Viet Nam tu 8h00 den truoc 21h00.
 
-Mau tin theo trang thai: chua biet tuoi be thi hoi tuoi; da biet tuoi nhung chua co SDT thi xin SDT/Zalo; phu huynh da tu choi de lai SDT thi KHONG xin so, moi tham quan/hoc thu 1 tuan mien phi. Graph API tu choi (ngoai cua so 24 gio, khach chan Page) thi bo qua khach do. Tin da gui duoc ghi vao lich su hoi thoai, khong tang so tin nhan cua khach. Gio trong lich su la gio may chu khong co mui gio, duoc coi la UTC (Render chay UTC).
+Mau tin (nguyen van cua truong, theo nhan cua truong; `docs/quyet-dinh-noi-dung.md` muc 3), theo thu tu: da tu van tuong doi du (biet tuoi be va co so quan tam, bot da noi du cac nhom thong tin) thi mau 3, moi tham quan; chua biet tuoi be thi mau 1, hoi tuoi; con lai thi mau 2, xin SDT/Zalo, ke ca khi phu huynh da tu choi de lai so. Graph API tu choi (ngoai cua so 24 gio, khach chan Page) thi bo qua khach do. Tin da gui duoc ghi vao lich su hoi thoai, khong tang so tin nhan cua khach. Gio trong lich su la gio may chu khong co mui gio, duoc coi la UTC (Render chay UTC).
 
 Cach bat (truoc het dang ky truong webhook `message_echoes`, muc 3; sau do can ca hai noi):
 

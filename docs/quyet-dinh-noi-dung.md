@@ -75,11 +75,16 @@ Mục D:
 6. Dữ kiện giữ từ dữ liệu cũ (Bảo lưu tối thiểu 1 tháng, tối đa 6 tháng. Đóng phí trong 5 ngày làm việc đầu quý, quá hạn có phí nộp muộn. Báo nghỉ trước 7:00 sáng (qua LittleLives hoặc email) thì tiền ăn ngày nghỉ được trừ vào quý sau. Nhập học giữa tháng thì học phí tháng đầu tính theo số ngày đi học thực tế.) — các điểm này còn đúng không? bổ sung thêm nhập học giữa tháng tiền đầu kỳ như phí phát triển trường, học liệu và hoạt động ngoại khóa sẽ thu tròn theo tháng bé nhập học tới hết tháng 6 của năm học. Nhà trường sẽ thu tròn năm/khoản vào tháng 7 hàng năm
 7. Số năm hoạt động: Hơn 10 năm
 
+## 2e. Phản hồi của trường, đợt 6 (nguyên văn)
+
+* học phí thu theo quý, 6 tháng hoặc 12 tháng
+* 5 lĩnh vực Montessori: ngôn ngữ, toán, thực hành cuộc sống, giác quan, văn hoá
+
 ## 3. Cách bot áp dụng
 
 - Nhận bé từ 15 tháng, đã đi vững.
 - Học phí: không nêu con số, không gửi bảng phí trên chat. Hỏi tuổi bé + cơ sở, kể giá trị trước, rồi xin SĐT/Zalo để tư vấn viên tư vấn/gửi bảng phí. Phụ huynh không cho số mà vẫn muốn biết → chuyển nhân viên trả lời trực tiếp (`[ESCALATE]`).
-- Kỳ đóng học phí (mục 2d, D3): không đóng theo tháng; kỳ ngắn nhất là quý. Kỳ 6 tháng / 12 tháng của chính sách hoàn phí vẫn giữ (cách hiểu của lead, chờ trường xác nhận: `docs/dot-4-can-bo-sung.md`, mục D). Hỏi "đóng theo tháng được không" → không, tối thiểu theo quý.
+- Kỳ đóng học phí (mục 2e; 2d, D3): học phí thu theo quý, 6 tháng hoặc 12 tháng; không thu theo tháng. Hỏi "đóng theo tháng được không" → không, nêu đủ 3 kỳ đóng. Chính sách hoàn phí (60/70/80%) và ưu đãi đóng theo kỳ dùng đúng 3 kỳ này.
 - Khoản đầu kỳ (mục 2d, D6): phí phát triển trường, phí học liệu và hoạt động ngoại khóa thu tròn năm vào tháng 7 hằng năm; bé nhập học giữa năm học thì thu tròn theo tháng, từ tháng bé nhập học tới hết tháng 6 của năm học. Học phí tháng đầu vẫn tính theo số ngày đi học thực tế. Không nêu số tiền.
 - Ưu đãi theo kỳ đóng và khuyến mãi: xin SĐT trước; không cho số → chỉ nói "ưu đãi hấp dẫn, tùy từng đợt/chương trình", không nêu %.
 - Ưu đãi anh chị em ruột / cư dân tòa nhà: nói là có, xin SĐT; không cho số → hỏi cơ sở rồi nêu đúng chính sách cơ sở đó:
@@ -94,7 +99,8 @@ Mục D:
 - Dã ngoại: 6 chuyến/năm.
 - Chương trình: 3–6 tuổi học Cambridge Early Years là khung chính, Montessori là phương pháp và giáo cụ bổ trợ; 15 tháng–3 tuổi xây nền tảng qua Montessori, làm quen tiếng Anh với giáo viên nước ngoài.
   - Cambridge theo hệ (mục 2c): hệ Quốc tế (Chùa Láng, Mỹ Đình) học trọn 3 môn English, Mathematics, Let's Explore (khám phá khoa học, thế giới xung quanh); hệ Song ngữ Kim Mã học Cambridge 1 môn English. Không nói Kim Mã học Mathematics hay Let's Explore; câu trả lời chung về chương trình nêu rõ khác biệt này. Tên môn dùng "Let's Explore", không dùng "Understanding the World".
-  - Kim Mã (mục 2d, D2): ngoài Cambridge môn English, các con tiếp tục học theo phương pháp Montessori, phát triển theo 5 lĩnh vực của phương pháp, gồm toán, tiếng Việt, thực hành cuộc sống, giác quan…; ngoài ra có các chương trình ngoại khóa phong phú. Chỉ nêu các lĩnh vực trường đã kể, không tự thêm lĩnh vực thứ 5 (chờ trường: `docs/dot-4-can-bo-sung.md`, mục D).
+  - Kim Mã (mục 2d, D2): ngoài Cambridge môn English, các con tiếp tục học theo phương pháp Montessori, phát triển theo 5 lĩnh vực của phương pháp; ngoài ra có các chương trình ngoại khóa phong phú.
+  - 5 lĩnh vực Montessori (mục 2e): ngôn ngữ, toán, thực hành cuộc sống, giác quan, văn hóa. Câu nào nhắc "5 lĩnh vực" thì nêu đủ 5, không liệt kê dở ("…"), không dùng "tiếng Việt" thay cho "ngôn ngữ", không thêm lĩnh vực khác.
 - Bỏ toàn bộ nội dung workshop của cô Phan Thúy (sheet "Workshop" trong kịch bản). Câu trả lời về sự kiện chung của trường (Family Day, workshop, lễ hội…) vẫn giữ — chờ trường xác nhận (docs/dot-3-can-bo-sung.md, mục C6).
 - Xe bus: hiện Nhà trường chưa có tuyến xe bus; khi đủ phụ huynh đăng ký, Nhà trường sẽ mở tuyến. Bot mời để lại khu vực nhà + SĐT/Zalo để ghi nhận nhu cầu.
 - Khi phụ huynh chê đắt (CARE): không gợi ý hệ/cơ sở khác như phương án rẻ hơn; nêu giá trị khác biệt và mời học thử/tham quan.
@@ -119,12 +125,12 @@ Mục D:
 - Casa hoạt động hơn 10 năm.
 - Cơ sở Kim Mã: không gian biệt thự sân vườn xanh mát, mỗi tầng là 1 lớp học rộng 80 m².
 - Hệ Quốc tế: giáo viên nước ngoài đồng hành cả ngày 8h30–17h00. Hệ Song ngữ: 1 giáo viên nước ngoài tại cơ sở, lớp 0–3 tuổi ~1–1,5 giờ/ngày, lớp 3–6 tuổi ~2–2,5 giờ/ngày.
-- Kim Mã: Cambridge môn English + phương pháp Montessori (toán, tiếng Việt, thực hành cuộc sống, giác quan…) + ngoại khóa phong phú.
+- Kim Mã: Cambridge môn English + phương pháp Montessori (5 lĩnh vực: ngôn ngữ, toán, thực hành cuộc sống, giác quan, văn hóa) + ngoại khóa phong phú.
 - Giờ đón chuẩn 17h30.
 - Khai giảng chính thức 05/09 hằng năm; nhận hồ sơ và nhập học quanh năm.
 - Tặng 1 tuần học thử hoàn toàn miễn phí.
 - Cam kết không tăng học phí trong suốt thời gian con theo học.
-- Học phí không đóng theo tháng; kỳ đóng: quý (ngắn nhất), 6 tháng, 12 tháng. Đóng trong 5 ngày làm việc đầu quý, quá hạn có phí nộp muộn.
+- Học phí thu theo quý, 6 tháng hoặc 12 tháng; không thu theo tháng. Đóng trong 5 ngày làm việc đầu quý, quá hạn có phí nộp muộn.
 - Nhập học giữa tháng: học phí tháng đầu tính theo số ngày đi học thực tế. Khoản đầu kỳ (phí phát triển trường, phí học liệu và hoạt động ngoại khóa): thu tròn năm vào tháng 7 hằng năm; nhập học giữa năm học thì thu tròn theo tháng, từ tháng bé nhập học tới hết tháng 6.
 - Báo nghỉ trước 7:00 sáng (LittleLives hoặc email) → tiền ăn ngày nghỉ trừ vào quý sau.
 - Ưu đãi cư dân tòa nhà (hệ Quốc tế): cư dân tòa Hongkong Tower (Chùa Láng) và FLC Complex (Mỹ Đình); Kim Mã không có.

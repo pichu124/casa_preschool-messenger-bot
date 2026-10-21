@@ -8,6 +8,8 @@ import json
 import re
 import subprocess
 import sys
+import textwrap
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -15,7 +17,7 @@ import httpx
 import pytest
 
 from app.coverage import TOPICS, topics_in_reply
-from app.followup import TEMPLATES
+from app.followup import TEMPLATES, due_followups
 from app.messenger import ICE_BREAKERS, QUICK_REPLIES, build_quick_replies
 
 SKILL = Path(__file__).resolve().parent.parent / ".claude" / "skills" / "verify-casa-bot"
@@ -158,6 +160,51 @@ def test_followup_text_expected_by_the_skill_starts_every_template():
     assert starts
     for start in starts:
         assert all(t.startswith(start.rstrip()) for t in TEMPLATES.values()), start
+
+
+# Đồng hồ của đoạn script dừng ở tin cuối của phụ huynh (tham số đầu tiên của script).
+FROZEN_NOW = """import datetime as _d, sys as _s
+_at = _d.datetime.fromisoformat(_s.argv.pop(1))
+class _Frozen(_d.datetime):
+    @classmethod
+    def now(cls, tz=None):
+        return _at.astimezone(tz)
+_d.datetime = _Frozen
+"""
+VN_TZ = timezone(timedelta(hours=7))
+# Mỗi 30 phút trong ngày theo giờ VN, cộng các biên của quy tắc latest_send
+PARENT_TIMES_VN = sorted({(h, m) for h in range(24) for m in (0, 30)} | {(9, 16), (10, 59), (11, 29), (21, 59)})
+
+
+@pytest.mark.parametrize(("hour", "minute"), PARENT_TIMES_VN, ids=[f"{h:02}:{m:02}" for h, m in PARENT_TIMES_VN])
+def test_followup_scenario_times_of_the_skill_fall_before_in_and_after_the_slot(tmp_path, hour, minute):
+    """Đoạn script trong features/followup.md tạo now_utc trước slot, trong slot và sau latest_send của app/followup.py."""
+    text = (SKILL / "features" / "followup.md").read_text("utf-8")
+    [script] = re.findall(r"python3 - <slug> <<'EOF'\n(.*?)\n *EOF\n", text, re.S)
+    harness = tmp_path / ".claude" / "skills" / "verify-casa-bot" / "harness"
+    harness.mkdir(parents=True)
+    (harness / "scenario.default.json").write_text(json.dumps(SCENARIO), "utf-8")
+    (tmp_path / "artifacts" / "verify" / "s").mkdir(parents=True)
+    parent_at = datetime(2026, 10, 20, hour, minute, tzinfo=VN_TZ).astimezone(timezone.utc)
+
+    out = subprocess.run(
+        [sys.executable, "-I", "-", parent_at.isoformat(), "s"],
+        input=FROZEN_NOW + textwrap.dedent(script),
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+
+    assert out.returncode == 0, out.stderr
+    history = [
+        {"role": "user", "content": "Xin chào", "timestamp": parent_at.replace(tzinfo=None).isoformat()},
+        {"role": "assistant", "content": "Dạ Casa chào Ba/Mẹ ạ", "timestamp": parent_at.replace(tzinfo=None).isoformat()},
+    ]
+    customers = {"9000000000000041": {"conversation_history": history}}
+    for name, due in (("before", []), ("in", [("9000000000000041", "ask_age")]), ("after", [])):
+        scenario = json.loads((tmp_path / "artifacts" / "verify" / "s" / f"scenario-{name}.json").read_text("utf-8"))
+        assert scenario["rules"] == SCENARIO["rules"]
+        assert due_followups(customers, datetime.fromisoformat(scenario["now_utc"])) == due, name
 
 
 CTL_STATE = {

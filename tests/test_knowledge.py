@@ -410,3 +410,46 @@ def test_upfront_fees_are_rounded_by_month_until_june_and_collected_in_july():
     assert _answers_with("tối thiểu 1 tháng", "tối đa 6 tháng")
     assert _answers_with("5 ngày làm việc đầu tiên của quý", "nộp muộn")
     assert _answers_with("trước 7:00", "quý tiếp theo")
+
+
+# --- Vòng sửa sau review đợt 5 ------------------------------------------------
+
+FIVE_AREAS_QUESTIONS = ("5 lĩnh vực Montessori là những gì?", "5 lĩnh vực đó gồm những gì?")
+# Lĩnh vực trường chưa kể (vd "văn hóa") thì bot không được tự thêm vào 5 lĩnh vực Montessori.
+UNLISTED_AREAS = ("văn hóa", "văn hoá", "ngôn ngữ", "khoa học", "địa lý", "nghệ thuật")
+
+
+def _full_sentences(text: str) -> list[str]:
+    return [s for s in re.split(r"(?<=[.?!…])\s+|\n", text) if s.strip()]
+
+
+def test_kim_ma_cambridge_answers_say_cambridge_is_for_3_to_6():
+    # Quy tắc chương trình: Cambridge cho trẻ 3–6 tuổi; 15 tháng–3 tuổi chưa học Cambridge.
+    for answer in _answers_with("kim mã", "cambridge"):
+        assert any("cambridge" in s and "3-6 tuổi" in s for s in _full_sentences(answer)), answer
+    kim_ma = _norm(_pair_with_question("Chương trình học ở cơ sở Kim Mã như thế nào?")["answer"])
+    assert re.search(r"(dưới 3 tuổi|15 tháng-3 tuổi)[^.]{0,80}montessori", kim_ma), kim_ma
+
+
+def test_montessori_five_areas_names_only_the_areas_the_school_listed():
+    pairs = [_pair_with_question(q) for q in FIVE_AREAS_QUESTIONS]
+    assert pairs[0] is pairs[1]
+    reply = pairs[0]["answer"]
+    answer = _norm(reply)
+    for area in KIM_MA_MONTESSORI_AREAS:
+        assert area in answer, area
+    assert "tư vấn viên" in answer and "sđt/zalo" in answer and "tham quan" in answer, answer
+    assert "program" in topics_in_reply(reply)
+    for text in ANSWERS:
+        for sentence in _full_sentences(text):
+            if "5 lĩnh vực" in sentence:
+                assert not any(a in sentence for a in UNLISTED_AREAS), sentence
+            if "lĩnh vực" in sentence:
+                assert "văn hóa" not in sentence and "văn hoá" not in sentence, sentence
+
+
+def test_playground_answer_does_not_claim_kim_ma_garden_play():
+    reply = _pair_with_question("Trường có sân chơi không?")["answer"]
+
+    assert "biệt thự sân vườn" not in _norm(reply)
+    assert "facilities" in topics_in_reply(reply)

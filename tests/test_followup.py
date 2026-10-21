@@ -42,7 +42,6 @@ KID_NAME = "Bin"
 PHONE = "0900000201"
 PARENT_TEXT = "Trường mình có cơ sở nào gần Cầu Giấy không ạ?"
 BOT_TEXT = "Dạ Casa có cơ sở Chùa Láng, Mỹ Đình và Kim Mã ạ. Bé nhà mình năm nay mấy tuổi ạ?"
-ASK_PHONE_WORDS = ("SĐT", "Zalo", "số điện thoại")
 # Đủ 6 điều kiện "đã tư vấn tương đối đủ" của trường (phản hồi đợt 4)
 CONSULTED = {"kid_age": "3 tuổi", "interested_campus": "Mỹ Đình", "topics_covered": list(TOPICS)}
 
@@ -91,7 +90,7 @@ DUE_CASES = [
     ("có visit_request", profile(kid_age="3 tuổi", visit_request="tham quan sáng thứ 7"), NOW, None),
     ("chưa biết tuổi bé", profile(interested_campus="Mỹ Đình"), NOW, "ask_age"),
     ("biết tuổi, chưa có SĐT", profile(kid_age="3 tuổi"), NOW, "ask_phone"),
-    ("phone_declined", profile(kid_age="3 tuổi", phone_declined=True), NOW, "invite_visit"),
+    ("phone_declined", profile(kid_age="3 tuổi", phone_declined=True), NOW, "ask_phone"),
     ("phone_declined, chưa biết tuổi", profile(phone_declined=True), NOW, "ask_age"),
     ("tư vấn đủ, chưa có SĐT", profile(**CONSULTED), NOW, "invite_visit"),
     ("tư vấn đủ, từ chối SĐT", profile(**CONSULTED, phone_declined=True), NOW, "invite_visit"),
@@ -102,7 +101,7 @@ DUE_CASES = [
         "có tuổi, từ chối SĐT, chưa tư vấn đủ",
         profile(kid_age="3 tuổi", interested_campus="Mỹ Đình", topics_covered=["program"], phone_declined=True),
         NOW,
-        "invite_visit",
+        "ask_phone",
     ),
     ("chỉ có referral, không history", {"lead_source": "ads", "ad_title": "Học thử 1 tuần"}, NOW, None),
 ]
@@ -113,17 +112,6 @@ def test_due_followups_edge_cases(customer, now, template_key):
     expected = [(CID, template_key)] if template_key else []
 
     assert followup.due_followups({CID: customer}, now) == expected
-
-
-@pytest.mark.parametrize(
-    "customer",
-    [c[1] for c in DUE_CASES if c[1].get("phone_declined") and c[3]],
-    ids=[c[0] for c in DUE_CASES if c[1].get("phone_declined") and c[3]],
-)
-def test_parent_who_declined_phone_is_never_asked_for_it_again(customer):
-    [(_, key)] = followup.due_followups({CID: customer}, NOW)
-
-    assert [word for word in ASK_PHONE_WORDS if word in followup.TEMPLATES[key]] == []
 
 
 def test_history_timestamp_without_timezone_is_read_as_utc():
@@ -143,26 +131,24 @@ def test_unreadable_timestamp_is_not_due_and_does_not_break_others():
     assert followup.due_followups({CID: broken, other: profile()}, NOW) == [(other, "ask_age")]
 
 
-# Nguyên văn 3 mẫu nhắc lại của trường (phản hồi đợt 3).
+# Nguyên văn 3 mẫu nhắc lại của trường (phản hồi đợt 5).
 SCHOOL_TEMPLATES = {
-    # Chưa biết tuổi bé
+    # 1. Chưa biết tuổi bé
     "ask_age": (
         "Dạ em chào Ba/Mẹ ạ. Em xin phép nhắn lại để tiếp tục hỗ trợ Ba/Mẹ tìm hiểu về Casa. Ba/Mẹ cho em xin "
         "độ tuổi hiện tại của bé, để em có thể gửi đúng thông tin về chương trình và lớp học phù hợp với con ạ. "
         "Nếu Ba/Mẹ cần thêm thông tin nào khác, em cũng luôn sẵn sàng hỗ trợ."
     ),
-    # Đã biết tuổi bé, chưa có SĐT
+    # 2. Đã biết tuổi bé, chưa có SĐT
     "ask_phone": (
-        "Dạ em chào Ba/Mẹ ạ. Em xin phép nhắn lại một chút. Không biết Ba/Mẹ còn cần em hỗ trợ thêm thông tin "
-        "nào về chương trình, học phí hay lớp phù hợp với bé không ạ? Nếu thuận tiện, Ba/Mẹ có thể để lại "
-        "SĐT/Zalo để Casa tư vấn kỹ hơn cho mình nhé."
+        "Dạ em chào Ba/Mẹ ạ. Không biết Ba/Mẹ còn cần em hỗ trợ thêm thông tin nào về chương trình, học phí hay "
+        "lớp phù hợp với bé không ạ? Nếu thuận tiện, Ba/Mẹ có thể để lại SĐT/Zalo để Casa tư vấn kỹ hơn cho mình nhé."
     ),
-    # Đã tư vấn tương đối đủ nhưng phụ huynh dừng trao đổi (bot cũng áp khi đã biết tuổi bé và phụ huynh từ chối
-    # để lại SĐT)
+    # 3. Đã tư vấn tương đối đủ nhưng phụ huynh dừng trao đổi
     "invite_visit": (
-        "Dạ em chào Ba/Mẹ ạ. Em xin phép hỏi thêm một chút, không biết Ba/Mẹ còn điều gì đang cân nhắc khi tìm "
-        "trường cho con không ạ? Nếu cần, Casa có thể hỗ trợ Ba/Mẹ tìm hiểu kỹ hơn về chương trình học hoặc sắp "
-        "xếp một buổi tham quan để gia đình trực tiếp cảm nhận môi trường của con."
+        "Dạ em chào Ba/Mẹ ạ. Không biết Ba/Mẹ còn điều gì đang băn khoăn hay cần em tư vấn thêm không ạ? Nếu cần, "
+        "Casa có thể hỗ trợ Ba/Mẹ tìm hiểu kỹ hơn về chương trình học hoặc sắp xếp một buổi tham quan để gia đình "
+        "trực tiếp cảm nhận môi trường học của con."
     ),
 }
 
@@ -171,12 +157,23 @@ def test_templates_are_the_school_wording():
     assert followup.TEMPLATES == SCHOOL_TEMPLATES
 
 
-def test_phone_declined_parent_gets_the_third_template_without_asking_for_phone():
-    [(_, key)] = followup.due_followups({CID: profile(kid_age="3 tuổi", phone_declined=True)}, NOW)
-    text = followup.TEMPLATES[key]
+# Nhãn của trường quyết định mẫu, kể cả khi phụ huynh đã từ chối để lại SĐT.
+SCHOOL_LABELS = [
+    ("tư vấn đủ, từ chối SĐT: mẫu 3", {**CONSULTED, "phone_declined": True}, "invite_visit"),
+    ("chưa biết tuổi, từ chối SĐT: mẫu 1", {"interested_campus": "Mỹ Đình", "phone_declined": True}, "ask_age"),
+    (
+        "có tuổi, từ chối SĐT, chưa tư vấn đủ: mẫu 2",
+        {"kid_age": "3 tuổi", "interested_campus": "Mỹ Đình", "topics_covered": ["program"], "phone_declined": True},
+        "ask_phone",
+    ),
+]
 
-    assert text == SCHOOL_TEMPLATES["invite_visit"]
-    assert not [word for word in ASK_PHONE_WORDS if word in text]
+
+@pytest.mark.parametrize(("fields", "school_key"), [c[1:] for c in SCHOOL_LABELS], ids=[c[0] for c in SCHOOL_LABELS])
+def test_followup_text_follows_the_school_labels(fields, school_key):
+    [(_, key)] = followup.due_followups({CID: profile(**fields)}, NOW)
+
+    assert followup.TEMPLATES[key] == SCHOOL_TEMPLATES[school_key]
 
 
 # --- run_followups ---
@@ -223,7 +220,7 @@ def seed_customers():
     customer_memory._customers.update(
         {
             ASK_AGE_ID: profile(kid_name=KID_NAME),
-            INVITE_ID: profile(kid_age="3 tuổi", phone_declined=True),
+            INVITE_ID: profile(**CONSULTED, phone_declined=True),
             HAS_PHONE_ID: profile(kid_age="4 tuổi", phone=PHONE),
         }
     )
@@ -291,7 +288,7 @@ def test_followup_to_a_consulted_parent_leaves_topics_covered_as_is(monkeypatch,
     assert result["sent"] == 2
     assert outbox.sent == [
         (consulted_id, followup.TEMPLATES["invite_visit"]),
-        (partial_id, followup.TEMPLATES["invite_visit"]),
+        (partial_id, followup.TEMPLATES["ask_phone"]),
     ]
     assert customer_memory.get_profile(consulted_id)["topics_covered"] == list(TOPICS)
     assert customer_memory.get_profile(partial_id)["topics_covered"] == partial

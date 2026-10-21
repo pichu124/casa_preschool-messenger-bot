@@ -34,13 +34,15 @@ Bảo mật:
 ## D. Dữ kiện cần trường xác nhận
 
 - [x] ~~Kim Mã có học Cambridge Early Years không?~~ Có, 1 môn English; hệ Quốc tế học đủ 3 môn (`docs/quyet-dinh-noi-dung.md`, mục 2c).
-- [ ] Diện tích lớp ở Kim Mã?
-- [ ] Kim Mã học Cambridge môn English; còn toán và khám phá khoa học ở Kim Mã học theo khung/phương pháp nào? (Phụ huynh hỏi kỹ thì bot chưa có thông tin.)
-- [ ] Có cho đóng học phí theo tháng không (hiện chỉ biết quý / 6 tháng / 12 tháng)?
-- [ ] Camera: xem tại văn phòng "bất kỳ lúc nào trong giờ hành chính" hay "khi có sự việc cụ thể, theo quy trình"?
-- [ ] "Cư dân tòa nhà" là cư dân tòa nào (Hongkong Tower, FLC…)?
-- [ ] Dữ kiện giữ từ dữ liệu cũ: bảo lưu tối thiểu 1 – tối đa 6 tháng; hạn đóng phí 5 ngày làm việc đầu quý; báo nghỉ trước 7:00 để trừ tiền ăn; nhập học giữa tháng tính theo ngày.
-- [ ] Số năm hoạt động: "gần 10 năm" hay "hơn 10 năm"?
+- [x] ~~Diện tích lớp ở Kim Mã?~~ Biệt thự sân vườn xanh mát, mỗi tầng là 1 lớp học rộng 80 m² (`docs/quyet-dinh-noi-dung.md`, mục 2d).
+- [x] ~~Toán và khám phá khoa học ở Kim Mã học theo khung/phương pháp nào?~~ Tiếp tục học theo phương pháp Montessori (toán, tiếng Việt, thực hành cuộc sống, giác quan…), cộng ngoại khóa phong phú.
+- [x] ~~Có cho đóng học phí theo tháng không?~~ Không; kỳ ngắn nhất là quý.
+- [x] ~~Camera: xem tại văn phòng lúc nào?~~ Bất kỳ lúc nào trong giờ hành chính.
+- [x] ~~"Cư dân tòa nhà" là cư dân tòa nào?~~ Hongkong Tower (cơ sở Chùa Láng) và FLC Complex (cơ sở Mỹ Đình).
+- [x] ~~Dữ kiện giữ từ dữ liệu cũ~~: vẫn đúng; bổ sung khoản đầu kỳ (phí phát triển trường, phí học liệu và hoạt động ngoại khóa) thu tròn năm vào tháng 7, nhập học giữa năm thì thu tròn theo tháng tới hết tháng 6.
+- [x] ~~Số năm hoạt động?~~ "Hơn 10 năm".
+- [ ] Lĩnh vực thứ 5 của Montessori ở Kim Mã là gì (trường kể toán, tiếng Việt, thực hành cuộc sống, giác quan…)?
+- [ ] Học phí: còn cho đóng theo 6 tháng / 12 tháng không, hay chỉ theo quý? (Trường trả lời "tất cả đều thu theo quý"; bot hiện vẫn nói kỳ quý / 6 tháng / 12 tháng như chính sách hoàn phí.)
 
 ## E. Kỹ thuật
 

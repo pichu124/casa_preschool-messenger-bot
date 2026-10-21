@@ -116,7 +116,7 @@ CƠ SỞ DỮ LIỆU Q&A:
 """
 
 
-# Model suy luận (deepseek-r1 trên Groq) trả "<think>…</think>" trước câu trả lời; khối có thể
+# Model suy luận (vd qwen3 trên Groq) trả "<think>…</think>" trước câu trả lời; khối có thể
 # bị cắt dở khi chạm max_tokens nên chấp nhận cả trường hợp không có thẻ đóng.
 _THINK_RE = re.compile(r"<think>.*?(?:</think>|\Z)\s*", re.S | re.I)
 
@@ -149,7 +149,7 @@ class OpenAIProvider(AIProvider):
         messages.append({"role": "user", "content": user_message})
 
         response = await self.client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=settings.OPENAI_MODEL,
             messages=messages,
             max_tokens=1024,
             temperature=0.3,
@@ -168,7 +168,7 @@ class GroqProvider(AIProvider):
         messages.append({"role": "user", "content": user_message})
 
         response = await self.client.chat.completions.create(
-            model="deepseek-r1-distill-llama-70b",
+            model=settings.GROQ_MODEL,
             messages=messages,
             max_tokens=1024,
             temperature=0.3,
@@ -176,8 +176,8 @@ class GroqProvider(AIProvider):
         return response.choices[0].message.content
 
 
-class GroqLlamaProvider(AIProvider):
-    """Fallback Groq provider using Llama model."""
+class GroqSecondProvider(AIProvider):
+    """Second Groq model (GROQ_SECOND_MODEL); key "groq_llama" kept for existing AI_MODEL_ORDER."""
 
     def __init__(self):
         from groq import AsyncGroq
@@ -189,7 +189,7 @@ class GroqLlamaProvider(AIProvider):
         messages.append({"role": "user", "content": user_message})
 
         response = await self.client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=settings.GROQ_SECOND_MODEL,
             messages=messages,
             max_tokens=1024,
             temperature=0.3,
@@ -208,7 +208,7 @@ class MistralProvider(AIProvider):
         messages.append({"role": "user", "content": user_message})
 
         response = await self.client.chat.complete_async(
-            model="mistral-small-latest",
+            model=settings.MISTRAL_MODEL,
             messages=messages,
             max_tokens=1024,
             temperature=0.3,
@@ -232,7 +232,7 @@ class DeepSeekProvider(AIProvider):
         messages.append({"role": "user", "content": user_message})
 
         response = await self.client.chat.completions.create(
-            model="deepseek-chat",
+            model=settings.DEEPSEEK_MODEL,
             messages=messages,
             max_tokens=1024,
             temperature=0.3,
@@ -258,7 +258,7 @@ class GeminiProvider(AIProvider):
         contents.append(types.Content(role="user", parts=[types.Part.from_text(text=user_message)]))
 
         response = await self.client.aio.models.generate_content(
-            model="gemini-2.0-flash",
+            model=settings.GEMINI_MODEL,
             contents=contents,
             config=types.GenerateContentConfig(
                 system_instruction=system_prompt,
@@ -272,7 +272,7 @@ class GeminiProvider(AIProvider):
 PROVIDER_MAP: dict[str, type[AIProvider]] = {
     "openai": OpenAIProvider,
     "groq": GroqProvider,
-    "groq_llama": GroqLlamaProvider,
+    "groq_llama": GroqSecondProvider,
     "mistral": MistralProvider,
     "deepseek": DeepSeekProvider,
     "gemini": GeminiProvider,

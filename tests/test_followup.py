@@ -118,18 +118,39 @@ def test_unreadable_timestamp_is_not_due_and_does_not_break_others():
     assert followup.due_followups({CID: broken, other: profile()}, NOW) == [(other, "ask_age")]
 
 
-def test_phone_declined_template_invites_visit_without_asking_for_phone():
-    text = followup.TEMPLATES["invite_visit"]
+# Nguyên văn 3 mẫu nhắc lại của trường (phản hồi đợt 3).
+SCHOOL_TEMPLATES = {
+    # Chưa biết tuổi bé
+    "ask_age": (
+        "Dạ em chào Ba/Mẹ ạ. Em xin phép nhắn lại để tiếp tục hỗ trợ Ba/Mẹ tìm hiểu về Casa. Ba/Mẹ cho em xin "
+        "độ tuổi hiện tại của bé, để em có thể gửi đúng thông tin về chương trình và lớp học phù hợp với con ạ. "
+        "Nếu Ba/Mẹ cần thêm thông tin nào khác, em cũng luôn sẵn sàng hỗ trợ."
+    ),
+    # Đã biết tuổi bé, chưa có SĐT
+    "ask_phone": (
+        "Dạ em chào Ba/Mẹ ạ. Em xin phép nhắn lại một chút. Không biết Ba/Mẹ còn cần em hỗ trợ thêm thông tin "
+        "nào về chương trình, học phí hay lớp phù hợp với bé không ạ? Nếu thuận tiện, Ba/Mẹ có thể để lại "
+        "SĐT/Zalo để Casa tư vấn kỹ hơn cho mình nhé."
+    ),
+    # Đã tư vấn tương đối đủ nhưng phụ huynh dừng trao đổi (bot áp khi phụ huynh đã từ chối để lại SĐT)
+    "invite_visit": (
+        "Dạ em chào Ba/Mẹ ạ. Em xin phép hỏi thêm một chút, không biết Ba/Mẹ còn điều gì đang cân nhắc khi tìm "
+        "trường cho con không ạ? Nếu cần, Casa có thể hỗ trợ Ba/Mẹ tìm hiểu kỹ hơn về chương trình học hoặc sắp "
+        "xếp một buổi tham quan để gia đình trực tiếp cảm nhận môi trường của con."
+    ),
+}
 
+
+def test_templates_are_the_school_wording():
+    assert followup.TEMPLATES == SCHOOL_TEMPLATES
+
+
+def test_phone_declined_parent_gets_the_third_template_without_asking_for_phone():
+    [(_, key)] = followup.due_followups({CID: profile(kid_age="3 tuổi", phone_declined=True)}, NOW)
+    text = followup.TEMPLATES[key]
+
+    assert text == SCHOOL_TEMPLATES["invite_visit"]
     assert not [word for word in ASK_PHONE_WORDS if word in text]
-    assert "học thử" in text and "miễn phí" in text and "tham quan" in text
-
-
-def test_templates_ask_for_the_missing_step():
-    assert "tuổi" in followup.TEMPLATES["ask_age"]
-    assert "SĐT" in followup.TEMPLATES["ask_phone"]
-    for text in followup.TEMPLATES.values():
-        assert "Ba/Mẹ" in text and "em" in text.split()
 
 
 # --- run_followups ---

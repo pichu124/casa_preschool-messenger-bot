@@ -26,19 +26,23 @@ SEND_HOURS_VN = range(8, 21)  # 8:00 to 20:59 Vietnam time
 # The consultant has the conversation: no follow-up after these.
 HANDED_TO_CONSULTANT = (ESCALATION_MESSAGE_HAS_PHONE, ESCALATION_MESSAGE_ASK_PHONE, ESCALATION_MESSAGE_PHONE_DECLINED)
 
+# The school's wording, verbatim.
 TEMPLATES = {
     "ask_age": (
-        "Dạ, em chào Ba/Mẹ ạ! Em nhắn lại để tiếp tục hỗ trợ Ba/Mẹ tìm hiểu về Casa dei Bambini. "
-        "Ba/Mẹ cho em biết bé nhà mình năm nay bao nhiêu tuổi để em tư vấn lớp phù hợp với bé nhé ạ?"
+        "Dạ em chào Ba/Mẹ ạ. Em xin phép nhắn lại để tiếp tục hỗ trợ Ba/Mẹ tìm hiểu về Casa. Ba/Mẹ cho em xin "
+        "độ tuổi hiện tại của bé, để em có thể gửi đúng thông tin về chương trình và lớp học phù hợp với con ạ. "
+        "Nếu Ba/Mẹ cần thêm thông tin nào khác, em cũng luôn sẵn sàng hỗ trợ."
     ),
     "ask_phone": (
-        "Dạ, em chào Ba/Mẹ ạ! Em nhắn lại để tiếp tục hỗ trợ Ba/Mẹ tìm hiểu về Casa dei Bambini. "
-        "Ba/Mẹ để lại SĐT hoặc Zalo giúp em, tư vấn viên sẽ gửi Ba/Mẹ thông tin chi tiết "
-        "và học phí phù hợp với bé nhé ạ."
+        "Dạ em chào Ba/Mẹ ạ. Em xin phép nhắn lại một chút. Không biết Ba/Mẹ còn cần em hỗ trợ thêm thông tin "
+        "nào về chương trình, học phí hay lớp phù hợp với bé không ạ? Nếu thuận tiện, Ba/Mẹ có thể để lại "
+        "SĐT/Zalo để Casa tư vấn kỹ hơn cho mình nhé."
     ),
+    # The school's message for a parent who stopped after a fairly full consultation; asks for no phone number.
     "invite_visit": (
-        "Dạ, em chào Ba/Mẹ ạ! Casa đang tặng bé 1 tuần học thử hoàn toàn miễn phí để Ba/Mẹ yên tâm trải nghiệm "
-        "cùng con. Ba/Mẹ muốn đưa bé đến tham quan hoặc học thử vào buổi sáng hay buổi chiều ạ?"
+        "Dạ em chào Ba/Mẹ ạ. Em xin phép hỏi thêm một chút, không biết Ba/Mẹ còn điều gì đang cân nhắc khi tìm "
+        "trường cho con không ạ? Nếu cần, Casa có thể hỗ trợ Ba/Mẹ tìm hiểu kỹ hơn về chương trình học hoặc sắp "
+        "xếp một buổi tham quan để gia đình trực tiếp cảm nhận môi trường của con."
     ),
 }
 

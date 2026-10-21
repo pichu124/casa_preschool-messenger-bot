@@ -1,0 +1,143 @@
+---
+name: verify-casa-bot
+description: Chạy bot Messenger Casa dei Bambini (FastAPI, app/main.py) thật trên máy, cách ly hoàn toàn khỏi internet, rồi đóng vai Facebook và Telegram gửi sự kiện vào (tin chữ, quick reply, postback, referral, echo, admin reply) và đọc lại những gì bot gửi ra Graph API, Telegram, Google Sheet, GitHub, OpenAI. Dùng khi cần bằng chứng hành vi người dùng thấy cho một thay đổi trong app/ (verifier, implementer tự thử), không dùng cho chuyện chỉ cần pytest.
+---
+
+# Kiểm chứng bot Casa trên app thật
+
+Bề mặt chính là **HTTP service**: Facebook gọi `POST /webhook`, Telegram gọi `POST /telegram-webhook`, admin gọi các endpoint có `?secret=`. Bot trả lời bằng cách **gọi ra ngoài** (Graph API, Telegram, Apps Script, GitHub, model AI), nên bằng chứng chính là các request đi ra đó.
+
+Harness nằm trong [harness/](harness/), chỉ dùng stdlib (app chạy bằng `.venv` của repo):
+
+| Script | Việc |
+|---|---|
+| `ctl.py` | `up`, `doctor`, `env`, `scenario`, `down` một instance cách ly |
+| `send_event.py` | gửi sự kiện Messenger/Telegram giả, in các request bot gửi ra vì nó |
+| `read_back.py` | đọc lại outbox, hồ sơ khách (`/customers` hoặc file của bản sao), log app |
+| `fake_server.py` | thay mọi dịch vụ ngoài, ghi từng request vào `outbox.jsonl`, trả lời theo kịch bản |
+| `launcher.py` | chạy `app.main:app` trong bản sao: chặn mạng, viết lại httpx về fake |
+| `scenario.default.json` | kịch bản trả lời của model giả (token như `ASK_AGE`, `HARD_QUESTION`) |
+
+Feature map: [features/README.md](features/README.md).
+
+## An toàn: vì sao phải đi qua harness
+
+Môi trường agent có `GITHUB_TOKEN`/`GH_TOKEN` **thật**, và `app/github_sync.py` đẩy `data/qa_database.json` lên `main` của repo **public** `pichu124/casa_preschool-messenger-bot` (push lên `main` là deploy) mỗi khi admin trả lời qua Telegram. `app/config.py` gọi `load_dotenv()`, đọc `.env` thật nếu tìm thấy. Vì vậy:
+
+- **Không** chạy `uvicorn app.main:app` trực tiếp trong repo để kiểm chứng. Luôn dùng `ctl.py up`.
+- `ctl.py up` chép working tree (file tracked và untracked chưa bị ignore; **không** chép `.env*`, `data/customers.json`, `artifacts/`) sang `$TMPDIR/casa-verify/<slug>/app`, nằm ngoài mọi repo, nên `load_dotenv()` không tìm được `.env`. `data/customers.json` của bản sao là `{}`: dữ liệu phụ huynh thật không bao giờ vào bản sao hay bằng chứng.
+- App và fake chạy dưới `/usr/bin/env -i` với mọi biến trong `app/config.py` đặt sẵn giá trị giả có run id: `GITHUB_TOKEN=fake-github-token-…`, không có `GH_TOKEN`. `launcher.py` từ chối khởi động nếu thấy `GH_TOKEN`, `GITHUB_TOKEN` không bắt đầu bằng `fake-`, `GEMINI_API_KEY` (gRPC đi vòng qua httpx), hoặc `.env` ở thư mục cha.
+- `launcher.py` chặn DNS và TCP connect tới mọi địa chỉ không phải loopback (ghi `BLOCKED` vào `netlog.txt`), viết lại mọi request httpx (cả OpenAI SDK) về fake, và ép uvicorn dùng loop `asyncio` (uvloop connect bằng C, lọt qua guard).
+- Không request internet thật, không gửi tin cho phụ huynh thật. `--env` của `ctl.py up` từ chối `GH_TOKEN`, `GITHUB_PAT`, `GITHUB_TOKEN` thật, `GEMINI_API_KEY`.
+
+## Launch
+
+Từ gốc repo hoặc worktree cần kiểm (bản sao lấy đúng code đang có trên đĩa, kể cả chưa commit):
+
+```bash
+python3 .claude/skills/verify-casa-bot/harness/ctl.py up --slug <slug>
+# tuỳ chọn: --env FOLLOWUP_ENABLED=true   --scenario <file.json>   --source <thư mục repo khác>
+```
+
+`<slug>` ngắn, không dấu, vd `gd36-quick-age`; mọi lệnh sau dùng `--slug <slug>` hoặc `export CASA_VERIFY_SLUG=<slug>`. Port app và fake do hệ điều hành cấp, secret sinh mới mỗi lần, nên nhiều instance (slug khác nhau) chạy song song được.
+
+**Sẵn sàng** khi lệnh in `READY http://127.0.0.1:<port> slug=… run_id=…` và exit 0. `up` chỉ in READY khi cả ba đúng: fake trả đúng run id; `GET /` trả `status: ok` với `qa_pairs > 0` (Q&A đã nạp); `GET /webhook?hub.mode=subscribe&hub.verify_token=<token của run>` trả lại challenge. App chết hoặc 40 giây chưa sẵn sàng thì `up` tự tắt những gì vừa bật, in đuôi `app.log` và exit 1.
+
+Đổi code sau khi `up` thì bản sao đã cũ: `down` rồi `up` lại (`doctor` báo `STALE`).
+
+## Doctor
+
+```bash
+python3 .claude/skills/verify-casa-bot/harness/ctl.py doctor --slug <slug>
+```
+
+Chỉ đọc. In `DOCTOR OK` (exit 0) khi: hai pid còn sống và mang `CASA_VERIFY_RUN_ID` của run này (không phải pid tái dùng của ai khác); app dùng được như ở Launch; môi trường của process app không có `GH_TOKEN` và `GITHUB_TOKEN` là giả; `netlog.txt` không có dòng `BLOCKED` (app chưa từng thử ra internet); outbox không có host lạ; bản sao còn khớp working tree của nguồn. Dòng `build:` cho biết commit nguồn và có thay đổi chưa commit hay không. Sai điều nào thì in `FAIL …` và exit 1. Chỉ drive instance mà `doctor` của chính mình báo OK.
+
+## Drive
+
+Lấy biến để dùng với curl: `eval "$(python3 .claude/skills/verify-casa-bot/harness/ctl.py env --slug <slug>)"` cho `CASA_APP`, `CASA_SECRET`, `CASA_VERIFY_TOKEN`, `CASA_COPY`, `CASA_EVIDENCE`, `CASA_OUTBOX`.
+
+**Sự kiện Messenger** (đường thật của Facebook: `POST /webhook`, body ký `X-Hub-Signature-256` bằng `FB_APP_SECRET` của run). `PSID` là id phụ huynh giả, dùng chuỗi số dài khác nhau cho mỗi phụ huynh, vd `9000000000000001`:
+
+```bash
+python3 .claude/skills/verify-casa-bot/harness/send_event.py --slug <slug> text 9000000000000001 "ASK_AGE Cho em hỏi về trường ạ"
+python3 .claude/skills/verify-casa-bot/harness/send_event.py --slug <slug> quick 9000000000000001 QR:age:1 --text "2 – 3 tuổi"   # bấm nút trả lời nhanh
+python3 .claude/skills/verify-casa-bot/harness/send_event.py --slug <slug> phone 9000000000000001 0912345678                    # nút SĐT của Messenger
+python3 .claude/skills/verify-casa-bot/harness/send_event.py --slug <slug> postback 9000000000000002 GET_STARTED --referral ADS --ad-id AD1 --ad-title "Khai giảng"
+python3 .claude/skills/verify-casa-bot/harness/send_event.py --slug <slug> postback 9000000000000002 IB_1                       # ice breaker
+python3 .claude/skills/verify-casa-bot/harness/send_event.py --slug <slug> referral 9000000000000003 --referral SHORTLINK --ref casa   # mở thread, chưa nhắn
+python3 .claude/skills/verify-casa-bot/harness/send_event.py --slug <slug> echo 9000000000000001 "Chị gọi lại nhé"              # nhân viên tự nhắn trong hộp thư Page
+python3 .claude/skills/verify-casa-bot/harness/send_event.py --slug <slug> echo 9000000000000001 "..." --bot                    # echo tin của chính bot
+python3 .claude/skills/verify-casa-bot/harness/send_event.py --slug <slug> raw event.json                                       # sự kiện tự viết
+python3 .claude/skills/verify-casa-bot/harness/send_event.py --slug <slug> tg-reply "Cô Lan chủ nhiệm lớp Mầm"                  # admin reply escalation gần nhất
+```
+
+Cờ hay dùng: `--mid X` (gửi lại cùng mid để thử dedup), `--bad-signature`, `--no-signature`, `--bad-secret` (tg-reply), `--no-wait`, `--full` (in nguyên bản ghi outbox). Cờ chung `--slug`, `--no-wait`, `--full` đứng trước tên lệnh con.
+
+`send_event.py` in `SENT <lệnh> -> HTTP <code> <body>` rồi chờ tới khi bot ngừng gửi ra 1,5 giây (tối đa 30 giây), in mỗi request gửi ra một dòng, vd:
+
+```
+#6   200 FB  to=9000000000000001 TEXT "Dạ Casa chào Ba/Mẹ ạ 🌿 Bé nhà mình năm nay mấy tuổi ạ?" QUICK=["QR:age:0", ...]
+#14  200 SHEET {"event": "new_phone", "customer_id": "...", "phone": "0912345678", ...}
+#15  200 TG  sendMessage message_id=5003 header='📞 KHÁCH ĐỂ LẠI SĐT'
+```
+
+Webhook trả 200 ngay rồi xử lý nền, nên HTTP 200 **không** chứng minh gì; dòng outbox mới là kết quả.
+
+**Model AI giả.** Mọi lời gọi model (trả lời, trích xuất hồ sơ, viết lại admin reply, phân loại Q&A, tóm tắt) đi tới fake, được phân loại theo câu mở đầu system prompt trong `app/ai_engine.py`, và trả lời theo rule đầu tiên khớp trong kịch bản. `chat` và `extract` so `contains` với **đúng phần phụ huynh viết** (fake cắt ra khỏi prompt); loại khác so với cả tin. Kịch bản mặc định ([harness/scenario.default.json](harness/scenario.default.json)):
+
+| Phụ huynh viết chứa | Model trả lời |
+|---|---|
+| `ASK_AGE` | câu hỏi tuổi + `[QUICK:age]` |
+| `ASK_PHONE` | xin SĐT + `[QUICK:phone]` |
+| `ASK_VISIT` | hỏi sáng/chiều + `[QUICK:visit_time]` |
+| `SEND_MENU` | chữ + `[IMAGES:static/thuc-don-mau.jpg][QUICK:age]` |
+| `BAD_QUICK` | `[QUICK:khong_co_nut_nay]` (key không tồn tại) |
+| `HARD_QUESTION` | `[ESCALATE]` |
+| `Bé nhà em 2 – 3 tuổi` (nghĩa của `QR:age:1`) | trả lời + `[QUICK:visit_time]`; extract `kid_age` |
+| `PHONE_A` / `PHONE_B` | extract `phone` 0912345678 / 0987654321 |
+| `VISIT_AM`, `Em muốn hẹn tham quan buổi sáng` | extract `visit_request: tham quan buổi sáng` |
+| `DECLINE` | extract `phone_declined: true` |
+| (khác) | `Dạ Casa chào Ba/Mẹ ạ, em hỗ trợ ngay ạ.`; extract `{}` |
+
+Cần câu trả lời khác thì chép file đó, sửa `rules` (thứ tự quan trọng), rồi `ctl.py scenario --slug <slug> <file>`; fake đọc lại kịch bản ở mỗi request, không cần restart. Cùng file đó điều khiển lỗi ở ranh giới (`fail.graph_send`, `fail.telegram`, `fail.openai`, `fail.github_put`: true; `fail.sheet`: `ok`/`false`/`500`), giờ hiện tại mà `app/followup.py` thấy (`now_utc`, ISO có múi giờ; `null` là giờ thật) và tên Facebook trả cho mọi PSID (`fb_profile`).
+
+**Endpoint admin**: `curl "$CASA_APP/customers?secret=$CASA_SECRET"`; danh sách đầy đủ trong [features/admin-endpoints.md](features/admin-endpoints.md).
+
+## Evidence
+
+Mọi thứ của run nằm ở `artifacts/verify/<slug>/` của repo nguồn (đã gitignore):
+
+| File | Nội dung |
+|---|---|
+| `outbox.jsonl` | mỗi request bot gửi ra: `seq`, `method`, `host`, `path`, `query`, `authorization`, `body` (system prompt và nội dung base64 bị cắt ngắn), `status`, `response`; với AI có `kind`, `rule` |
+| `app.log` | stdout/stderr của uvicorn và app |
+| `netlog.txt` | mỗi lần viết lại URL, mọi lần bị chặn (`BLOCKED`) |
+| `github/repos/<owner>/<repo>/contents/<path>` | nội dung đã giải mã của mỗi lần PUT lên GitHub giả |
+| `data_after/` | `ctl.py down` chép `data/` của bản sao: `customers.json`, `analytics.jsonl`, `pending_escalations.json`, `escalation_log.json`, `qa_database.json` |
+
+Lưu transcript: `python3 .claude/skills/verify-casa-bot/harness/send_event.py --slug <slug> ... | tee -a artifacts/verify/<slug>/transcript.txt`. Đọc lại:
+
+```bash
+python3 .claude/skills/verify-casa-bot/harness/read_back.py --slug <slug> outbox [--host fb|tg|sheet|gh|ai] [--since SEQ] [--full]
+python3 .claude/skills/verify-casa-bot/harness/read_back.py --slug <slug> profile 9000000000000001 --fields phone,kid_age,visit_request   # qua GET /customers
+python3 .claude/skills/verify-casa-bot/harness/read_back.py --slug <slug> profile 9000000000000001 --fields phone --disk                  # file của bản sao
+python3 .claude/skills/verify-casa-bot/harness/read_back.py --slug <slug> log --grep "Lead new_phone"
+```
+
+Tiêu chuẩn: đi đường của Facebook/Telegram/admin, không gọi hàm trong `app/`, không dùng `/test-chat` làm bằng chứng cho hành vi Messenger (nó bỏ qua webhook, quick reply, lead, escalation). Ghi **hành động** (lệnh `send_event.py`) và **kết quả** (dòng outbox, hồ sơ đọc lại). Thay đổi dữ liệu phải được đọc lại từ một view khác: `/customers` và `--disk`, hoặc outbox và `data_after/`. Chỉ mock ở ranh giới ngoài (fake server, đồng hồ), không bao giờ trong app.
+
+## Cleanup
+
+```bash
+python3 .claude/skills/verify-casa-bot/harness/ctl.py down --slug <slug>
+```
+
+Chỉ tắt hai pid ghi trong `state.json` của slug đó, và chỉ khi pid còn mang run id của nó (không kill theo tên process). Chép `data/` của bản sao vào `data_after/`, xoá thư mục run `$TMPDIR/casa-verify/<slug>` (chỉ khi có file đánh dấu của harness), giữ nguyên `artifacts/verify/<slug>/` và in danh sách file bằng chứng. Sau một lần `up` hỏng, `up` đã tự tắt; chạy lại `up` cùng slug sẽ xoá thư mục run cũ.
+
+## Helpers
+
+- Python: `ctl.py` tìm interpreter có fastapi/uvicorn/httpx/openai ở `.venv` của nguồn, rồi `.venv` của checkout chính (worktree của agent không có `.venv` riêng), rồi `python3`. Thiếu thì chạy `python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt`.
+- `CASA_VERIFY_ROOT` đổi chỗ đặt thư mục run (mặc định `$TMPDIR/casa-verify`); không đặt nó bên trong repo (`up` từ chối nếu thư mục cha có `.env`).
+- Đã chạy thử end-to-end ngày 2026-10-21 trên commit 2ca7261: up, doctor, tin chữ có `[QUICK:age]`, nút SĐT ra lead Telegram và Sheet, đổi SĐT, hẹn tham quan, ảnh, postback, referral, echo, dedup, chữ ký sai, escalation và admin reply, dựng lại escalation từ text, secret của mọi endpoint admin, follow-up (dry run và gửi thật với `now_utc`), xuất Excel, Graph API và Sheet hỏng, down. Chưa chạy: `fail.telegram`, `fail.github_put`, `/import-excel`, ảnh thật trong `static/`.
+- Bảo trì: chạy lại `/create-verify-skill` hoặc giao `verifier` đối chiếu feature map với app mỗi tuần. Map lệch app thì sửa map trong PR riêng; map phát hiện lỗi sản phẩm thì báo lỗi, không sửa map để che.

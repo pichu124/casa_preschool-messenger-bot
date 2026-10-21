@@ -14,6 +14,7 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
+from app.coverage import TOPICS, topics_in_reply
 from app.followup import TEMPLATES
 from app.messenger import ICE_BREAKERS, QUICK_REPLIES, build_quick_replies
 
@@ -91,6 +92,35 @@ def test_scenario_extracts_the_age_button_title_as_kid_age():
     for rule in ages:
         (title,) = [t for t, meaning in QUICK_REPLIES["age"] if rule["contains"] in meaning]
         assert rule["reply"]["kid_age"] == title
+
+
+def chat_reply(contains):
+    return next(r["reply"] for r in RULES if r["kind"] == "chat" and r["contains"] == contains)
+
+
+def test_tour_replies_of_the_scenario_together_give_every_topic_of_a_full_consultation():
+    tour = [chat_reply(name) for name in ("TOUR_CAMPUS", "TOUR_MENU", "TOUR_EXTRA")]
+
+    assert {topic for reply in tour for topic in topics_in_reply(reply)} == set(TOPICS)
+    # …0049 in features/followup.md stops before TOUR_EXTRA, so only TOUR_EXTRA may give the extracurricular topic
+    path_0049 = [chat_reply("Bé nhà em 2-3 tuổi"), chat_reply("TOUR_CAMPUS"), chat_reply("TOUR_MENU")]
+    assert "extracurricular" not in {topic for reply in path_0049 for topic in topics_in_reply(reply)}
+
+
+@pytest.mark.parametrize("name", ["TOUR_CAMPUS", "TOUR_MENU", "TOUR_EXTRA"])
+def test_tour_replies_carry_no_token_but_quick_replies_of_real_buttons(name):
+    reply = chat_reply(name)
+
+    rest = re.sub(r"\[QUICK:\w+\]", "", reply)
+    assert "[" not in rest and "]" not in rest, rest
+    for key in re.findall(r"\[QUICK:(\w+)\]", reply):
+        assert QUICK_REPLIES.get(key), key
+
+
+def test_scenario_extracts_a_campus_button_title_as_interested_campus():
+    campuses = [r["reply"]["interested_campus"] for r in RULES if r["kind"] == "extract" and "interested_campus" in r["reply"]]
+    assert campuses
+    assert set(campuses) <= {title for title, _ in QUICK_REPLIES["campus"]}
 
 
 def test_rules_named_in_the_skill_exist_in_the_default_scenario():

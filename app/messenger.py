@@ -12,16 +12,16 @@ logger = logging.getLogger(__name__)
 # Each button is (title shown, at most 20 characters; meaning the bot processes when the parent taps it).
 QUICK_REPLIES: dict[str, list[tuple[str, str]]] = {
     "topics": [
-        ("Học phí", "Cho em hỏi học phí ạ"),
+        ("Cơ sở quan tâm", "Trường có những cơ sở nào ạ?"),
         ("Chương trình học", "Trường dạy chương trình gì ạ?"),
-        ("Cơ sở gần nhà", "Trường có cơ sở nào gần nhà em ạ?"),
         ("Đặt lịch tham quan", "Em muốn đặt lịch tham quan trường ạ"),
+        ("Ưu đãi", "Hiện tại Nhà trường có ưu đãi gì ạ?"),
     ],
     "age": [
         ("Dưới 2 tuổi", "Bé nhà em dưới 2 tuổi ạ"),
-        ("2 – 3 tuổi", "Bé nhà em 2 – 3 tuổi ạ"),
-        ("3 – 4 tuổi", "Bé nhà em 3 – 4 tuổi ạ"),
-        ("4 – 6 tuổi", "Bé nhà em 4 – 6 tuổi ạ"),
+        ("2-3 tuổi", "Bé nhà em 2-3 tuổi ạ"),
+        ("3-5 tuổi", "Bé nhà em 3-5 tuổi ạ"),
+        ("5-6 tuổi", "Bé nhà em 5-6 tuổi ạ"),
     ],
     "campus": [
         ("Chùa Láng", "Em quan tâm cơ sở Chùa Láng ạ"),
@@ -47,10 +47,10 @@ BOT_MESSAGE_METADATA = "casa-bot"
 GET_STARTED_PAYLOAD = "GET_STARTED"
 # Questions offered when a parent opens a new conversation; payload -> question.
 ICE_BREAKERS: dict[str, str] = {
-    "IB_1": "Học phí bao nhiêu 1 tháng ạ?",
-    "IB_2": "Trường ở đâu ạ?",
-    "IB_3": "Trường áp dụng chương trình gì ạ?",
-    "IB_4": "Cho con học thử được không ạ?",
+    "IB_1": "Học phí của trường là bao nhiêu?",
+    "IB_2": "Trường nhận bé từ bao nhiêu tháng?",
+    "IB_3": "Hiện tại Nhà trường có ưu đãi gì?",
+    "IB_4": "Có chương trình học thử miễn phí cho học sinh mới không?",
 }
 
 

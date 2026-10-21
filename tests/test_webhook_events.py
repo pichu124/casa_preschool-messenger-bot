@@ -38,11 +38,12 @@ AD_TITLE = "Học thử 1 tuần miễn phí"
 TIMESTAMP = 1760000000123
 MODEL_TEXT = "Dạ Casa có chương trình cho các con từ 15 tháng đến 6 tuổi ạ. Bé nhà mình được mấy tuổi ạ?"
 ASK_PHONE = "Dạ Ba/Mẹ cho em xin SĐT hoặc Zalo để tư vấn viên gửi chi tiết nhé ạ? [QUICK:phone]"
+# Nguyên văn 4 câu gợi ý của trường (phản hồi đợt 3).
 ICE_BREAKERS = {
-    "IB_1": "Học phí bao nhiêu 1 tháng ạ?",
-    "IB_2": "Trường ở đâu ạ?",
-    "IB_3": "Trường áp dụng chương trình gì ạ?",
-    "IB_4": "Cho con học thử được không ạ?",
+    "IB_1": "Học phí của trường là bao nhiêu?",
+    "IB_2": "Trường nhận bé từ bao nhiêu tháng?",
+    "IB_3": "Hiện tại Nhà trường có ưu đãi gì?",
+    "IB_4": "Có chương trình học thử miễn phí cho học sinh mới không?",
 }
 AD_REFERRAL = {
     "ref": "hoc-thu",
@@ -155,6 +156,35 @@ def test_text_quick_reply_becomes_its_meaning(key, index):
     title, meaning = QUICK_REPLIES[key][index]
     button = build_quick_replies(key)[index]
     assert button["title"] == title
+
+    event = message_event(text=title, quick_reply={"payload": button["payload"]})
+
+    assert parse_messaging_event(event) == inbound(meaning)
+
+
+# Nút tin đầu và nút tuổi theo phản hồi đợt 3 của trường: (key, nhãn nút, câu bot nhận khi phụ huynh bấm).
+SCHOOL_BUTTONS = [
+    ("topics", "Cơ sở quan tâm", "Trường có những cơ sở nào ạ?"),
+    ("topics", "Chương trình học", "Trường dạy chương trình gì ạ?"),
+    ("topics", "Đặt lịch tham quan", "Em muốn đặt lịch tham quan trường ạ"),
+    ("topics", "Ưu đãi", "Hiện tại Nhà trường có ưu đãi gì ạ?"),
+    ("age", "Dưới 2 tuổi", "Bé nhà em dưới 2 tuổi ạ"),
+    ("age", "2-3 tuổi", "Bé nhà em 2-3 tuổi ạ"),
+    ("age", "3-5 tuổi", "Bé nhà em 3-5 tuổi ạ"),
+    ("age", "5-6 tuổi", "Bé nhà em 5-6 tuổi ạ"),
+]
+
+
+@pytest.mark.parametrize("key", ["topics", "age"])
+def test_first_message_and_age_buttons_are_the_school_labels(key):
+    titles = [button["title"] for button in build_quick_replies(key)]
+
+    assert titles == [title for k, title, _ in SCHOOL_BUTTONS if k == key]
+
+
+@pytest.mark.parametrize(("key", "title", "meaning"), SCHOOL_BUTTONS)
+def test_school_button_tap_reaches_the_bot_as_a_clear_question(key, title, meaning):
+    button = next(b for b in build_quick_replies(key) if b["title"] == title)
 
     event = message_event(text=title, quick_reply={"payload": button["payload"]})
 

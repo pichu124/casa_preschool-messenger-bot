@@ -26,7 +26,7 @@ Bảo mật:
 ## C. Quyết định của trường
 
 1. [x] ~~**Mẫu tin nhắc lại thứ 3**: "tư vấn tương đối đủ" nghĩa là gì?~~ Đã làm theo 6 điều kiện của trường (`docs/quyet-dinh-noi-dung.md`, mục 2c và 3).
-   - [ ] Cần xác nhận: phụ huynh đã cho biết tuổi, **từ chối để lại SĐT** nhưng bot **chưa tư vấn đủ** → hiện vẫn gửi mẫu 3 (mẫu duy nhất không xin số). Giữ, hay không gửi tin nhắc nào?
+   - [x] ~~Ca từ chối để lại SĐT~~: trường gửi lại 3 mẫu kèm nhãn (đợt 5) → chọn theo nhãn: chưa biết tuổi → mẫu 1; đã biết tuổi, chưa có SĐT, chưa tư vấn đủ → mẫu 2 (kể cả đã từ chối để số); tư vấn đủ → mẫu 3.
 2. [ ] **Bật tin nhắc lại** khi nào? (Hiện TẮT.) Trước khi bật: đăng ký `message_echoes` và tắt Instant Reply/Away message của Page.
 3. [x] ~~SĐT nước ngoài viết kèm số 0 sau mã nước~~ (vd "+886 0912 345 678"): đã sửa, bot lưu nguyên số nước ngoài, không còn nhận nhầm thành số Việt Nam.
 4. [ ] **SĐT theo đầu số cũ** (`01x…` 11 số, máy bàn `04…`) không còn được nhận vì đã đổi đầu số từ 2018. Có cần nhận không?

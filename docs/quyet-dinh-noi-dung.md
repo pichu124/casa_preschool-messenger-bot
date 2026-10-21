@@ -98,12 +98,12 @@ Mục D:
 - Bỏ toàn bộ nội dung workshop của cô Phan Thúy (sheet "Workshop" trong kịch bản). Câu trả lời về sự kiện chung của trường (Family Day, workshop, lễ hội…) vẫn giữ — chờ trường xác nhận (docs/dot-3-can-bo-sung.md, mục C6).
 - Xe bus: hiện Nhà trường chưa có tuyến xe bus; khi đủ phụ huynh đăng ký, Nhà trường sẽ mở tuyến. Bot mời để lại khu vực nhà + SĐT/Zalo để ghi nhận nhu cầu.
 - Khi phụ huynh chê đắt (CARE): không gợi ý hệ/cơ sở khác như phương án rẻ hơn; nêu giá trị khác biệt và mời học thử/tham quan.
-- Câu hỏi gợi ý, nút trả lời nhanh, mẫu tin nhắc lại: theo mục 2b. Tin nhắc lại vẫn tắt.
+- Câu hỏi gợi ý, nút trả lời nhanh: theo mục 2b. Mẫu tin nhắc lại: nguyên văn mục 2d. Tin nhắc lại vẫn tắt.
 - Chọn mẫu tin nhắc lại (`app/followup.py`), theo thứ tự:
   1. Đã tư vấn tương đối đủ (mục 2c.3) → mẫu 3 (mời tham quan). Điều kiện 1 = bot đã biết tuổi bé **và** cơ sở phụ huynh quan tâm (chỉ biết khu vực nhà thì chưa đủ). Điều kiện 2–6 = câu bot đã gửi có nói tới: trường/cơ sở (địa chỉ), chương trình học, ngoại khóa, thực đơn/dinh dưỡng, học thử 1 tuần miễn phí, cơ sở vật chất/không gian lớp, và lời mời tham quan (`app/coverage.py` dò trên câu bot gửi, lưu ở `topics_covered`).
-  2. Chưa biết tuổi bé → mẫu 1 (hỏi tuổi), kể cả khi phụ huynh đã từ chối để lại số (mẫu 1 không xin số).
-  3. Đã biết tuổi, phụ huynh đã từ chối để lại số, chưa tư vấn đủ → mẫu 3 (mẫu duy nhất không xin số; lựa chọn của người vận hành, chờ trường xác nhận).
-  4. Còn lại → mẫu 2 (xin SĐT/Zalo).
+  2. Chưa biết tuổi bé → mẫu 1 (hỏi tuổi).
+  3. Còn lại (đã biết tuổi, chưa có SĐT, chưa tư vấn đủ) → mẫu 2 (xin SĐT/Zalo), kể cả khi phụ huynh đã từ chối để lại số — theo nhãn mẫu của trường (mục 2d).
+  Nguyên văn 3 mẫu: mục 2d (thay bản ở mục 2b.c).
 - SĐT: nhận cả số thiếu số 0 đầu, viết tách lạ, số nước ngoài.
 - Thực đơn mẫu: gửi thẳng cho phụ huynh ảnh `static/thuc-don-mau.jpg` (trường `images` của cặp Q&A thực đơn chung; JPG chuyển từ ảnh trường gửi để Messenger nhận chắc chắn). Món ví dụ trong câu trả lời lấy đúng từ ảnh (thứ Hai), không thêm món ngoài ảnh; 5 bữa: sáng, nhẹ sáng, trưa, chiều, phụ chiều.
 - Không hỏi thẳng ngân sách; có thể hỏi gia đình cân nhắc hệ Quốc tế hay Song ngữ.

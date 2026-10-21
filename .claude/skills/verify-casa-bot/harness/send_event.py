@@ -1,7 +1,7 @@
 """Send what Facebook or Telegram would send to the running bot, then print what the bot sent out because of it.
 
     python3 send_event.py [--slug S] text PSID "Xin chào" [--referral ADS --ad-id A1 --ad-title T --ref R]
-    python3 send_event.py quick PSID QR:age:1 [--text "2 – 3 tuổi"]   # text quick reply button
+    python3 send_event.py quick PSID QR:age:1 [--text "2-3 tuổi"]   # text quick reply button
     python3 send_event.py phone PSID 0912345678                      # Messenger's phone quick reply
     python3 send_event.py postback PSID GET_STARTED|IB_1..IB_4 [--title T] [--referral ADS ...]
     python3 send_event.py referral PSID --referral ADS|SHORTLINK [--ad-id ..] [--ad-title ..] [--ref ..]

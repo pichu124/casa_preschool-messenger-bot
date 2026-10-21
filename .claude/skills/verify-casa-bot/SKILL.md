@@ -61,7 +61,7 @@ Lấy biến để dùng với curl: `eval "$(python3 .claude/skills/verify-casa
 
 ```bash
 python3 .claude/skills/verify-casa-bot/harness/send_event.py --slug <slug> text 9000000000000001 "ASK_AGE Cho em hỏi về trường ạ"
-python3 .claude/skills/verify-casa-bot/harness/send_event.py --slug <slug> quick 9000000000000001 QR:age:1 --text "2 – 3 tuổi"   # bấm nút trả lời nhanh
+python3 .claude/skills/verify-casa-bot/harness/send_event.py --slug <slug> quick 9000000000000001 QR:age:1 --text "2-3 tuổi"   # bấm nút trả lời nhanh
 python3 .claude/skills/verify-casa-bot/harness/send_event.py --slug <slug> phone 9000000000000001 0912345678                    # nút SĐT của Messenger
 python3 .claude/skills/verify-casa-bot/harness/send_event.py --slug <slug> postback 9000000000000002 GET_STARTED --referral ADS --ad-id AD1 --ad-title "Khai giảng"
 python3 .claude/skills/verify-casa-bot/harness/send_event.py --slug <slug> postback 9000000000000002 IB_1                       # ice breaker
@@ -94,13 +94,13 @@ Webhook trả 200 ngay rồi xử lý nền, nên HTTP 200 **không** chứng mi
 | `SEND_MENU` | chữ + `[IMAGES:static/thuc-don-mau.jpg][QUICK:age]` |
 | `BAD_QUICK` | `[QUICK:khong_co_nut_nay]` (key không tồn tại) |
 | `HARD_QUESTION` | `[ESCALATE]` |
-| `Bé nhà em 2 – 3 tuổi` (nghĩa của `QR:age:1`) | trả lời + `[QUICK:visit_time]`; extract `kid_age` |
+| `Bé nhà em 2-3 tuổi` | nghĩa của nút `QR:age:1`: trả lời + `[QUICK:visit_time]`; extract `kid_age: 2-3 tuổi` (nhãn nút) |
 | `PHONE_A` / `PHONE_B` | extract `phone` 0912345678 / 0987654321 |
-| `VISIT_AM`, `Em muốn hẹn tham quan buổi sáng` | extract `visit_request: tham quan buổi sáng` |
+| `VISIT_AM`, `Em muốn hẹn tham quan buổi sáng` | (nghĩa của nút `QR:visit_time:0`) extract `visit_request: tham quan buổi sáng` |
 | `DECLINE` | extract `phone_declined: true` |
 | (khác) | `Dạ Casa chào Ba/Mẹ ạ, em hỗ trợ ngay ạ.`; extract `{}` |
 
-Cần câu trả lời khác thì chép file đó, sửa `rules` (thứ tự quan trọng), rồi `ctl.py scenario --slug <slug> <file>`; fake đọc lại kịch bản ở mỗi request, không cần restart. Cùng file đó điều khiển lỗi ở ranh giới (`fail.graph_send`, `fail.telegram`, `fail.openai`, `fail.github_put`: true; `fail.sheet`: `ok`/`false`/`500`), giờ hiện tại mà `app/followup.py` thấy (`now_utc`, ISO có múi giờ; `null` là giờ thật) và tên Facebook trả cho mọi PSID (`fb_profile`).
+Chữ trên nút (`--text`), nghĩa của nút và câu ice breaker lấy từ `QUICK_REPLIES` và `ICE_BREAKERS` trong `app/messenger.py`; `tests/test_verify_skill.py` đỏ khi kịch bản, feature map hay ví dụ ở đây lệch khỏi đó. Cần câu trả lời khác thì chép file đó, sửa `rules` (thứ tự quan trọng), rồi `ctl.py scenario --slug <slug> <file>`; fake đọc lại kịch bản ở mỗi request, không cần restart. Cùng file đó điều khiển lỗi ở ranh giới (`fail.graph_send`, `fail.telegram`, `fail.openai`, `fail.github_put`: true; `fail.sheet`: `ok`/`false`/`500`), giờ hiện tại mà `app/followup.py` thấy (`now_utc`, ISO có múi giờ; `null` là giờ thật) và tên Facebook trả cho mọi PSID (`fb_profile`).
 
 **Endpoint admin**: `curl "$CASA_APP/customers?secret=$CASA_SECRET"`; danh sách đầy đủ trong [features/admin-endpoints.md](features/admin-endpoints.md).
 

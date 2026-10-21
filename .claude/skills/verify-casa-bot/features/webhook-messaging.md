@@ -29,11 +29,11 @@ Preconditions:
 - `ctl doctor --slug <slug>` in `DOCTOR OK`; kịch bản mặc định.
 
 - **Tin chữ có `[QUICK:age]`.** Chạy `send text 9000000000000001 "ASK_AGE Cho em hỏi về trường ạ"`. Thấy `AI chat rule='ASK_AGE'`, `AI extract`, rồi `FB to=9000000000000001 TEXT "Dạ Casa chào Ba/Mẹ ạ 🌿 Bé nhà mình năm nay mấy tuổi ạ?" QUICK=["QR:age:0", "QR:age:1", "QR:age:2", "QR:age:3"]`: chữ không còn `[QUICK:age]`.
-- **Bấm nút tuổi.** Chạy `send quick 9000000000000001 QR:age:1 --text "2 – 3 tuổi"`. Thấy `AI chat rule='Bé nhà em 2 – 3 tuổi'` (model nhận nghĩa của nút) và trả lời có `QUICK=["QR:visit_time:0", "QR:visit_time:1"]`. `read profile 9000000000000001 --fields kid_age` → `"2 – 3 tuổi"`.
+- **Bấm nút tuổi.** Chạy `send quick 9000000000000001 QR:age:1 --text "2-3 tuổi"` (chữ là nhãn, `QUICK_REPLIES["age"][1][0]`). Thấy `AI chat rule='Bé nhà em 2-3 tuổi'` (model nhận nghĩa của nút, `QUICK_REPLIES["age"][1][1]`, không phải nhãn) và trả lời có `QUICK=["QR:visit_time:0", "QR:visit_time:1"]`. `read profile 9000000000000001 --fields kid_age` → `"2-3 tuổi"`.
 - **Ảnh.** Chạy `send text 9000000000000001 SEND_MENU`. Thấy hai dòng FB: `TEXT "Dạ đây là thực đơn mẫu của Casa ạ."` không có QUICK, rồi `IMAGE http://127.0.0.1:<port>/static/thuc-don-mau.jpg QUICK=[...age...]`.
 - **Key QUICK lạ.** Chạy `send text 9000000000000001 BAD_QUICK`. Dòng FB không có `QUICK=` và chữ không còn token.
 - **Get Started từ quảng cáo.** Chạy `send postback 9000000000000002 GET_STARTED --referral ADS --ad-id AD1 --ad-title "Khai giảng"`. Có trả lời FB. `read profile 9000000000000002 --fields lead_source,ad_id,ad_title,message_count` → `ads`, `AD1`, `Khai giảng`, `1`. `read outbox --host ai --full` cho thấy tin của model chứa `[FIRST_MESSAGE] Xin chào Casa ạ` và khối `[TRẠNG THÁI TƯ VẤN]` có `Nguồn: quảng cáo "Khai giảng"`.
-- **Ice breaker.** Chạy `send postback 9000000000000002 IB_1`. Bản ghi AI chat (`--full`) chứa "Học phí bao nhiêu 1 tháng ạ?".
+- **Ice breaker.** Chạy `send postback 9000000000000002 IB_1`. Bản ghi AI chat (`--full`) chứa đúng `ICE_BREAKERS["IB_1"]` của `app/messenger.py` (hiện là "Học phí của trường là bao nhiêu?").
 - **Referral không kèm tin.** Chạy `send referral 9000000000000003 --referral SHORTLINK --ref casa`. Outbox chỉ có `GH GET/PUT` (không FB). `read profile 9000000000000003 --fields lead_source,ref,message_count` → `link`, `casa`, `null`.
 - **Echo của nhân viên.** Chạy `send echo 9000000000000001 "Chị gọi lại nhé"`. Không có FB; `read profile 9000000000000001 --fields staff_replied_at` có giờ UTC. Lặp với `--bot`: `staff_replied_at` không đổi.
 - **Dedup.** Chạy `send text 9000000000000005 "Xin chào" --mid dup-1` hai lần. Lần hai không in dòng outbox nào; `read log --grep "Skipping duplicate FB message"` có một dòng.

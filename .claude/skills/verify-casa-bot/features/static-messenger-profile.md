@@ -23,7 +23,7 @@ Preconditions:
 
 - **File tĩnh.** `curl -s -o /dev/null -w '%{http_code}\n' "$CASA_APP/static/.gitkeep"` → `200`; `…/static/khong-co.jpg` → `404`. Với ảnh mà thay đổi thêm vào `static/` và Q&A: lấy URL từ dòng `FB … IMAGE <url>` của `send`, `curl -s -o /dev/null -w '%{http_code} %{content_type}\n' <url>` → `200 image/…`.
 - **Messenger profile.** `curl -s -X POST "$CASA_APP/setup-messenger-profile?secret=$CASA_SECRET"` → `{"result":"success"}`; `read outbox --host fb | tail -1` → `FB messenger_profile {"get_started": {"payload": "GET_STARTED"}, "ice_breakers": [{"locale": "default", "call_to_actions": [... "IB_1" … "IB_4"]}]}`.
-- **Ice breaker đã đăng ký hoạt động.** Với từng payload trong body vừa gửi: `send postback 9000000000000061 IB_2` → model nhận đúng câu hỏi của nút (`read outbox --host ai --full | tail -1` chứa "Trường ở đâu ạ?").
+- **Ice breaker đã đăng ký hoạt động.** Với từng payload trong body vừa gửi: `send postback 9000000000000061 IB_2` → model nhận đúng câu hỏi của nút, `ICE_BREAKERS["IB_2"]` trong `app/messenger.py` (`read outbox --host ai --full | tail -1` chứa "Trường nhận bé từ bao nhiêu tháng?").
 - **Webhook Telegram.** `curl -s -X POST "$CASA_APP/setup-telegram-webhook?secret=$CASA_SECRET"` → JSON của Telegram giả; `read outbox --host tg | tail -1` → `setWebhook {"url": "http://127.0.0.1:<port>/telegram-webhook", "secret_token": "fake-admin-<run_id>"}`.
 - **Xác minh webhook Facebook.** `curl -s "$CASA_APP/webhook?hub.mode=subscribe&hub.verify_token=$CASA_VERIFY_TOKEN&hub.challenge=12345"` → `12345`; với `hub.verify_token=sai` → `{"detail":"Verification failed"}` (403).
 - **Bằng chứng.** Lệnh curl và dòng outbox qua `tee`.

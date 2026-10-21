@@ -7,12 +7,12 @@
     {"kind": "chat", "contains": "SEND_MENU", "reply": "Dạ đây là thực đơn mẫu của Casa ạ. [IMAGES:static/thuc-don-mau.jpg][QUICK:age]"},
     {"kind": "chat", "contains": "BAD_QUICK", "reply": "Dạ em trả lời ạ [QUICK:khong_co_nut_nay]"},
     {"kind": "chat", "contains": "HARD_QUESTION", "reply": "[ESCALATE]"},
-    {"kind": "chat", "contains": "Bé nhà em 2 – 3 tuổi", "reply": "Dạ bé 2 – 3 tuổi học lớp Nhà trẻ ạ. Ba/Mẹ muốn tham quan buổi sáng hay buổi chiều ạ? [QUICK:visit_time]"},
+    {"kind": "chat", "contains": "Bé nhà em 2-3 tuổi", "reply": "Dạ bé 2-3 tuổi học lớp Nhà trẻ ạ. Ba/Mẹ muốn tham quan buổi sáng hay buổi chiều ạ? [QUICK:visit_time]"},
     {"kind": "extract", "contains": "PHONE_A", "reply": {"phone": "0912345678"}},
     {"kind": "extract", "contains": "PHONE_B", "reply": {"phone": "0987654321"}},
     {"kind": "extract", "contains": "VISIT_AM", "reply": {"visit_request": "tham quan buổi sáng"}},
     {"kind": "extract", "contains": "Em muốn hẹn tham quan buổi sáng", "reply": {"visit_request": "tham quan buổi sáng"}},
-    {"kind": "extract", "contains": "Bé nhà em 2 – 3 tuổi", "reply": {"kid_age": "2 – 3 tuổi"}},
+    {"kind": "extract", "contains": "Bé nhà em 2-3 tuổi", "reply": {"kid_age": "2-3 tuổi"}},
     {"kind": "extract", "contains": "DECLINE", "reply": {"phone_declined": true}}
   ],
   "defaults": {

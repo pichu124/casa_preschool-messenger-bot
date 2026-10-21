@@ -27,7 +27,8 @@ Bảo mật:
 
 1. [ ] **Mẫu tin nhắc lại thứ 3** ("Đã tư vấn tương đối đủ nhưng PH dừng trao đổi") hiện gửi cho phụ huynh **đã từ chối để lại SĐT**. "Tư vấn tương đối đủ" nghĩa là gì để bot nhận ra (vd đã biết tuổi + cơ sở + đã hỏi học phí)? Hay giữ như hiện tại?
 2. [ ] **Bật tin nhắc lại** khi nào? (Hiện TẮT.) Trước khi bật: đăng ký `message_echoes` và tắt Instant Reply/Away message của Page.
-3. [ ] **SĐT theo đầu số cũ** (`01x…` 11 số, máy bàn `04…`) không còn được nhận vì đã đổi đầu số từ 2018. Có cần nhận không?
+3. [ ] **SĐT nước ngoài**: bot lưu nguyên cả cụm số (không cắt đuôi). Số nước ngoài viết kèm số 0 sau mã nước (vd "+886 0912 345 678") hiện bị lưu nhầm thành số Việt Nam phía sau. Rất hiếm với phụ huynh tại Hà Nội — có cần agent sửa không?
+4. [ ] **SĐT theo đầu số cũ** (`01x…` 11 số, máy bàn `04…`) không còn được nhận vì đã đổi đầu số từ 2018. Có cần nhận không?
 
 ## D. Dữ kiện cần trường xác nhận
 

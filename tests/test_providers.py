@@ -148,3 +148,8 @@ def test_model_defaults_replace_retired_models():
 def test_model_names_come_from_environment():
     env = {name: f"{name.lower()}-tu-env" for name in MODEL_ENV}
     assert read_model_settings(env) == env
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_blank_model_variable_falls_back_to_default(blank):
+    assert read_model_settings({name: blank for name in MODEL_ENV}) == MODEL_ENV

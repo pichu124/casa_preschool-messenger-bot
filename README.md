@@ -67,7 +67,7 @@ Thu tu fallback cau hinh trong `AI_MODEL_ORDER`.
 
 #### Model AI (bien moi truong)
 
-Ten model cua tung nha cung cap dat qua bien moi truong; khong dat bien thi dung mac dinh (dat bien voi gia tri rong se gui ten model rong va model do luon loi):
+Ten model cua tung nha cung cap dat qua bien moi truong; khong dat bien, hoac dat gia tri rong/chi co khoang trang, thi dung mac dinh:
 
 | Bien | Provider trong `AI_MODEL_ORDER` | Mac dinh |
 |---|---|---|

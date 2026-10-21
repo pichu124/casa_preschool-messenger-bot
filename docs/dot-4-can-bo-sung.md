@@ -29,7 +29,7 @@ Bảo mật:
    - [x] ~~Ca từ chối để lại SĐT~~: trường gửi lại 3 mẫu kèm nhãn (đợt 5) → chọn theo nhãn: chưa biết tuổi → mẫu 1; đã biết tuổi, chưa có SĐT, chưa tư vấn đủ → mẫu 2 (kể cả đã từ chối để số); tư vấn đủ → mẫu 3.
 2. [ ] **Bật tin nhắc lại** khi nào? (Hiện TẮT.) Trước khi bật: đăng ký `message_echoes` và tắt Instant Reply/Away message của Page.
 3. [x] ~~SĐT nước ngoài viết kèm số 0 sau mã nước~~ (vd "+886 0912 345 678"): đã sửa, bot lưu nguyên số nước ngoài, không còn nhận nhầm thành số Việt Nam.
-4. [ ] **SĐT theo đầu số cũ** (`01x…` 11 số, máy bàn `04…`) không còn được nhận vì đã đổi đầu số từ 2018. Có cần nhận không?
+4. [x] ~~SĐT theo đầu số cũ~~: không cần, phụ huynh đã dùng đầu số mới; bot giữ nguyên, chỉ nhận đầu số hiện hành.
 
 ## D. Dữ kiện cần trường xác nhận
 

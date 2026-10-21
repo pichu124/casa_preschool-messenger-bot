@@ -185,11 +185,29 @@ def test_workshop_is_removed():
     assert "cô thúy" not in RAW_TEXT
 
 
-def test_bus_is_not_advised():
-    # Tạm thời không tư vấn xe bus: không tuyến, bán kính, phí hay ưu đãi xe bus.
-    bus = r"xe (bus|buýt)"
+# --- Phản hồi đợt 3 -----------------------------------------------------------
+
+BUS = r"xe (bus|buýt)"
+
+
+def _without_bus_promise(text: str) -> str:
+    return text.replace("chưa có tuyến", "").replace("mở tuyến", "")
+
+
+def test_bus_answer_says_no_route_until_enough_parents_register():
+    # Phản hồi đợt 3: chưa có tuyến xe bus; khi đủ phụ huynh đăng ký, Nhà trường sẽ mở tuyến.
+    bus_answers = [a for p, a in zip(PAIRS, ANSWERS) if re.search(BUS, _norm(" ".join(p["questions"])))]
+    assert bus_answers, "thiếu câu trả lời về xe bus"
+    for answer in bus_answers:
+        assert "chưa có tuyến" in answer and "đủ phụ huynh đăng ký" in answer, answer
+        assert "khu vực" in answer and "sđt" in answer, answer
+        assert "tuyến" not in _without_bus_promise(answer), answer
+
+
+def test_bus_has_no_route_radius_fee_or_offer():
     assert "bán kính" not in RAW_TEXT
-    assert not re.search(r"tuyến (xe|gần nhất|phù hợp|đưa đón)", RAW_TEXT)
-    for pattern in (rf"{bus}[^.\n]{{0,60}}(phí|ưu đãi|tuyến|tính riêng)", rf"(phí|ưu đãi)[^.\n]{{0,30}}{bus}"):
+    # Chỉ được nói chưa có tuyến / sẽ mở tuyến, không nêu tuyến cụ thể.
+    assert not re.search(r"tuyến (xe|gần nhất|phù hợp|đưa đón)", _without_bus_promise(RAW_TEXT))
+    for pattern in (rf"{BUS}[^.\n]{{0,60}}(phí|ưu đãi|tính riêng)", rf"(phí|ưu đãi)[^.\n]{{0,30}}{BUS}"):
         match = re.search(pattern, RAW_TEXT)
         assert not match, match and match.group(0)

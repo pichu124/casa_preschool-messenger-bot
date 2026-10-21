@@ -35,6 +35,7 @@ from app.escalation import (
     escalate_to_admin,
     get_pending_escalation,
     lead_events,
+    normalize_phone,
     publish_lead_event,
     resolve_escalation,
 )
@@ -49,6 +50,19 @@ logging.basicConfig(
 # httpx logs every request URL at INFO: the Telegram bot token, the page access token, the leads Sheet URL.
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
+
+# uvicorn logs every request path with its query: the admin secret and Facebook's verify token.
+_SECRET_QUERY = re.compile(r"([?&](?:secret|hub\.verify_token)=)[^&\s]*")
+
+
+class _MaskSecretQuery(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(_SECRET_QUERY.sub(r"\1***", a) if isinstance(a, str) else a for a in record.args)
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(_MaskSecretQuery())
 
 APP_VERSION = "1.6.0"
 app = FastAPI(title="Preschool Messenger Bot", version=APP_VERSION)
@@ -352,16 +366,60 @@ def _attribution(referral: dict) -> dict:
     return {k: v for k, v in fields.items() if v}
 
 
-# A Vietnamese phone number in free text: 0, 84 or +84 (also "+84 0"), then 8 to 10 more digits with at most one
-# space, dot or dash between two digits. It may not run on into more digits ("+84 911 222 501 999" is none),
-# except into a second number starting with 0: "0912345678 0987654321" gives the first.
-PHONE_PATTERN = re.compile(r"(?<!\d)(?:\+?84[\s.\-]*0?|0)\d(?:[\s.\-]?\d){7,9}(?!\d|[\s.\-][1-9])")
+# Digit groups joined by spaces, dots or dashes, maybe after a "+": where a phone number can be written.
+DIGIT_RUN = re.compile(r"\+?\d+(?:[\s.\-]+\d+)*")
+# A Vietnamese number after normalize_phone: mobile 0 and 9 digits from 3, 5, 7, 8 or 9; landline 02 and 9 digits.
+VIETNAM_PHONE = re.compile(r"0(?:[35789]\d{8}|2\d{9})")
+
+
+def _phone_in_run(run: str) -> str | None:
+    """The first phone number in a DIGIT_RUN: the one it starts with, else one starting at a later group that
+    starts with 0 ("Tầng 12 - 0912345678"; "1 912 345 678" is none); None when there is none."""
+    groups = list(re.finditer(r"\d+", run))
+    for start in [0] + [g.start() for g in groups[1:] if g.group().startswith("0")]:
+        phone = _phone_at(run[start:])
+        if phone:
+            return phone
+    return None
+
+
+def _phone_at(run: str) -> str | None:
+    """The phone number a DIGIT_RUN starts with; None when there is none.
+
+    A "+" not followed by 84 starts a foreign number of 8 to 15 digits. It takes the whole run, its tail is not
+    guessed ("+33 6 12 34 56 78"), and ends only before a Vietnamese number ("+65 9123 4567 0912345678"). A
+    Vietnamese number ends at the first group boundary where it is complete. A group of 1 or 2 digits or one
+    starting with 0 may follow ("0912345678 2 bé", "0912345678 0987654321"), a longer one means it runs on
+    ("+84 911 222 501 999" is none).
+    """
+    foreign = run.startswith("+") and not run.startswith("+84")
+    groups = list(re.finditer(r"\d+", run))
+    for i, group in enumerate(groups):
+        phone = run[: group.end()]
+        if foreign:
+            digits = len(re.sub(r"\D", "", phone))
+            rest = run[groups[i + 1].start() :] if i + 1 < len(groups) else ""
+            if not rest or (rest[0] == "0" and _phone_at(rest)):
+                return phone if 8 <= digits <= 15 else None
+            continue
+        normalized = normalize_phone(phone)
+        if VIETNAM_PHONE.fullmatch(normalized):
+            following = groups[i + 1].group() if i + 1 < len(groups) else ""
+            if len(following) > 2 and not following.startswith("0"):
+                return None
+            # A mobile written without its trunk 0 is stored with it
+            return normalized if len(re.sub(r"\D", "", phone)) == 9 else phone
+    return None
 
 
 def _find_phone(value) -> str | None:
-    """The first Vietnamese phone number in `value` as written, without parentheses; None when there is none."""
-    match = PHONE_PATTERN.search(re.sub(r"[()]", "", str(value or "")))
-    return match.group() if match else None
+    """The first phone number in `value` as written, without parentheses (a mobile without its trunk 0 gets it);
+    None when there is none."""
+    for run in DIGIT_RUN.findall(re.sub(r"[()]", "", str(value or ""))):
+        phone = _phone_in_run(run)
+        if phone:
+            return phone
+    return None
 
 
 def _staff_reply(echo: dict) -> StaffReply | None:
@@ -464,7 +522,7 @@ def _last_bot_message(history: list[dict]) -> str:
 
 def _clean_extracted(extracted: dict, phone_from_qr: str | None) -> dict:
     """The model's extraction made safe to store: the phone quick reply wins, otherwise phone is the first
-    Vietnamese phone number in what the model gave ("0912345678, 0987654321" keeps the first) and is dropped when
+    phone number in what the model gave ("0912345678, 0987654321" keeps the first) and is dropped when
     there is none (e.g. "không có"); phone_declined is kept only as JSON true (models also return "false")."""
     extracted = dict(extracted)
     if phone_from_qr:

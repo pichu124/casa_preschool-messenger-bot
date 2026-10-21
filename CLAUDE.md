@@ -13,6 +13,7 @@ Bot tự trả lời Facebook Messenger cho hệ thống mầm non Casa dei Bamb
 - Môi trường: `python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt`. Phiên cloud tự làm việc này qua `.claude/hooks/session-start.sh`.
 - Một test: `.venv/bin/python -m pytest tests/test_smoke.py::test_health_check_reports_loaded_qa -q`
 - Chạy app local: `uvicorn app.main:app --reload --port 8000`. Thử hội thoại không qua Facebook: `POST /test-chat?secret=<TELEGRAM_WEBHOOK_SECRET>` (cần ít nhất một API key AI trong `.env`; chỉ ghi `data/customers.json` cục bộ, không đẩy lên GitHub). Chấm hội thoại với model thật: `.venv/bin/python scripts/eval_chat.py` (exit 2 khi chưa có API key).
+- Kiểm chứng trên app thật (verifier): skill `.claude/skills/verify-casa-bot/` — chạy bot cách ly, mọi request ra ngoài về fake cục bộ; feature map trong `features/`.
 - `./scripts/audit-agent.sh --since 7` dò sự cố từ file phiên; `/agent-audit` dò rồi sửa kèm test, mở PR nháp.
 
 ## Cách làm việc

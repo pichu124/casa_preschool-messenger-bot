@@ -72,6 +72,8 @@ SCENARIOS: dict[str, list[Turn]] = {
         Turn(
             "học phí đắt quá, trường X gần nhà mình rẻ hơn nhiều",
             any_of=[("cảm ơn", "hiểu", "chia sẻ"), ("giáo viên nước ngoài", "cambridge", "không tăng học phí", "học thử")],
+            # CARE không đẩy phụ huynh sang hệ/cơ sở khác như phương án rẻ hơn.
+            none_of=("kim mã", "tối ưu chi phí"),
         ),
     ],
     "uu_dai_tu_choi": [
@@ -92,10 +94,10 @@ SCENARIOS: dict[str, list[Turn]] = {
     "xe_bus": [
         Turn(
             "trường có xe bus đưa đón không ạ",
-            any_of=[ASKS_PHONE],
-            none_of=("tuyến", "bán kính", "phí xe", "phí đưa đón", "ưu đãi", "địa chỉ"),
+            any_of=[("chưa có tuyến",), ("đủ phụ huynh", "đăng ký"), ("khu vực",), ASKS_PHONE],
+            none_of=("bán kính", "phí xe", "phí đưa đón", "ưu đãi"),
         ),
-        Turn("thôi mình chưa muốn để lại số", expect_escalate=True),
+        Turn("thôi mình chưa muốn để lại số", none_of=ASKS_PHONE),
     ],
     "ngoai_le": [
         Turn("giá bitcoin hôm nay bao nhiêu vậy", expect_escalate=True),

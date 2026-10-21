@@ -1,5 +1,7 @@
 # Đợt 3: thông tin cần bổ sung
 
+> Đã thay bằng `docs/dot-4-can-bo-sung.md`. File này giữ lại làm lịch sử.
+
 Code cho các mục dưới đây đã có trên nhánh, nhưng chưa chạy được ngoài đời vì thiếu file, thiếu cấu hình hoặc chờ quyết định. Bổ sung xong thì giao lại cho agent: `/team-lead làm đợt 3 theo docs/dot-3-can-bo-sung.md` (kèm file/câu trả lời).
 
 ## A. File cần gửi

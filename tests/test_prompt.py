@@ -181,7 +181,7 @@ def test_model_never_receives_outdated_instruction(monkeypatch, phrase):
         assert phrase not in user_message
 
 
-# Trường bỏ workshop và tạm không tư vấn xe bus (phản hồi đợt 2).
+# Trường bỏ workshop (phản hồi đợt 2); xe bus không nêu tuyến cụ thể (đợt 2 và 3).
 REMOVED_TOPICS = ["workshop", "phan thúy", "kiểm tra tuyến", "tuyến gần nhất"]
 
 
@@ -191,6 +191,45 @@ def test_model_never_receives_removed_topic(monkeypatch, phrase):
         system_prompt, user_message = model_input(monkeypatch, "có xe bus không", **kwargs)
         assert phrase not in system_prompt.lower()
         assert phrase not in user_message.lower()
+
+
+def _escalate_rules(system_prompt: str, user_message: str) -> str:
+    """Mục "KHI NÀO TRẢ LỜI [ESCALATE]" của prompt cộng dòng nhắc [ESCALATE] bắt buộc trong tin gửi model."""
+    section = system_prompt.split('KHI NÀO TRẢ LỜI ĐÚNG CHUỖI "[ESCALATE]"', 1)[1].split("KÈM HÌNH ẢNH", 1)[0]
+    reminders = [line for line in user_message.splitlines() if "BẮT BUỘC trả lời chính xác chuỗi [ESCALATE]" in line]
+    assert reminders
+    return section + "\n".join(reminders)
+
+
+# Phản hồi đợt 3: chưa có tuyến xe bus, đủ phụ huynh đăng ký thì mở tuyến; không escalate chỉ vì xe bus.
+@pytest.mark.parametrize("history", [[], [{"role": "user", "content": "bé 3 tuổi"}, {"role": "assistant", "content": "Dạ vâng ạ"}]])
+def test_bus_answer_is_no_route_yet_and_never_escalates(monkeypatch, history):
+    system_prompt, user_message = model_input(monkeypatch, "có xe bus không", conversation_history=history)
+
+    for text in (system_prompt, user_message):
+        assert "chưa có tuyến xe bus" in text
+        assert "đủ phụ huynh đăng ký" in text
+        assert "khu vực nhà" in text
+        assert "chỉ vì xe bus" in text
+    assert "xe bus" not in _escalate_rules(system_prompt, user_message)
+
+
+def _care_text(system_prompt: str) -> str:
+    """Quy tắc CARE cộng câu trả lời mẫu cho phụ huynh chê đắt."""
+    lines = system_prompt.splitlines()
+    rule = [line for line in lines if "→ CARE:" in line]
+    example = [lines[i + 1] for i, line in enumerate(lines) if line.endswith("(CARE)")]
+    assert rule and example
+    return "\n".join(rule + example)
+
+
+def test_care_resolves_with_value_and_trial_not_a_cheaper_campus(monkeypatch):
+    system_prompt, _ = model_input(monkeypatch, "học phí đắt quá")
+    care = _care_text(system_prompt)
+
+    assert "Kim Mã" not in care and "Song ngữ" not in care
+    assert "tối ưu chi phí" not in system_prompt
+    assert "học thử" in care and "tham quan" in care
 
 
 REQUIRED_KNOWLEDGE = [

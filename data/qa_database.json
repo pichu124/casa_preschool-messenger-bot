@@ -774,6 +774,21 @@
       ]
     },
     {
+      "category": "Chính sách & quy định",
+      "questions": [
+        "Trường có xe bus đưa đón không ạ?",
+        "Nhà trường có xe đưa đón bé không?",
+        "Có xe buýt đón con ở nhà không?"
+      ],
+      "answer": "Hiện Nhà trường chưa có tuyến xe bus. Khi có đủ phụ huynh đăng ký, Nhà trường sẽ tiến hành mở tuyến xe bus. Ba mẹ có nhu cầu có thể để lại khu vực nhà và SĐT/Zalo để Nhà trường ghi nhận nhu cầu của gia đình.",
+      "keywords": [
+        "xe bus",
+        "xe buýt",
+        "xe đưa đón",
+        "đưa đón"
+      ]
+    },
+    {
       "category": "Học phí & ưu đãi",
       "questions": [
         "Học phí của trường như thế nào ạ?",

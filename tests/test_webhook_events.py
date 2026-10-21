@@ -38,11 +38,12 @@ AD_TITLE = "Học thử 1 tuần miễn phí"
 TIMESTAMP = 1760000000123
 MODEL_TEXT = "Dạ Casa có chương trình cho các con từ 15 tháng đến 6 tuổi ạ. Bé nhà mình được mấy tuổi ạ?"
 ASK_PHONE = "Dạ Ba/Mẹ cho em xin SĐT hoặc Zalo để tư vấn viên gửi chi tiết nhé ạ? [QUICK:phone]"
+# Nguyên văn 4 câu gợi ý của trường (phản hồi đợt 3).
 ICE_BREAKERS = {
-    "IB_1": "Học phí bao nhiêu 1 tháng ạ?",
-    "IB_2": "Trường ở đâu ạ?",
-    "IB_3": "Trường áp dụng chương trình gì ạ?",
-    "IB_4": "Cho con học thử được không ạ?",
+    "IB_1": "Học phí của trường là bao nhiêu?",
+    "IB_2": "Trường nhận bé từ bao nhiêu tháng?",
+    "IB_3": "Hiện tại Nhà trường có ưu đãi gì?",
+    "IB_4": "Có chương trình học thử miễn phí cho học sinh mới không?",
 }
 AD_REFERRAL = {
     "ref": "hoc-thu",
@@ -161,6 +162,35 @@ def test_text_quick_reply_becomes_its_meaning(key, index):
     assert parse_messaging_event(event) == inbound(meaning)
 
 
+# Nút tin đầu và nút tuổi theo phản hồi đợt 3 của trường: (key, nhãn nút, câu bot nhận khi phụ huynh bấm).
+SCHOOL_BUTTONS = [
+    ("topics", "Cơ sở quan tâm", "Trường có những cơ sở nào ạ?"),
+    ("topics", "Chương trình học", "Trường dạy chương trình gì ạ?"),
+    ("topics", "Đặt lịch tham quan", "Em muốn đặt lịch tham quan trường ạ"),
+    ("topics", "Ưu đãi", "Hiện tại Nhà trường có ưu đãi gì ạ?"),
+    ("age", "Dưới 2 tuổi", "Bé nhà em dưới 2 tuổi ạ"),
+    ("age", "2-3 tuổi", "Bé nhà em 2-3 tuổi ạ"),
+    ("age", "3-5 tuổi", "Bé nhà em 3-5 tuổi ạ"),
+    ("age", "5-6 tuổi", "Bé nhà em 5-6 tuổi ạ"),
+]
+
+
+@pytest.mark.parametrize("key", ["topics", "age"])
+def test_first_message_and_age_buttons_are_the_school_labels(key):
+    titles = [button["title"] for button in build_quick_replies(key)]
+
+    assert titles == [title for k, title, _ in SCHOOL_BUTTONS if k == key]
+
+
+@pytest.mark.parametrize(("key", "title", "meaning"), SCHOOL_BUTTONS)
+def test_school_button_tap_reaches_the_bot_as_a_clear_question(key, title, meaning):
+    button = next(b for b in build_quick_replies(key) if b["title"] == title)
+
+    event = message_event(text=title, quick_reply={"payload": button["payload"]})
+
+    assert parse_messaging_event(event) == inbound(meaning)
+
+
 def test_visit_time_button_says_it_is_about_a_visit():
     event = message_event(text="Buổi sáng", quick_reply={"payload": build_quick_replies("visit_time")[0]["payload"]})
 
@@ -174,10 +204,11 @@ def test_unknown_quick_reply_payload_keeps_the_button_title(payload):
     assert parse_messaging_event(event) == inbound("Buổi sáng")
 
 
-def test_phone_quick_reply_gives_phone_and_keeps_text():
-    event = message_event(text=PHONE_FROM_FB, quick_reply={"payload": PHONE_FROM_FB})
+@pytest.mark.parametrize("phone", [PHONE_FROM_FB, "912345678", "+1 650 555 1234"])
+def test_phone_quick_reply_gives_phone_and_keeps_text(phone):
+    event = message_event(text=phone, quick_reply={"payload": phone})
 
-    assert parse_messaging_event(event) == inbound(PHONE_FROM_FB, phone_from_qr=PHONE_FROM_FB)
+    assert parse_messaging_event(event) == inbound(phone, phone_from_qr=phone)
 
 
 def test_get_started_postback_becomes_a_greeting():
@@ -377,6 +408,14 @@ def test_phone_quick_reply_saves_phone_and_sends_lead_without_logging_it(bot, ca
     assert [r.getMessage() for r in caplog.records if PHONE[1:] in r.getMessage()] == []
 
 
+def test_phone_quick_reply_wins_over_the_extracted_phone(bot):
+    bot.extracted = {"phone": "0987654321"}
+
+    post_webhook(message_event(text=PHONE_FROM_FB, quick_reply={"payload": PHONE_FROM_FB}))
+
+    assert customer_memory.get_profile(SENDER)["phone"] == PHONE_FROM_FB
+
+
 # --- Nút trả lời nhanh và ảnh tĩnh trong câu trả lời ---
 
 
@@ -431,7 +470,23 @@ def test_phone_declined_true_is_kept(bot):
     assert customer_memory.get_profile(SENDER)["phone_declined"] is True
 
 
-@pytest.mark.parametrize("phone", ["không có", "chưa có", "123", "091234", "+84 911 222 501 999"])
+@pytest.mark.parametrize(
+    "phone",
+    [
+        "không có",
+        "chưa có",
+        "123",
+        "091234",
+        "+84 911 222 501 999",
+        "0912345678 123",
+        "0912 345 67",
+        "212345678",
+        "12345678",
+        "+1 234 567",
+        "+1 2345 6789 0123 4567",
+        "1 912 345 678",
+    ],
+)
 def test_phone_without_9_to_11_digits_is_not_saved(bot, phone):
     bot.say("Cô chủ nhiệm tên gì ạ?", reply="", escalate=True, extracted={"phone": phone, "kid_age": "3 tuổi"})
 
@@ -460,6 +515,31 @@ def test_phone_with_9_to_11_digits_is_saved(bot, phone):
         ("(024) 3123 4567", "024 3123 4567"),
         ("(+84) 912 345 678", "+84 912 345 678"),
         ("Zalo 0912.345.678 ạ", "0912.345.678"),
+        ("912 345 678", "0912345678"),
+        ("912345678", "0912345678"),
+        ("Zalo 912.345.678 ạ", "0912345678"),
+        ("0912 - 345 - 678", "0912 - 345 - 678"),
+        ("0912  345  678", "0912  345  678"),
+        ("(0912) 345 678", "0912 345 678"),
+        ("+1 650 555 1234", "+1 650 555 1234"),
+        ("+44 20 7946 0958, 0912345678", "+44 20 7946 0958"),
+        ("+86 138 0013 8000", "+86 138 0013 8000"),
+        ("+33 6 12 34 56 78", "+33 6 12 34 56 78"),
+        ("+33 1 23 45 67 89", "+33 1 23 45 67 89"),
+        ("+41 79 123 45 67", "+41 79 123 45 67"),
+        ("+45 12 34 56 78", "+45 12 34 56 78"),
+        ("+32 470 12 34 56", "+32 470 12 34 56"),
+        ("0912345678 2 bé", "0912345678"),
+        ("0912345678 3 tuổi", "0912345678"),
+        ("098 765 4321 9", "098 765 4321"),
+        # A foreign number keeps its whole run: a stray number after one in the extracted phone is very rare
+        ("+65 9123 4567 2 bé", "+65 9123 4567 2"),
+        ("+65 9123 4567 0912345678", "+65 9123 4567"),
+        ("+1 234 0912345678", "0912345678"),
+        ("1. 0912345678", "0912345678"),
+        ("bé 3 0912345678", "0912345678"),
+        ("Tầng 12 - 0912345678", "0912345678"),
+        ("0912345678 123 0987654321", "0987654321"),
     ],
 )
 def test_first_phone_number_in_the_extracted_phone_is_saved_and_sent_as_lead(bot, caplog, phone, saved):

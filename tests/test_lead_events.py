@@ -63,6 +63,13 @@ VN = timezone(timedelta(hours=7))
         ({"phone": "+84 024 3123 4567"}, {"phone": "02431234567"}, []),
         ({"phone": "024 3123 4567"}, {"phone": "+84 24 3123 4568"}, ["phone_changed"]),
         ({}, {"phone": "không có"}, []),
+        ({"phone": PHONE}, {"phone": "900000401"}, []),
+        ({"phone": "900 000 401"}, {"phone": PHONE}, []),
+        ({"phone": "900000401"}, {"phone": NEW_PHONE}, ["phone_changed"]),
+        ({}, {"phone": "+1 650 555 1234"}, ["new_phone"]),
+        ({"phone": "+1 650 555 1234"}, {"phone": "+16505551234"}, []),
+        ({"phone": PHONE}, {"phone": "+1 650 555 1234"}, ["phone_changed"]),
+        ({"phone": "+1 650 555 1234"}, {"phone": "16505551234"}, ["phone_changed"]),
         ({}, {"visit_request": VISIT}, ["visit_request"]),
         ({"visit_request": VISIT}, {"visit_request": VISIT}, []),
         ({"visit_request": "tham quan buổi sáng"}, {"visit_request": "Tham quan  buổi sáng"}, []),
@@ -94,6 +101,13 @@ VN = timezone(timedelta(hours=7))
         "cùng máy bàn, hồ sơ có +84 0",
         "đổi máy bàn",
         "SĐT không có chữ số",
+        "cùng SĐT, tin thiếu số 0",
+        "cùng SĐT, hồ sơ thiếu số 0",
+        "đổi SĐT, hồ sơ thiếu số 0",
+        "SĐT nước ngoài mới",
+        "cùng SĐT nước ngoài, khác cách viết",
+        "đổi sang SĐT nước ngoài",
+        "SĐT nước ngoài khác dãy số không có +",
         "hẹn mới",
         "hẹn giống lần trước",
         "hẹn giống, khác hoa thường và khoảng trắng",
@@ -321,6 +335,24 @@ def test_two_numbers_in_one_message_publish_the_first_as_new_phone(chat, net, ca
     assert [(row["event"], row["phone"]) for row in net.sheet] == [("new_phone", PHONE)]
     assert leaked(caplog) == []
     assert [r.getMessage() for r in caplog.records if NEW_PHONE in r.getMessage()] == []
+
+
+def test_same_phone_without_leading_zero_publishes_nothing(chat, net):
+    known_customer(phone=PHONE)
+
+    chat.say("Số mình 900 000 401 ạ", extracted={"phone": "900 000 401"})
+
+    assert chat.sent == [MODEL_TEXT]
+    assert (net.telegram, net.sheet) == ([], [])
+
+
+def test_phone_without_leading_zero_is_published_with_it(chat, net, caplog):
+    with caplog.at_level(logging.DEBUG):
+        chat.say("Số mình 900 000 401 ạ", extracted={"phone": "900 000 401"})
+
+    assert customer_memory.get_profile(CUSTOMER_ID)["phone"] == PHONE
+    assert [(row["event"], row["phone"]) for row in net.sheet] == [("new_phone", PHONE)]
+    assert leaked(caplog) == []
 
 
 def test_same_visit_request_in_other_case_and_spacing_publishes_nothing(chat, net):

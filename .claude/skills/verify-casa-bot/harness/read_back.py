@@ -20,13 +20,15 @@ HOSTS = {
     "tg": "api.telegram.org",
     "sheet": "script.google.com",
     "gh": "api.github.com",
-    "ai": "api.openai.com",
+    "ai": None,  # every model call (OpenAI-style or Gemini): the records the fake gave a `kind`
 }
 
 
 def cmd_outbox(state, a):
     for rec in outbox(state):
-        if rec["seq"] <= a.since or (a.host and rec["host"] != HOSTS[a.host]):
+        if rec["seq"] <= a.since:
+            continue
+        if a.host and (not rec.get("kind") if a.host == "ai" else rec["host"] != HOSTS[a.host]):
             continue
         line = json.dumps(rec, ensure_ascii=False) if a.full else summarize(rec)
         if line:

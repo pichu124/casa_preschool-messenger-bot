@@ -93,5 +93,5 @@ def summarize(rec: dict) -> str | None:
     if host == "api.github.com":
         return f"{seq} GH  {method} {rec['path']}"
     if rec.get("kind"):
-        return f"{seq} AI  {rec['kind']} rule={rec.get('rule')!r}"
+        return f"{seq} AI  {rec['kind']} rule={rec.get('rule')!r} model={rec.get('model')}"
     return f"{seq} ??  {method} {host}{rec['path']} (unexpected host)"

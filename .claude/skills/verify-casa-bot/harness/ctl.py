@@ -147,8 +147,8 @@ def app_env(state: dict, overrides: dict) -> dict:
             sys.exit(f"--env {key} is not allowed")
         if key == "GITHUB_TOKEN" and not value.startswith("fake-"):
             sys.exit("--env GITHUB_TOKEN must start with fake-")
-        if key == "GEMINI_API_KEY" and value:
-            sys.exit("--env GEMINI_API_KEY: gemini talks gRPC, past the fake; not supported")
+        if key == "GEMINI_API_KEY" and value and not value.startswith("fake"):
+            sys.exit("--env GEMINI_API_KEY must start with fake (or be empty)")
         env[key] = value
     return env
 
@@ -296,6 +296,8 @@ def cmd_doctor(a):
             problems.append("app process has a *_PROXY variable in its environment")
         if not env.get("GITHUB_TOKEN", "").startswith("fake-"):
             problems.append("app process GITHUB_TOKEN is not fake")
+        if env.get("GEMINI_API_KEY") and not env["GEMINI_API_KEY"].startswith("fake"):
+            problems.append("app process GEMINI_API_KEY is not fake")
         if env.get("CASA_VERIFY_RUN_ID") != state["run_id"]:
             problems.append("app pid belongs to another run")
     blocked = [line for line in Path(state["netlog"]).read_text().splitlines() if "BLOCKED" in line]

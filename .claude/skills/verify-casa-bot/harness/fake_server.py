@@ -11,6 +11,7 @@ import base64
 import hashlib
 import itertools
 import json
+import re
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -23,6 +24,7 @@ AI_KINDS = (
     ("Bạn là hệ thống phân loại", "classify"),
     ("Bạn là hệ thống tóm tắt", "summarize"),
 )
+GEMINI_PATH = re.compile(r"/v1beta/models/([^/:]+):generateContent")
 AI_DEFAULTS = {
     "chat": "Dạ Casa chào Ba/Mẹ ạ, em hỗ trợ ngay ạ.",
     "extract": {},
@@ -52,11 +54,25 @@ def _between(text: str, start: str, end: str) -> str:
     return text[i + len(start):].split(end, 1)[0].strip()
 
 
-def ai_reply(body: dict) -> tuple[str, str, str | None]:
-    """(kind, completion text, matching rule's `contains`) for an OpenAI-style chat completion request."""
+def openai_prompt(body: dict) -> tuple[str, str]:
+    """(system prompt, last message) of an OpenAI-style chat completion request."""
     messages = body.get("messages") or []
     system = next((m.get("content", "") for m in messages if m.get("role") == "system"), "")
-    last = messages[-1].get("content", "") if messages else ""
+    return system, messages[-1].get("content", "") if messages else ""
+
+
+def _text(content: dict) -> str:
+    return "".join(p.get("text", "") for p in (content or {}).get("parts") or [])
+
+
+def gemini_prompt(body: dict) -> tuple[str, str]:
+    """(systemInstruction, last content) of a Gemini REST generateContent request (google-genai)."""
+    contents = body.get("contents") or []
+    return _text(body.get("systemInstruction")), _text(contents[-1]) if contents else ""
+
+
+def ai_reply(system: str, last: str) -> tuple[str, str, str | None]:
+    """(kind, completion text, matching rule's `contains`) for a model call with this system prompt and message."""
     kind = next((k for prefix, k in AI_KINDS if system.startswith(prefix)), "chat")
     if kind == "chat":
         subject = _between(last, "[Phụ huynh hỏi]:", "[NHẮC NHỞ").removeprefix("[FIRST_MESSAGE]").strip()
@@ -88,6 +104,14 @@ def completion(text: str, model: str) -> dict:
     }
 
 
+def gemini_response(text: str, model: str) -> dict:
+    return {
+        "candidates": [{"content": {"role": "model", "parts": [{"text": text}]}, "finishReason": "STOP", "index": 0}],
+        "usageMetadata": {"promptTokenCount": 1, "candidatesTokenCount": 1, "totalTokenCount": 2},
+        "modelVersion": model,
+    }
+
+
 def github(method: str, path: str, accept: str, body) -> tuple[int, object]:
     fail = scenario().get("fail") or {}
     if method == "PUT":
@@ -111,10 +135,16 @@ def route(method: str, host: str, path: str, headers, body) -> tuple[int, object
     sc = scenario()
     fail = sc.get("fail") or {}
     if path.endswith("/chat/completions"):
-        kind, text, rule = ai_reply(body or {})
+        model = (body or {}).get("model")
+        kind, text, rule = ai_reply(*openai_prompt(body or {}))
         if fail.get("openai"):
-            return 500, {"error": {"message": "fake_server: openai failure from scenario"}}, {"kind": kind}
-        return 200, completion(text, (body or {}).get("model")), {"kind": kind, "rule": rule}
+            return 500, {"error": {"message": "fake_server: openai failure from scenario"}}, {"kind": kind, "model": model}
+        return 200, completion(text, model), {"kind": kind, "rule": rule, "model": model}
+    gemini = GEMINI_PATH.fullmatch(path) if host == "generativelanguage.googleapis.com" else None
+    if gemini:
+        model = gemini.group(1)
+        kind, text, rule = ai_reply(*gemini_prompt(body or {}))
+        return 200, gemini_response(text, model), {"kind": kind, "rule": rule, "model": model}
     if host == "graph.facebook.com":
         if method == "GET":  # get_user_profile: /v21.0/<psid>?fields=first_name,last_name
             return 200, sc.get("fb_profile") or {"first_name": "Test", "last_name": "Parent"}, {}
@@ -147,6 +177,10 @@ def route(method: str, host: str, path: str, headers, body) -> tuple[int, object
     return 502, {"error": f"fake_server: unexpected host {host}"}, {"unexpected": True}
 
 
+def _cut(text: str) -> str:
+    return text if len(text) <= 200 else text[:200] + f"…({len(text)} chars)"
+
+
 def _for_outbox(body):
     """Keep the outbox readable: system prompts (the whole Q&A database) and base64 file uploads are cut."""
     if not isinstance(body, dict):
@@ -154,11 +188,13 @@ def _for_outbox(body):
     body = dict(body)
     if isinstance(body.get("messages"), list):
         body["messages"] = [
-            {**m, "content": m["content"][:200] + f"…({len(m['content'])} chars)"}
-            if m.get("role") == "system" and isinstance(m.get("content"), str) and len(m["content"]) > 200
-            else m
+            {**m, "content": _cut(m["content"])} if m.get("role") == "system" and isinstance(m.get("content"), str) else m
             for m in body["messages"]
         ]
+    system = body.get("systemInstruction")
+    if isinstance(system, dict) and isinstance(system.get("parts"), list):
+        parts = [{**p, "text": _cut(p["text"])} if isinstance(p.get("text"), str) else p for p in system["parts"]]
+        body["systemInstruction"] = {**system, "parts": parts}
     if isinstance(body.get("content"), str) and len(body["content"]) > 200:
         body["content"] = f"<base64, {len(body['content'])} chars>"
     return body

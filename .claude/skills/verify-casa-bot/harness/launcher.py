@@ -1,13 +1,15 @@
 """Runs app.main:app with no way out to the internet. Started by ctl.py up (env -i, cwd = the copy); not by hand.
 
-1. Refuses to start with a real-looking GitHub token, GH_TOKEN, a proxy variable (httpx would use it), or a .env
-   the app's load_dotenv() could find.
+1. Refuses to start with a real-looking GitHub token or Gemini key, GH_TOKEN, a proxy variable (httpx would use
+   it), or a .env the app's load_dotenv() could find.
 2. Blocks DNS to anything but loopback and TCP connects to anything but the fake and the app itself (a proxy on
    loopback would be a way out; logged to CASA_VERIFY_NETLOG).
-3. Rewrites every httpx request (Graph, Telegram, Sheet, GitHub, OpenAI SDK) to the fake server.
+3. Rewrites every httpx request (Graph, Telegram, Sheet, GitHub, OpenAI SDK, google-genai: its clients subclass
+   httpx.Client/AsyncClient, aiohttp is not installed) to the fake server.
 4. Uses the asyncio loop: uvloop connects in C, past the socket guard.
 5. app.followup._now_utc reads "now_utc" from the scenario file when set (the clock is outside the system).
 """
+import importlib.util
 import json
 import os
 import socket
@@ -40,8 +42,10 @@ if "GH_TOKEN" in os.environ or "GITHUB_PAT" in os.environ:
     refuse("GH_TOKEN/GITHUB_PAT is set (the environment must come from env -i)")
 if not os.environ.get("GITHUB_TOKEN", "").startswith("fake-"):
     refuse("GITHUB_TOKEN must be a fake-… value")
-if os.environ.get("GEMINI_API_KEY"):
-    refuse("GEMINI_API_KEY is set: google-generativeai talks gRPC, which bypasses the httpx rewrite")
+if os.environ.get("GEMINI_API_KEY") and not os.environ["GEMINI_API_KEY"].startswith("fake"):
+    refuse("GEMINI_API_KEY must be a fake… value")
+if os.environ.get("GEMINI_API_KEY") and importlib.util.find_spec("aiohttp"):
+    refuse("aiohttp is installed: google-genai would send Gemini requests through it, past the httpx rewrite")
 for d in [Path.cwd(), *Path.cwd().parents]:
     if (d / ".env").exists():
         refuse(f"{d / '.env'} exists: app/config.py load_dotenv() would read real secrets from it")

@@ -1,4 +1,4 @@
-"""Follow-up: one fixed message to a parent who went quiet mid-consultation, inside Messenger's 24-hour window.
+"""Follow-up: one fixed message to a parent who went quiet mid-consultation, just before Messenger's 24-hour window closes.
 
 Run hourly by .github/workflows/followup.yml through POST /followup/run. Sends nothing unless
 settings.FOLLOWUP_ENABLED; logs and results carry no name, phone number or message text.
@@ -20,9 +20,13 @@ from app.messenger import send_message
 logger = logging.getLogger(__name__)
 
 VN_TZ = timezone(timedelta(hours=7))
-# Messenger allows standard messages only within 24 hours of the parent's last message.
+# Messenger allows a Page standard messages only within 24 hours of the parent's last message: after that the
+# Graph API refuses them, and tagging an automated message (HUMAN_AGENT) to get past it breaks Messenger policy.
+# So the follow-up goes out as late as the window and the sending hours allow.
+MESSENGER_WINDOW = timedelta(hours=24)
+WINDOW_MARGIN = timedelta(hours=1)  # deadline = parent's last message + 23h
+SEND_SLOT = timedelta(hours=2)  # due from latest send - 2h: two hourly runs, fewer where 8:00 cuts the slot
 MIN_SILENCE = timedelta(hours=3)
-MAX_SILENCE = timedelta(hours=23)
 SEND_HOURS_VN = range(8, 21)  # 8:00 to 20:59 Vietnam time
 # The consultant has the conversation: no follow-up after these.
 HANDED_TO_CONSULTANT = (ESCALATION_MESSAGE_HAS_PHONE, ESCALATION_MESSAGE_ASK_PHONE, ESCALATION_MESSAGE_PHONE_DECLINED)
@@ -75,6 +79,17 @@ def _template_key(profile: dict) -> str:
     return "ask_phone"
 
 
+def _latest_send(parent_at: datetime) -> datetime:
+    """The deadline, or the end of sending hours (20:59:59 Vietnam time) last before it when it falls outside them."""
+    deadline = (parent_at + MESSENGER_WINDOW - WINDOW_MARGIN).astimezone(VN_TZ)
+    if deadline.hour in SEND_HOURS_VN:
+        return deadline
+    end_of_hours = deadline.replace(hour=SEND_HOURS_VN[-1], minute=59, second=59, microsecond=0)
+    if end_of_hours > deadline:
+        end_of_hours -= timedelta(days=1)
+    return end_of_hours
+
+
 def _is_due(profile: dict, now_utc: datetime) -> bool:
     if profile.get("phone") or profile.get("visit_request"):
         return False
@@ -85,7 +100,10 @@ def _is_due(profile: dict, now_utc: datetime) -> bool:
     if not parent_messages:
         return False
     parent_at = _as_utc(parent_messages[-1].get("timestamp"))
-    if parent_at is None or not MIN_SILENCE <= now_utc - parent_at <= MAX_SILENCE:
+    if parent_at is None or now_utc - parent_at < MIN_SILENCE:
+        return False
+    latest_send = _latest_send(parent_at)
+    if not latest_send - SEND_SLOT <= now_utc <= latest_send:
         return False
     # Already followed up, or staff answered by hand in the Page inbox (app/main.py), since the parent's last message
     for key in ("followup_sent_at", "staff_replied_at"):

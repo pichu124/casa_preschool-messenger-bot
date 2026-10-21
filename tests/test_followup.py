@@ -51,11 +51,11 @@ def server_time(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).replace(tzinfo=None).isoformat()
 
 
-def vn(hour: int, minute: int = 0) -> datetime:
-    return datetime(2026, 10, 20, hour, minute, tzinfo=VN).astimezone(timezone.utc)
+def vn(hour: int, minute: int = 0, second: int = 0, day: int = 20) -> datetime:
+    return datetime(2026, 10, day, hour, minute, second, tzinfo=VN).astimezone(timezone.utc)
 
 
-def profile(silence=5 * H, now=NOW, last="assistant", bot_text=BOT_TEXT, **fields) -> dict:
+def profile(silence=22 * H, now=NOW, last="assistant", bot_text=BOT_TEXT, **fields) -> dict:
     """Hồ sơ có tin cuối của phụ huynh cách `now` một khoảng `silence`; tin cuối của history là của `last`."""
     parent_at = now - silence
     parent = {"role": "user", "content": PARENT_TEXT, "timestamp": server_time(parent_at)}
@@ -67,17 +67,89 @@ def profile(silence=5 * H, now=NOW, last="assistant", bot_text=BOT_TEXT, **field
     return {"parent_name": FB_NAME, "message_count": 2, "conversation_history": history, **fields}
 
 
+# Giờ VN, phụ huynh nhắn lần cuối ngày 20. deadline = tin cuối + 23h; ngoài 8:00–20:59 thì lùi về 20:59:59
+# gần nhất trước đó (latest_send). Gửi trong [latest_send − 2h, latest_send], chỉ trong 8:00–20:59.
+WINDOW_CASES = [
+    # 10:00 → deadline 09:00 ngày 21 (trong khung): slot 07:00–09:00, gửi được 08:00–09:00
+    ("10:00, 3h sau (quy tắc cũ có gửi)", vn(10), vn(13), False),
+    ("10:00, ngày 21 06:59, trước slot", vn(10), vn(6, 59, day=21), False),
+    ("10:00, ngày 21 07:00, đầu slot nhưng ngoài khung giờ", vn(10), vn(7, day=21), False),
+    ("10:00, ngày 21 07:59, ngoài khung giờ", vn(10), vn(7, 59, day=21), False),
+    ("10:00, ngày 21 08:00", vn(10), vn(8, day=21), True),
+    ("10:00, ngày 21 09:00, đúng latest_send", vn(10), vn(9, day=21), True),
+    ("10:00, ngày 21 09:01, quá 1 phút", vn(10), vn(9, 1, day=21), False),
+    ("10:00, ngày 21 10:00, đủ 24h", vn(10), vn(10, day=21), False),
+    # 23:00 → deadline 22:00 ngày 21 (ngoài khung) → 20:59:59 ngày 21: slot 18:59:59–20:59:59
+    ("23:00, ngày 21 10:00 (quy tắc cũ có gửi)", vn(23), vn(10, day=21), False),
+    ("23:00, ngày 21 18:59:58, trước slot", vn(23), vn(18, 59, 58, day=21), False),
+    ("23:00, ngày 21 18:59:59, latest_send − 2h", vn(23), vn(18, 59, 59, day=21), True),
+    ("23:00, ngày 21 20:59:59, đúng latest_send", vn(23), vn(20, 59, 59, day=21), True),
+    ("23:00, ngày 21 21:00:59, quá 1 phút", vn(23), vn(21, 0, 59, day=21), False),
+    # 03:00 → deadline 02:00 ngày 21 → 20:59:59 ngày 20 (17h59 sau tin cuối): slot 18:59:59–20:59:59 ngày 20
+    ("03:00, ngày 20 10:00 (quy tắc cũ có gửi)", vn(3), vn(10), False),
+    ("03:00, ngày 20 18:59:58, trước slot", vn(3), vn(18, 59, 58), False),
+    ("03:00, ngày 20 18:59:59, latest_send − 2h", vn(3), vn(18, 59, 59), True),
+    ("03:00, ngày 20 20:59:59, đúng latest_send", vn(3), vn(20, 59, 59), True),
+    ("03:00, ngày 20 21:00:59, quá 1 phút", vn(3), vn(21, 0, 59), False),
+    ("03:00, ngày 21 08:00, quá 24h", vn(3), vn(8, day=21), False),
+    # 22:30 → deadline 21:30 ngày 21 → 20:59:59 ngày 21
+    ("22:30, ngày 21 18:59:58, trước slot", vn(22, 30), vn(18, 59, 58, day=21), False),
+    ("22:30, ngày 21 18:59:59, latest_send − 2h", vn(22, 30), vn(18, 59, 59, day=21), True),
+    ("22:30, ngày 21 20:59:59, đúng latest_send", vn(22, 30), vn(20, 59, 59, day=21), True),
+    ("22:30, ngày 21 21:00:59, quá 1 phút", vn(22, 30), vn(21, 0, 59, day=21), False),
+    # 20:50 → deadline 19:50 ngày 21 (trong khung): slot 17:50–19:50
+    ("20:50, ngày 21 12:00 (quy tắc cũ có gửi)", vn(20, 50), vn(12, day=21), False),
+    ("20:50, ngày 21 17:49:59, trước slot", vn(20, 50), vn(17, 49, 59, day=21), False),
+    ("20:50, ngày 21 17:50, latest_send − 2h", vn(20, 50), vn(17, 50, day=21), True),
+    ("20:50, ngày 21 19:50, đúng latest_send", vn(20, 50), vn(19, 50, day=21), True),
+    ("20:50, ngày 21 19:51, quá 1 phút", vn(20, 50), vn(19, 51, day=21), False),
+    # Biên của khung gửi tại deadline
+    ("21:59:59 → deadline 20:59:59 trong khung, đúng deadline", vn(21, 59, 59), vn(20, 59, 59, day=21), True),
+    ("22:00 → deadline 21:00 ngoài khung, 20:59:59", vn(22), vn(20, 59, 59, day=21), True),
+    ("08:59 → deadline 07:59 → 20:59:59 cùng ngày tin cuối", vn(8, 59), vn(20), True),
+    ("08:59 → deadline 07:59, ngày 21 07:30 không gửi", vn(8, 59), vn(7, 30, day=21), False),
+    ("09:00 → deadline 08:00 trong khung, đúng deadline", vn(9), vn(8, day=21), True),
+    ("09:00 → deadline 08:00, quá 1 giây", vn(9), vn(8, 0, 1, day=21), False),
+]
+
+
+@pytest.mark.parametrize(
+    ("parent_at", "now", "due"), [c[1:] for c in WINDOW_CASES], ids=[c[0] for c in WINDOW_CASES]
+)
+def test_followup_goes_out_just_before_the_24_hour_window_closes(parent_at, now, due):
+    customer = profile(silence=now - parent_at, now=now)
+    expected = [(CID, "ask_age")] if due else []
+
+    assert followup.due_followups({CID: customer}, now) == expected
+
+
+def test_never_due_outside_sending_hours_or_after_23_hours():
+    """Mọi cặp (tin cuối, lần chạy) theo bước 15 phút trong hai ngày: chỉ gửi trong 8:00–20:59, 3h–23h sau tin cuối."""
+    step = 15 * M
+    sent = 0
+    for p in range(96):
+        parent_at = vn(0) + p * step
+        for n in range(1, 30 * 4 + 1):
+            now = parent_at + n * step
+            if followup.due_followups({CID: profile(silence=now - parent_at, now=now)}, now):
+                sent += 1
+                assert 3 * H <= now - parent_at <= 23 * H
+                assert 8 <= now.astimezone(VN).hour <= 20
+    assert sent > 0
+
+
+def test_slot_too_close_to_the_last_message_is_not_due(monkeypatch):
+    """latest_send − tin cuối < 3h không xảy ra với lề 1h; nếu lề đổi thì MIN_SILENCE vẫn chặn."""
+    monkeypatch.setattr(followup, "WINDOW_MARGIN", 22 * H)
+    parent_at = vn(10)  # deadline 12:00, slot 10:00–12:00
+
+    for now in (vn(11), vn(12), vn(12, 59)):
+        assert followup.due_followups({CID: profile(silence=now - parent_at, now=now)}, now) == []
+
+
 DUE_CASES = [
-    ("2h59 sau tin phụ huynh", profile(silence=3 * H - M), NOW, None),
-    ("3h00 sau tin phụ huynh", profile(silence=3 * H), NOW, "ask_age"),
-    ("23h00 sau tin phụ huynh", profile(silence=23 * H), NOW, "ask_age"),
-    ("23h01 sau tin phụ huynh", profile(silence=23 * H + M), NOW, None),
-    ("7h59 giờ VN", profile(now=vn(7, 59)), vn(7, 59), None),
-    ("8h00 giờ VN", profile(now=vn(8)), vn(8), "ask_age"),
-    ("20h59 giờ VN", profile(now=vn(20, 59)), vn(20, 59), "ask_age"),
-    ("21h00 giờ VN", profile(now=vn(21)), vn(21), None),
     ("đã nhắc sau tin cuối", profile(followup_sent_at=(NOW - 4 * H).isoformat()), NOW, None),
-    ("nhắc đúng lúc tin cuối", profile(followup_sent_at=(NOW - 5 * H).isoformat()), NOW, None),
+    ("nhắc đúng lúc tin cuối", profile(followup_sent_at=(NOW - 22 * H).isoformat()), NOW, None),
     ("nhắc trước tin cuối mới hơn", profile(followup_sent_at=(NOW - 30 * H).isoformat()), NOW, "ask_age"),
     ("nhân viên nhắn tay sau tin cuối", profile(staff_replied_at=(NOW - 4 * H).isoformat()), NOW, None),
     ("nhân viên nhắn tay trước tin cuối", profile(staff_replied_at=(NOW - 30 * H).isoformat()), NOW, "ask_age"),
@@ -115,11 +187,11 @@ def test_due_followups_edge_cases(customer, now, template_key):
 
 
 def test_history_timestamp_without_timezone_is_read_as_utc():
-    """2h59 trước theo UTC; đọc nhầm là giờ VN thì thành 9h59 trước và bị nhắc."""
-    customer = profile(silence=3 * H - M)
+    """22h trước theo UTC (trong slot); đọc nhầm là giờ VN thì thành 29h trước, quá 24h, không được nhắc."""
+    customer = profile()
     assert "+" not in customer["conversation_history"][0]["timestamp"]
 
-    assert followup.due_followups({CID: customer}, NOW) == []
+    assert followup.due_followups({CID: customer}, NOW) == [(CID, "ask_age")]
 
 
 def test_unreadable_timestamp_is_not_due_and_does_not_break_others():
@@ -371,13 +443,13 @@ def staff_echo(customer_id: str, at: datetime) -> dict:
 
 @pytest.mark.parametrize(
     ("staff_at", "sent_to"),
-    [(NOW - 4 * H, [INVITE_ID]), (NOW - 6 * H, [ASK_AGE_ID, INVITE_ID])],
+    [(NOW - 21 * H, [INVITE_ID]), (NOW - 23 * H, [ASK_AGE_ID, INVITE_ID])],
     ids=["sau tin cuối của phụ huynh", "trước tin cuối của phụ huynh"],
 )
 def test_staff_reply_in_page_inbox_after_parent_last_message_stops_the_followup(
     monkeypatch, outbox, synced, staff_at, sent_to
 ):
-    """Tin cuối của phụ huynh (seed_customers) cách NOW 5 giờ."""
+    """Tin cuối của phụ huynh (seed_customers) cách NOW 22 giờ."""
     monkeypatch.setattr(settings, "FOLLOWUP_ENABLED", True)
     monkeypatch.setattr(settings, "FB_APP_SECRET", "")
     seed_customers()

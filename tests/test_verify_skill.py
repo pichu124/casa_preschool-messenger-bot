@@ -1,9 +1,14 @@
 """Skill verify-casa-bot (kịch bản model giả, feature map, docstring harness) khớp nút và ice breaker trong
-app/messenger.py: đổi chữ ở đó mà quên skill thì test này đỏ."""
+app/messenger.py: đổi chữ ở đó mà quên skill thì test này đỏ. Harness không cho app chạy với biến proxy."""
 
+import importlib.util
 import json
 import re
+import subprocess
+import sys
 from pathlib import Path
+
+import pytest
 
 from app.followup import TEMPLATES
 from app.messenger import ICE_BREAKERS, QUICK_REPLIES, build_quick_replies
@@ -14,6 +19,11 @@ RULES = [r for r in SCENARIO["rules"] if r["kind"] in ("chat", "extract")]
 TOKEN = re.compile(r"[A-Z_]+")
 FILES = sorted(p for p in SKILL.rglob("*") if p.suffix in (".md", ".py", ".json") and "__pycache__" not in p.parts)
 LINES = [(p.relative_to(SKILL), n, line) for p in FILES for n, line in enumerate(p.read_text("utf-8").splitlines(), 1)]
+
+sys.path.insert(0, str(SKILL / "harness"))  # ctl.py imports _common from its own directory
+_spec = importlib.util.spec_from_file_location("casa_verify_ctl", SKILL / "harness" / "ctl.py")
+ctl = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(ctl)
 
 
 def where(path, n):
@@ -114,3 +124,57 @@ def test_followup_text_expected_by_the_skill_starts_every_template():
     assert starts
     for start in starts:
         assert all(t.startswith(start.rstrip()) for t in TEMPLATES.values()), start
+
+
+CTL_STATE = {
+    "run_id": "r1",
+    "run_dir": "/nonexistent/run",
+    "fake_port": 1,
+    "app_port": 2,
+    "netlog": "/nonexistent/netlog.txt",
+    "scenario": "/nonexistent/scenario.json",
+    "verify_token": "fake-verify-r1",
+    "app_secret": "fake-app-secret-r1",
+    "secret": "fake-admin-r1",
+    "app_url": "http://127.0.0.1:2",
+}
+
+
+def run_launcher(tmp_path, **env):
+    base = {
+        "PATH": "/usr/bin:/bin",
+        "CASA_VERIFY_FAKE_PORT": "1",
+        "CASA_VERIFY_APP_PORT": "2",
+        "CASA_VERIFY_NETLOG": str(tmp_path / "netlog.txt"),
+        "CASA_VERIFY_SCENARIO": str(tmp_path / "scenario.json"),
+    }
+    launcher = SKILL / "harness" / "launcher.py"
+    return subprocess.run(
+        [sys.executable, str(launcher)], env=base | env, cwd=tmp_path, capture_output=True, text=True, timeout=30
+    )
+
+
+@pytest.mark.parametrize("name", ["HTTPS_PROXY", "http_proxy", "ALL_PROXY", "GLOBAL_AGENT_HTTPS_PROXY"])
+def test_launcher_refuses_to_start_with_a_proxy_variable(tmp_path, name):
+    result = run_launcher(tmp_path, **{name: "http://127.0.0.1:9", "GITHUB_TOKEN": "fake-token"})
+
+    assert result.returncode == 1
+    assert f"launcher: refusing to start: {name} set" in result.stderr
+    assert "REFUSED START" in (tmp_path / "netlog.txt").read_text()
+
+
+def test_launcher_does_not_count_no_proxy_as_a_proxy(tmp_path):
+    result = run_launcher(tmp_path, NO_PROXY="localhost", no_proxy="localhost")
+
+    assert result.returncode == 1
+    assert "refusing to start: GITHUB_TOKEN must be a fake-" in result.stderr
+
+
+@pytest.mark.parametrize("name", ["HTTPS_PROXY", "https_proxy", "ALL_PROXY"])
+def test_ctl_up_refuses_a_proxy_in_env_overrides(name):
+    with pytest.raises(SystemExit, match=f"--env {name} is not allowed"):
+        ctl.app_env(CTL_STATE, {name: "http://127.0.0.1:9"})
+
+
+def test_ctl_up_accepts_no_proxy_in_env_overrides():
+    assert ctl.app_env(CTL_STATE, {"NO_PROXY": "localhost"})["NO_PROXY"] == "localhost"

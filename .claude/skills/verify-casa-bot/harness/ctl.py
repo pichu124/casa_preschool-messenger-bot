@@ -103,6 +103,11 @@ def ours(pid: int, state: dict) -> bool:
     return env is None or env.get("CASA_VERIFY_RUN_ID") == state["run_id"]  # None: no /proc (macOS)
 
 
+def is_proxy(key: str) -> bool:
+    """HTTP_PROXY, https_proxy, ALL_PROXY, …: httpx would send the app's requests there (NO_PROXY is harmless)."""
+    return key.upper().endswith("_PROXY") and key.upper() != "NO_PROXY"
+
+
 def app_env(state: dict, overrides: dict) -> dict:
     rid = state["run_id"]
     env = {
@@ -138,7 +143,7 @@ def app_env(state: dict, overrides: dict) -> dict:
         "PUBLIC_BASE_URL": state["app_url"],
     }
     for key, value in overrides.items():
-        if key in FORBIDDEN_ENV or key.startswith("CASA_VERIFY_"):
+        if key in FORBIDDEN_ENV or key.startswith("CASA_VERIFY_") or is_proxy(key):
             sys.exit(f"--env {key} is not allowed")
         if key == "GITHUB_TOKEN" and not value.startswith("fake-"):
             sys.exit("--env GITHUB_TOKEN must start with fake-")
@@ -287,6 +292,8 @@ def cmd_doctor(a):
     if env is not None:
         if any(k in env for k in FORBIDDEN_ENV):
             problems.append("app process has GH_TOKEN/GITHUB_PAT in its environment")
+        if any(is_proxy(k) for k in env):
+            problems.append("app process has a *_PROXY variable in its environment")
         if not env.get("GITHUB_TOKEN", "").startswith("fake-"):
             problems.append("app process GITHUB_TOKEN is not fake")
         if env.get("CASA_VERIFY_RUN_ID") != state["run_id"]:

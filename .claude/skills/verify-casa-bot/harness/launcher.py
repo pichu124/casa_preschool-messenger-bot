@@ -1,7 +1,9 @@
 """Runs app.main:app with no way out to the internet. Started by ctl.py up (env -i, cwd = the copy); not by hand.
 
-1. Refuses to start with a real-looking GitHub token, GH_TOKEN, or a .env the app's load_dotenv() could find.
-2. Blocks DNS and TCP connects to anything but loopback (logged to CASA_VERIFY_NETLOG).
+1. Refuses to start with a real-looking GitHub token, GH_TOKEN, a proxy variable (httpx would use it), or a .env
+   the app's load_dotenv() could find.
+2. Blocks DNS to anything but loopback and TCP connects to anything but the fake and the app itself (a proxy on
+   loopback would be a way out; logged to CASA_VERIFY_NETLOG).
 3. Rewrites every httpx request (Graph, Telegram, Sheet, GitHub, OpenAI SDK) to the fake server.
 4. Uses the asyncio loop: uvloop connects in C, past the socket guard.
 5. app.followup._now_utc reads "now_utc" from the scenario file when set (the clock is outside the system).
@@ -18,6 +20,7 @@ APP_PORT = int(os.environ["CASA_VERIFY_APP_PORT"])
 NETLOG = os.environ["CASA_VERIFY_NETLOG"]
 SCENARIO = os.environ["CASA_VERIFY_SCENARIO"]
 LOOPBACK = {"127.0.0.1", "::1", "localhost"}
+ALLOWED_PORTS = {FAKE_PORT, APP_PORT}
 
 
 def netlog(line: str):
@@ -30,6 +33,9 @@ def refuse(why: str):
     sys.exit(f"launcher: refusing to start: {why}")
 
 
+proxies = sorted(k for k in os.environ if k.upper().endswith("_PROXY") and k.upper() != "NO_PROXY")
+if proxies:
+    refuse(f"{', '.join(proxies)} set: httpx would send requests to that proxy")
 if "GH_TOKEN" in os.environ or "GITHUB_PAT" in os.environ:
     refuse("GH_TOKEN/GITHUB_PAT is set (the environment must come from env -i)")
 if not os.environ.get("GITHUB_TOKEN", "").startswith("fake-"):
@@ -57,7 +63,7 @@ def guarded_getaddrinfo(host, *a, **k):
 
 
 def _check(addr):
-    if isinstance(addr, tuple) and not _loopback(addr[0]):
+    if isinstance(addr, tuple) and not (_loopback(addr[0]) and addr[1] in ALLOWED_PORTS):
         netlog(f"BLOCKED connect {addr}")
         raise OSError(f"casa-verify: connect to {addr} blocked")
 

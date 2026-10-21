@@ -129,7 +129,7 @@
         "Kim Mã có học Cambridge không?",
         "Hệ Song ngữ có học Cambridge không?"
       ],
-      "answer": "Với trẻ 3–6 tuổi, Casa triển khai Cambridge Early Years là khung chương trình chính, đồng thời dùng phương pháp và giáo cụ Montessori để bổ trợ, tăng trải nghiệm thực hành và hỗ trợ trẻ theo nhịp độ riêng. Mức học Cambridge khác nhau theo hệ: hệ Quốc tế (Chùa Láng, Mỹ Đình) học trọn chương trình với 3 môn English, Mathematics, Let's Explore (khám phá khoa học và thế giới xung quanh), bao phủ đủ 6 lĩnh vực phát triển của Cambridge Early Years; hệ Song ngữ Kim Mã học Cambridge Early Years 1 môn English. Bên cạnh môn English, các con tiếp tục học theo phương pháp Montessori, phát triển theo 5 lĩnh vực của phương pháp, gồm toán, tiếng Việt, thực hành cuộc sống, giác quan… Với trẻ 15 tháng–3 tuổi, các con chưa học Cambridge mà được xây nền tảng qua Montessori và các hoạt động phát triển ngôn ngữ, giác quan, vận động, tự lập, xã hội – cảm xúc.",
+      "answer": "Với trẻ 3–6 tuổi, Casa triển khai Cambridge Early Years là khung chương trình chính, đồng thời dùng phương pháp và giáo cụ Montessori để bổ trợ, tăng trải nghiệm thực hành và hỗ trợ trẻ theo nhịp độ riêng. Mức học Cambridge khác nhau theo hệ: hệ Quốc tế (Chùa Láng, Mỹ Đình) học trọn chương trình với 3 môn English, Mathematics, Let's Explore (khám phá khoa học và thế giới xung quanh), bao phủ đủ 6 lĩnh vực phát triển của Cambridge Early Years; hệ Song ngữ Kim Mã học Cambridge Early Years 1 môn English. Bên cạnh môn English, các con tiếp tục học theo phương pháp Montessori, phát triển theo 5 lĩnh vực của phương pháp, gồm ngôn ngữ, toán, thực hành cuộc sống, giác quan và văn hóa. Với trẻ 15 tháng–3 tuổi, các con chưa học Cambridge mà được xây nền tảng qua Montessori và các hoạt động phát triển ngôn ngữ, giác quan, vận động, tự lập, xã hội – cảm xúc.",
       "keywords": [
         "chương trình học",
         "Cambridge Early Years",
@@ -148,15 +148,16 @@
         "Chương trình học ở cơ sở Kim Mã như thế nào?",
         "Kim Mã có học theo Montessori không?"
       ],
-      "answer": "Ở hệ Song ngữ Kim Mã, trẻ 3–6 tuổi học Cambridge Early Years môn English. Bên cạnh môn English, các con tiếp tục học theo phương pháp Montessori, phát triển theo 5 lĩnh vực của phương pháp, gồm toán, tiếng Việt, thực hành cuộc sống, giác quan… Trẻ dưới 3 tuổi chưa học Cambridge mà được xây nền tảng qua Montessori và làm quen tiếng Anh với giáo viên nước ngoài. Ngoài ra, các con có các chương trình ngoại khóa phong phú.",
+      "answer": "Ở hệ Song ngữ Kim Mã, trẻ 3–6 tuổi học Cambridge Early Years môn English. Bên cạnh môn English, các con tiếp tục học theo phương pháp Montessori, phát triển theo 5 lĩnh vực của phương pháp, gồm ngôn ngữ, toán, thực hành cuộc sống, giác quan và văn hóa. Trẻ dưới 3 tuổi chưa học Cambridge mà được xây nền tảng qua Montessori và làm quen tiếng Anh với giáo viên nước ngoài. Ngoài ra, các con có các chương trình ngoại khóa phong phú.",
       "keywords": [
         "Kim Mã",
         "hệ Song ngữ",
         "Montessori",
+        "ngôn ngữ",
         "toán",
-        "tiếng Việt",
         "thực hành cuộc sống",
-        "giác quan"
+        "giác quan",
+        "văn hóa"
       ]
     },
     {
@@ -165,14 +166,15 @@
         "5 lĩnh vực Montessori là những gì?",
         "5 lĩnh vực đó gồm những gì?"
       ],
-      "answer": "Theo phương pháp Montessori, các con phát triển theo 5 lĩnh vực của phương pháp, gồm toán, tiếng Việt, thực hành cuộc sống, giác quan… Tư vấn viên của Casa sẽ giới thiệu chi tiết chương trình theo độ tuổi của bé khi phụ huynh để lại SĐT/Zalo, hoặc phụ huynh có thể đến tham quan trường để trực tiếp xem các con học với giáo cụ Montessori.",
+      "answer": "Theo phương pháp Montessori, các con phát triển theo 5 lĩnh vực của phương pháp, gồm ngôn ngữ, toán, thực hành cuộc sống, giác quan và văn hóa. Tư vấn viên của Casa sẽ giới thiệu chi tiết chương trình theo độ tuổi của bé khi phụ huynh để lại SĐT/Zalo, hoặc phụ huynh có thể đến tham quan trường để trực tiếp xem các con học với giáo cụ Montessori.",
       "keywords": [
         "Montessori",
         "5 lĩnh vực",
+        "ngôn ngữ",
         "toán",
-        "tiếng Việt",
         "thực hành cuộc sống",
-        "giác quan"
+        "giác quan",
+        "văn hóa"
       ]
     },
     {
@@ -197,7 +199,7 @@
         "Casa có những lĩnh vực học tập nào?",
         "Con học những môn gì ở trường?"
       ],
-      "answer": "Môn học Cambridge (dành cho trẻ 3–6 tuổi) khác nhau theo hệ. Hệ Quốc tế (Chùa Láng, Mỹ Đình) học trọn 3 môn English, Mathematics và Let's Explore: English gồm nghe, nói, giao tiếp, phonics và nền tảng đọc viết; Mathematics gồm số lượng, hình dạng, không gian, đo lường, dữ liệu và tư duy toán học; Let's Explore là khám phá khoa học, công nghệ, con người, thời gian và môi trường xung quanh. Qua các hoạt động trong ngày, trẻ hệ Quốc tế đồng thời phát triển đủ 6 lĩnh vực của Cambridge Early Years, gồm cả Creative Expression, Physical Development và Personal, Social & Emotional Development. Hệ Song ngữ Kim Mã học Cambridge môn English. Bên cạnh đó, các con tiếp tục học theo phương pháp Montessori, phát triển theo 5 lĩnh vực của phương pháp, gồm toán, tiếng Việt, thực hành cuộc sống, giác quan… Trẻ 15 tháng–3 tuổi chưa học Cambridge mà được xây nền tảng qua Montessori.",
+      "answer": "Môn học Cambridge (dành cho trẻ 3–6 tuổi) khác nhau theo hệ. Hệ Quốc tế (Chùa Láng, Mỹ Đình) học trọn 3 môn English, Mathematics và Let's Explore: English gồm nghe, nói, giao tiếp, phonics và nền tảng đọc viết; Mathematics gồm số lượng, hình dạng, không gian, đo lường, dữ liệu và tư duy toán học; Let's Explore là khám phá khoa học, công nghệ, con người, thời gian và môi trường xung quanh. Qua các hoạt động trong ngày, trẻ hệ Quốc tế đồng thời phát triển đủ 6 lĩnh vực của Cambridge Early Years, gồm cả Creative Expression, Physical Development và Personal, Social & Emotional Development. Hệ Song ngữ Kim Mã học Cambridge môn English. Bên cạnh đó, các con tiếp tục học theo phương pháp Montessori, phát triển theo 5 lĩnh vực của phương pháp, gồm ngôn ngữ, toán, thực hành cuộc sống, giác quan và văn hóa. Trẻ 15 tháng–3 tuổi chưa học Cambridge mà được xây nền tảng qua Montessori.",
       "keywords": [
         "English",
         "Mathematics",
@@ -950,7 +952,7 @@
         "Có đóng học phí theo tháng được không?",
         "Đóng học phí hằng tháng được không ạ?"
       ],
-      "answer": "Nhà trường không thu học phí theo tháng; học phí đóng theo kỳ, ngắn nhất là theo quý: quý, 6 tháng hoặc 12 tháng. Biểu học phí thường được gửi vào đầu quý; phụ huynh thanh toán trong 5 ngày làm việc đầu tiên của quý hoặc trong vòng 5 ngày kể từ khi nhận thông báo, quá hạn sẽ áp dụng phí nộp muộn theo chính sách.",
+      "answer": "Học phí được thu theo quý, 6 tháng hoặc 12 tháng; nhà trường không thu theo tháng. Biểu học phí thường được gửi vào đầu quý; phụ huynh thanh toán trong 5 ngày làm việc đầu tiên của quý hoặc trong vòng 5 ngày kể từ khi nhận thông báo, quá hạn sẽ áp dụng phí nộp muộn theo chính sách.",
       "keywords": [
         "thanh toán",
         "thời hạn",
@@ -1317,7 +1319,7 @@
         "Giáo cụ, đồ chơi của trường được lựa chọn như thế nào?",
         "Đồ chơi ở trường có an toàn không?"
       ],
-      "answer": "Giáo cụ và học liệu được lựa chọn theo độ tuổi, mục tiêu phát triển và chương trình của từng nhóm lớp. Với hoạt động Montessori, môi trường được bố trí theo các lĩnh vực để trẻ chủ động lựa chọn và thực hành; ngoài ra có học liệu cho tiếng Anh, khoa học, nghệ thuật, toán, ngôn ngữ và hoạt động trải nghiệm. Giáo viên thường xuyên kiểm tra; vật dụng hư hỏng hoặc không còn an toàn được sửa chữa hoặc thay thế.",
+      "answer": "Giáo cụ và học liệu được lựa chọn theo độ tuổi, mục tiêu phát triển và chương trình của từng nhóm lớp. Với hoạt động Montessori, môi trường được bố trí theo 5 lĩnh vực của phương pháp, gồm ngôn ngữ, toán, thực hành cuộc sống, giác quan và văn hóa, để trẻ chủ động lựa chọn và thực hành. Ngoài ra có học liệu cho tiếng Anh, khoa học, nghệ thuật và hoạt động trải nghiệm. Giáo viên thường xuyên kiểm tra; vật dụng hư hỏng hoặc không còn an toàn được sửa chữa hoặc thay thế.",
       "keywords": [
         "giáo cụ",
         "đồ chơi",

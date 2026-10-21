@@ -328,7 +328,12 @@ def test_kim_ma_cambridge_question_is_answered():
 
 # --- Phản hồi đợt 5 -----------------------------------------------------------
 
-KIM_MA_MONTESSORI_AREAS = ("toán", "tiếng việt", "thực hành cuộc sống", "giác quan")
+# Phản hồi đợt 6: 5 lĩnh vực Montessori ("văn hoá" hay "văn hóa" đều được).
+MONTESSORI_AREAS = ("ngôn ngữ", "toán", "thực hành cuộc sống", "giác quan", r"văn h(?:oá|óa)")
+
+
+def _missing_areas(text: str) -> list[str]:
+    return [area for area in MONTESSORI_AREAS if not re.search(area, text)]
 
 
 def _sentences(text: str) -> list[str]:
@@ -360,22 +365,21 @@ def test_kim_ma_facilities_answers_are_still_detected_as_facilities():
 
 @pytest.mark.parametrize("question", ["Kim Mã học toán như thế nào?", "Hệ Song ngữ học những gì ngoài tiếng Anh?"])
 def test_kim_ma_continues_montessori_in_its_areas(question):
-    # D2: Montessori theo các lĩnh vực trường kể (không tự thêm lĩnh vực thứ 5) + ngoại khóa phong phú.
+    # D2 + đợt 6: Montessori theo đủ 5 lĩnh vực + ngoại khóa phong phú.
     reply = _pair_with_question(question)["answer"]
     answer = _norm(reply)
 
     assert "kim mã" in answer and "montessori" in answer and "english" in answer
-    for area in KIM_MA_MONTESSORI_AREAS:
-        assert area in answer, area
+    assert not _missing_areas(answer), answer
     assert "ngoại khóa phong phú" in answer
     assert {"program", "extracurricular"} <= set(topics_in_reply(reply))
 
 
-def test_tuition_is_never_paid_monthly():
-    # D3: không đóng theo tháng; kỳ ngắn nhất là quý. Kỳ 6/12 tháng trong chính sách hoàn phí giữ nguyên.
+def test_tuition_is_paid_by_quarter_6_or_12_months_never_monthly():
+    # Đợt 6: "học phí thu theo quý, 6 tháng hoặc 12 tháng"; D3: không thu theo tháng.
     payment = _norm(_pair_with_question("Có đóng học phí theo tháng được không?")["answer"])
-    assert re.search(r"không[^.\n]{0,40}theo tháng", payment) and "quý" in payment
-    assert "6 tháng" in payment and "12 tháng" in payment
+    assert "thu theo quý, 6 tháng hoặc 12 tháng" in payment, payment
+    assert re.search(r"không thu (học phí )?theo tháng", payment), payment
     for answer in ANSWERS:
         for sentence in _sentences(answer):
             if "học phí" in sentence and re.search(r"(theo|hằng|mỗi) tháng", sentence):
@@ -415,8 +419,8 @@ def test_upfront_fees_are_rounded_by_month_until_june_and_collected_in_july():
 # --- Vòng sửa sau review đợt 5 ------------------------------------------------
 
 FIVE_AREAS_QUESTIONS = ("5 lĩnh vực Montessori là những gì?", "5 lĩnh vực đó gồm những gì?")
-# Lĩnh vực trường chưa kể (vd "văn hóa") thì bot không được tự thêm vào 5 lĩnh vực Montessori.
-UNLISTED_AREAS = ("văn hóa", "văn hoá", "ngôn ngữ", "khoa học", "địa lý", "nghệ thuật")
+# Lĩnh vực trường không kể thì bot không được thêm vào 5 lĩnh vực Montessori.
+UNLISTED_AREAS = ("tiếng việt", "khoa học", "địa lý", "nghệ thuật")
 
 
 def _full_sentences(text: str) -> list[str]:
@@ -431,21 +435,39 @@ def test_kim_ma_cambridge_answers_say_cambridge_is_for_3_to_6():
     assert re.search(r"(dưới 3 tuổi|15 tháng-3 tuổi)[^.]{0,80}montessori", kim_ma), kim_ma
 
 
-def test_montessori_five_areas_names_only_the_areas_the_school_listed():
+def test_montessori_five_areas_answer_names_all_five():
     pairs = [_pair_with_question(q) for q in FIVE_AREAS_QUESTIONS]
     assert pairs[0] is pairs[1]
     reply = pairs[0]["answer"]
     answer = _norm(reply)
-    for area in KIM_MA_MONTESSORI_AREAS:
-        assert area in answer, area
+    assert not _missing_areas(answer), answer
     assert "tư vấn viên" in answer and "sđt/zalo" in answer and "tham quan" in answer, answer
     assert "program" in topics_in_reply(reply)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Hiện Casa đang áp dụng chương trình học nào?",
+        "Con học những môn gì ở trường?",
+        "Chương trình học ở cơ sở Kim Mã như thế nào?",
+        "Giáo cụ, đồ chơi của trường được lựa chọn như thế nào?",
+    ],
+)
+def test_programme_answers_list_the_five_montessori_areas(question):
+    answer = _norm(_pair_with_question(question)["answer"])
+    assert any("5 lĩnh vực" in s and not _missing_areas(s) for s in _full_sentences(answer)), answer
+
+
+def test_every_montessori_area_list_is_complete():
+    # Không còn liệt kê dở kiểu "toán, tiếng Việt, thực hành cuộc sống, giác quan…".
+    assert not re.search(r"(tiếng việt|giác quan|toán)\s*(…|\.\.\.)", ALL_ANSWERS)
     for text in ANSWERS:
         for sentence in _full_sentences(text):
             if "5 lĩnh vực" in sentence:
+                assert not _missing_areas(sentence), sentence
+                assert "…" not in sentence, sentence
                 assert not any(a in sentence for a in UNLISTED_AREAS), sentence
-            if "lĩnh vực" in sentence:
-                assert "văn hóa" not in sentence and "văn hoá" not in sentence, sentence
 
 
 def test_playground_answer_does_not_claim_kim_ma_garden_play():

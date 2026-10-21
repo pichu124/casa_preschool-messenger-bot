@@ -727,7 +727,10 @@ async def get_qa_database(_: None = Depends(require_secret)):
 @app.get("/qa-learned")
 async def get_qa_learned(_: None = Depends(require_secret)):
     """View only Q&A pairs learned from admin replies. Requires ?secret=."""
-    learned = [p for p in qa_db.qa_pairs if p.get("category") == "Học từ admin"]
+    # Cặp cũ không có "source" nhưng từng được lưu với category "Học từ admin".
+    learned = [
+        p for p in qa_db.qa_pairs if p.get("source") == "admin" or p.get("category") == "Học từ admin"
+    ]
     return {
         "total": len(learned),
         "learned_pairs": learned,
@@ -894,7 +897,7 @@ async def handle_telegram_webhook(request: Request):
 
         # 4. Save new Q&A to database with proper classification
         all_questions = [question] + similar_questions
-        await qa_db.add_qa_pair(category, all_questions, admin_text, keywords)
+        await qa_db.add_qa_pair(category, all_questions, admin_text, keywords, source="admin")
 
         # 5. Rebuild AI context so it knows the new Q&A
         _rebuild_ai_context()

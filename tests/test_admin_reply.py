@@ -1,6 +1,7 @@
 """Admin reply một escalation trên Telegram: khách nhận câu trả lời, bot học ngay, escalation được đóng."""
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 import httpx
@@ -10,6 +11,7 @@ from fastapi.testclient import TestClient
 import app.main as main
 from app import escalation, github_sync
 from app.config import settings
+from app.qa_database import QADatabase
 
 client = TestClient(main.app)
 
@@ -106,3 +108,41 @@ def test_admin_reply_still_applied_when_github_sync_fails(monkeypatch, sent):
     assert_reply_applied(resp, sent)
     saved = json.loads(Path(main.qa_db.path).read_text(encoding="utf-8"))
     assert saved["qa_pairs"][-1]["answer"] == ADMIN_TEXT
+
+
+def test_admin_taught_pair_listed_in_qa_learned_and_survives_save_load(monkeypatch, sent):
+    pushed = []
+
+    async def fake_push_qa_to_github(qa_pairs):
+        pushed.append(qa_pairs[-1])
+        return True
+
+    monkeypatch.setattr(github_sync, "push_qa_to_github", fake_push_qa_to_github)
+
+    resp = client.post("/telegram-webhook", json=telegram_reply_update(ADMIN_TEXT), headers=TELEGRAM_HEADERS)
+    assert_reply_applied(resp, sent)
+
+    learned = client.get("/qa-learned", params={"secret": WEBHOOK_SECRET})
+
+    assert learned.status_code == 200
+    body = learned.json()
+    assert body["total"] == 1
+    [pair] = body["learned_pairs"]
+    assert pair["category"] == "Xe đưa đón"
+    assert pair["questions"] == [QUESTION, "Có xe bus ở Long Biên không?"]
+    assert pair["answer"] == ADMIN_TEXT
+    assert pair["source"] == "admin"
+    assert datetime.fromisoformat(pair["learned_at"]).tzinfo is not None
+    assert pushed == [pair]
+    assert QADatabase(main.qa_db.path).qa_pairs[-1] == pair
+    assert "learned_at" not in main.qa_db.build_context()
+
+
+def test_qa_learned_still_lists_legacy_pairs_by_category(monkeypatch):
+    monkeypatch.setattr(settings, "TELEGRAM_WEBHOOK_SECRET", WEBHOOK_SECRET)
+    legacy = {"category": "Học từ admin", "questions": [QUESTION], "answer": ADMIN_TEXT, "keywords": []}
+    main.qa_db.qa_pairs.append(legacy)
+
+    body = client.get("/qa-learned", params={"secret": WEBHOOK_SECRET}).json()
+
+    assert body == {"total": 1, "learned_pairs": [legacy]}

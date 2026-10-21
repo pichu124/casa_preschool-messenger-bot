@@ -277,9 +277,13 @@ def test_cambridge_subjects_are_taught_per_system():
 
 
 def test_kim_ma_is_not_taught_as_english_only():
-    # Phản hồi đợt 5 (D2): ngoài Cambridge môn English, Kim Mã tiếp tục học toán, tiếng Việt… theo Montessori.
+    # Phản hồi đợt 5 (D2) và 6: ngoài Cambridge môn English, Kim Mã học theo 5 lĩnh vực Montessori. Không liệt kê
+    # dở ("còn toán… theo Montessori"): model sẽ tự đoán phần còn thiếu.
     assert "Kim Mã chỉ học" not in SYSTEM_PROMPT
-    assert re.search(r"Kim Mã[^.;\n]{0,40}English[^.;\n]{0,10}toán[^.;\n]{0,20}Montessori", SYSTEM_PROMPT)
+    assert re.search(r"Kim Mã[^.;\n]{0,40}English[^.;\n]{0,10}còn lại theo 5 lĩnh vực Montessori", SYSTEM_PROMPT)
+    assert "toán…" not in SYSTEM_PROMPT
+    kim_ma = [c for c in re.split(r"[.;\n]", SYSTEM_PROMPT) if "Kim Mã học" in c]
+    assert kim_ma and all("…" not in c for c in kim_ma), kim_ma
 
 
 def test_system_prompt_instructions_stay_compact():

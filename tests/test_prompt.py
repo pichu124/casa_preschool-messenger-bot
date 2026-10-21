@@ -266,6 +266,16 @@ def test_system_prompt_only_teaches_known_quick_reply_keys():
     assert set(re.findall(r"\[QUICK:([^\]]*)\]", SYSTEM_PROMPT)) == QUICK_KEYS
 
 
+def test_cambridge_subjects_are_taught_per_system():
+    # Phản hồi đợt 4 (G2): hệ Quốc tế học đủ 3 môn English, Mathematics, Let's Explore; Kim Mã chỉ môn English.
+    assert "Understanding the World" not in SYSTEM_PROMPT
+    assert re.search(r"Quốc tế[^.;\n]{0,80}English[^.;\n]{0,10}Mathematics[^.;\n]{0,10}Let's Explore", SYSTEM_PROMPT)
+    assert re.search(r"Kim Mã[^.;\n]{0,40}English", SYSTEM_PROMPT)
+    for clause in re.split(r"[.;\n]", SYSTEM_PROMPT):
+        if "Kim Mã" in clause or "Song ngữ" in clause:
+            assert "Mathematics" not in clause and "Let's Explore" not in clause, clause
+
+
 def test_system_prompt_instructions_stay_compact():
     instructions = SYSTEM_PROMPT.replace("{qa_context}", "")
     assert len(instructions) <= 10_000, len(instructions)

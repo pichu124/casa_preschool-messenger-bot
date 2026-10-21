@@ -291,3 +291,35 @@ def test_menu_reply_sends_the_real_menu_image_parents_can_open(monkeypatch):
     ]
     resp = TestClient(main.app).get("/static/thuc-don-mau.jpg")
     assert resp.status_code == 200 and resp.headers["content-type"] == "image/jpeg"
+
+
+FULL_CAMBRIDGE = ("mathematics", "let's explore", "understanding the world", "toán")
+
+
+def _clauses(text: str) -> list[str]:
+    return [c for c in re.split(r"[.;:\n]", text) if c.strip()]
+
+
+def test_only_international_system_studies_all_three_cambridge_subjects():
+    # Phản hồi đợt 4 (G2): hệ Quốc tế học đủ English, Mathematics, Let's Explore; Kim Mã chỉ môn English.
+    assert "understanding the world" not in RAW_TEXT
+    for answer in ANSWERS:
+        for clause in _clauses(answer):
+            if "kim mã" in clause or "song ngữ" in clause:
+                assert not any(s in clause for s in FULL_CAMBRIDGE), clause
+        if "mathematics" in answer or "let's explore" in answer:
+            assert "quốc tế" in answer, answer
+
+
+@pytest.mark.parametrize("question", ["Hiện Casa đang áp dụng chương trình học nào?", "Con học những môn gì ở trường?"])
+def test_programme_answer_states_cambridge_subjects_per_system(question):
+    answer = _norm(_pair_with_question(question)["answer"])
+
+    assert re.search(r"quốc tế[^.;]{0,120}english[^.;]{0,40}mathematics[^.;]{0,40}let's explore", answer), answer
+    assert re.search(r"kim mã[^.;]{0,80}english", answer), answer
+
+
+def test_kim_ma_cambridge_question_is_answered():
+    answer = _norm(_pair_with_question("Kim Mã có học Cambridge không?")["answer"])
+
+    assert re.search(r"kim mã[^.;]{0,80}english", answer), answer

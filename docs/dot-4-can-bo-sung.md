@@ -4,7 +4,7 @@ Thay cho `docs/dot-3-can-bo-sung.md` (các mục đợt 3 đã xong được b�
 
 ## A. File cần gửi
 
-- [ ] **Thực đơn mẫu**: ảnh JPG/PNG (dưới 8 MB mỗi ảnh). Agent đặt vào `static/` và gắn vào câu hỏi về thực đơn; bot gửi thẳng cho phụ huynh. Mọi file trong `static/` đều công khai.
+- [x] ~~**Thực đơn mẫu**~~: đã nhận ảnh của trường, lưu thành `static/thuc-don-mau.jpg` và gắn vào câu hỏi thực đơn chung; bot gửi thẳng cho phụ huynh. Mọi file trong `static/` đều công khai.
 
 ## B. Cấu hình sau khi merge vào `main` (người vận hành)
 
@@ -32,7 +32,8 @@ Bảo mật:
 
 ## D. Dữ kiện cần trường xác nhận
 
-- [ ] Kim Mã có học Cambridge Early Years không? Diện tích lớp ở Kim Mã?
+- [x] ~~Kim Mã có học Cambridge Early Years không?~~ Có, 1 môn English; hệ Quốc tế học đủ 3 môn (`docs/quyet-dinh-noi-dung.md`, mục 2c).
+- [ ] Diện tích lớp ở Kim Mã?
 - [ ] Có cho đóng học phí theo tháng không (hiện chỉ biết quý / 6 tháng / 12 tháng)?
 - [ ] Camera: xem tại văn phòng "bất kỳ lúc nào trong giờ hành chính" hay "khi có sự việc cụ thể, theo quy trình"?
 - [ ] "Cư dân tòa nhà" là cư dân tòa nào (Hongkong Tower, FLC…)?

@@ -42,6 +42,11 @@ f. có nới
 - Hệ Kim Mã bị chê đắt thì sao lại gợi ý tham khảo hệ Kim Mã, hệ quốc tế là Chùa Láng và Mỹ Đình chứ
 - Xe bus: Sẽ tư vấn theo kiểu hiện tại Nhà trường chưa có tuyến xe bus, khi nào có đủ phụ huynh đăng ký nhà trường sẽ tiến hành mở tuyến xe bus
 
+## 2c. Phản hồi của trường, đợt 4 (nguyên văn)
+
+1. Ảnh thực đơn như ảnh (kèm ảnh "Thực đơn mẫu 1 tuần cho bé", Thứ 2–6; lưu thành `static/thuc-don-mau.jpg`)
+2. Kim mã có theo Cambridge nhưng theo 1 môn là Tiếng Anh thôi, còn hệ quốc tế theo full chương trình 3 môn tiếng anh, toán, lets explore
+
 ## 3. Cách bot áp dụng
 
 - Nhận bé từ 15 tháng, đã đi vững.
@@ -56,12 +61,13 @@ f. có nới
 - Diện tích lớp: Mỹ Đình 80–90 m²; Chùa Láng 90–100 m².
 - Dã ngoại: 6 chuyến/năm.
 - Chương trình: 3–6 tuổi học Cambridge Early Years là khung chính, Montessori là phương pháp và giáo cụ bổ trợ; 15 tháng–3 tuổi xây nền tảng qua Montessori, làm quen tiếng Anh với giáo viên nước ngoài.
+  - Cambridge theo hệ (mục 2c): hệ Quốc tế (Chùa Láng, Mỹ Đình) học trọn 3 môn English, Mathematics, Let's Explore (khám phá khoa học, thế giới xung quanh); hệ Song ngữ Kim Mã học Cambridge 1 môn English. Không nói Kim Mã học Mathematics hay Let's Explore; câu trả lời chung về chương trình nêu rõ khác biệt này. Tên môn dùng "Let's Explore", không dùng "Understanding the World".
 - Bỏ toàn bộ nội dung workshop của cô Phan Thúy (sheet "Workshop" trong kịch bản). Câu trả lời về sự kiện chung của trường (Family Day, workshop, lễ hội…) vẫn giữ — chờ trường xác nhận (docs/dot-3-can-bo-sung.md, mục C6).
 - Xe bus: hiện Nhà trường chưa có tuyến xe bus; khi đủ phụ huynh đăng ký, Nhà trường sẽ mở tuyến. Bot mời để lại khu vực nhà + SĐT/Zalo để ghi nhận nhu cầu.
 - Khi phụ huynh chê đắt (CARE): không gợi ý hệ/cơ sở khác như phương án rẻ hơn; nêu giá trị khác biệt và mời học thử/tham quan.
 - Câu hỏi gợi ý, nút trả lời nhanh, mẫu tin nhắc lại: theo mục 2b. Tin nhắc lại vẫn tắt.
 - SĐT: nhận cả số thiếu số 0 đầu, viết tách lạ, số nước ngoài.
-- Thực đơn mẫu: gửi thẳng cho phụ huynh khi đã có file trong Q&A (trường `images`).
+- Thực đơn mẫu: gửi thẳng cho phụ huynh ảnh `static/thuc-don-mau.jpg` (trường `images` của cặp Q&A thực đơn chung; JPG chuyển từ ảnh trường gửi để Messenger nhận chắc chắn). Món ví dụ trong câu trả lời lấy đúng từ ảnh (thứ Hai), không thêm món ngoài ảnh; 5 bữa: sáng, nhẹ sáng, trưa, chiều, phụ chiều.
 - Không hỏi thẳng ngân sách; có thể hỏi gia đình cân nhắc hệ Quốc tế hay Song ngữ.
 - Tài liệu chưa có file (bảng phí, catalogue, hồ sơ giáo viên): không hứa gửi ngay trên chat; tư vấn viên gửi qua Zalo khi có SĐT, hoặc mời tham quan.
 - Lead (phụ huynh để lại SĐT, đổi SĐT, hẹn tham quan/học thử): gửi vào nhóm Telegram đang dùng và đẩy sang Google Sheet.

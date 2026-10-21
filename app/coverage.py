@@ -11,9 +11,10 @@ TOPICS = ("school", "program", "extracurricular", "menu", "trial", "facilities",
 
 # Vietnamese words below are written in both tone placements models use ("khóa"/"khoá").
 _SIGNALS = {
-    # A bare list of campus names (Chùa Láng, Mỹ Đình, Kim Mã) is a question, not information about the school
-    "school": r"huỳnh thúc kháng|hongkong tower|phạm hùng|\bflc\b|ngõ 294|3 cơ sở",
-    "program": r"cambridge|montessori|\blet'?s explore\b|understanding the world|phonics|mathematics",
+    # A bare list of campus names (Chùa Láng, Mỹ Đình, Kim Mã) is a question, not information about the school,
+    # and so is "3 cơ sở" leading up to "which campus?" ("Casa có 3 cơ sở: … Nhà mình gần cơ sở nào ạ?")
+    "school": r"huỳnh thúc kháng|hong\s?kong|phạm hùng|\bflc\b|ngõ 294|3 cơ sở(?![^?]*cơ sở nào)",
+    "program": r"cambridge|montessori|\blet['’]?s explore\b|understanding the world|phonics|mathematics",
     "extracurricular": (
         r"ngoại kh(?:óa|oá)|dã ngoại|\bscience\b|\bcooking\b|\bart\b|\bmusic\b|robotics|\bsteam\b|năng khiếu"
         r"|tạo hình|thủ công|family day|chuyến (?:đi|trải nghiệm)"
@@ -22,7 +23,7 @@ _SIGNALS = {
     "trial": r"học thử[^.?!]*(?:1|một) tuần|(?:1|một) tuần học thử|\[QUICK:\s*trial_week\s*\]",
     # "giáo cụ" (Montessori materials) is the programme, not the facilities
     "facilities": (
-        r"cơ sở vật chất|m²|\bm2\b|phòng gym|thư viện|sân chơi|điều h(?:òa|oà)|diện tích"
+        r"cơ sở vật chất|m²|\d\s*m2\b|phòng gym|thư viện|sân chơi|điều h(?:òa|oà)|diện tích"
         r"|không gian (?:lớp|học|vận động|đọc)"
     ),
     # A bare "tham quan" is also a field trip ("dã ngoại tham quan nông trại")
@@ -32,6 +33,14 @@ _SIGNALS = {
     ),
 }
 _PATTERNS = {topic: re.compile(_SIGNALS[topic], re.IGNORECASE) for topic in TOPICS}
+# A sentence naming a fee tells what the money pays for ("Phí phát triển trường dùng để … cơ sở vật chất")
+_FEE_SENTENCE = r"[^.?!]*phí (?:phát triển trường|học liệu)[^.?!]*"
+# Text blanked out before a topic's signals are searched: it names the topic without giving information on it
+_NOT_INFORMATION = {
+    "extracurricular": re.compile(_FEE_SENTENCE, re.IGNORECASE),
+    # What the parent is invited to see ("mời Ba/Mẹ tham quan cơ sở vật chất") is the invitation, not facilities
+    "facilities": re.compile(_FEE_SENTENCE + r"|tham quan (?:cơ sở vật chất|không gian)", re.IGNORECASE),
+}
 # The first-message question "which information are you interested in?" names topics without giving them
 _TOPICS_QUESTION = re.compile(r"\[QUICK:\s*topics\s*\]")
 
@@ -40,7 +49,11 @@ def topics_in_reply(reply: str) -> list[str]:
     """Topics (in TOPICS order) a reply the bot sent gives information on; `reply` keeps its [QUICK:] tokens."""
     if _TOPICS_QUESTION.search(reply):
         return []
-    return [topic for topic in TOPICS if _PATTERNS[topic].search(reply)]
+    return [
+        topic
+        for topic in TOPICS
+        if _PATTERNS[topic].search(_NOT_INFORMATION[topic].sub(" ", reply) if topic in _NOT_INFORMATION else reply)
+    ]
 
 
 def fully_consulted(profile: dict) -> bool:

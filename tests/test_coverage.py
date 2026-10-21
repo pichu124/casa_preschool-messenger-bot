@@ -20,12 +20,14 @@ POSITIVE = [
     ("Cơ sở Mỹ Đình nằm trong tòa FLC, 36 Phạm Hùng ạ.", ["school"]),
     ("Cơ sở Kim Mã ở ngõ 294 Kim Mã ạ.", ["school"]),
     ("Cơ sở Kim Mã nằm trong Hongkong Tower ạ.", ["school"]),
+    ("Cơ sở Chùa Láng ở tòa Hong Kong Tower ạ.", ["school"]),
     ("Các con 3–6 tuổi học Cambridge Early Years ạ.", ["program"]),
     ("Lớp học theo phương pháp Montessori ạ.", ["program"]),
     # Giáo cụ là chương trình, không phải cơ sở vật chất
     ("Lớp có đầy đủ giáo cụ Montessori ạ.", ["program"]),
     ("Hệ Quốc tế học trọn 3 môn: English, Mathematics và Let's Explore ạ.", ["program"]),
     ("Môn Lets Explore giúp con khám phá thế giới ạ.", ["program"]),
+    ("Môn Let’s Explore giúp con khám phá thế giới ạ.", ["program"]),
     ("Con học Phonics từ lớp 3 tuổi ạ.", ["program"]),
     ("Ngoài giờ học chính, các con có hoạt động ngoại khóa phong phú ạ.", ["extracurricular"]),
     ("Con có nhiều hoạt động ngoại khoá ạ.", ["extracurricular"]),
@@ -46,12 +48,18 @@ POSITIVE = [
     ("Cơ sở vật chất của Casa được đầu tư bài bản ạ.", ["facilities"]),
     ("Mỗi lớp rộng khoảng 80–90 m² ạ.", ["facilities"]),
     ("Lớp rộng 80 m2 ạ.", ["facilities"]),
+    ("Lớp rộng 80-90m2 ạ.", ["facilities"]),
+    # Câu nói một khoản phí dùng vào việc gì không tính, câu sau vẫn tính
+    ("Phí phát triển trường dùng để nâng cấp cơ sở vật chất. Trường có phòng gym và thư viện ạ.", ["facilities"]),
     ("Trường có phòng gym, thư viện và sân chơi ạ.", ["facilities"]),
     ("Không gian lớp học thoáng, có điều hòa ạ.", ["facilities"]),
     ("Phòng nào cũng có điều hoà ạ.", ["facilities"]),
     ("Ba/Mẹ muốn đến tham quan trường không ạ?", ["visit_invite"]),
     ("Em mời Ba/Mẹ đưa bé đến tham quan ạ.", ["visit_invite"]),
     ("Em sắp xếp lịch tham quan cho mình nhé ạ.", ["visit_invite"]),
+    # Thứ được mời đến xem là đối tượng của lời mời, không phải thông tin cơ sở vật chất
+    ("Em xin mời Ba/Mẹ ghé trường để tham quan cơ sở vật chất ạ.", ["visit_invite"]),
+    ("Mời Ba/Mẹ đến tham quan không gian lớp học ạ.", ["visit_invite"]),
     ("Ba/Mẹ có thể tham quan lớp thực tế ạ.", ["visit_invite"]),
     ("Mình tiện buổi sáng hay buổi chiều ạ? [QUICK:visit_time]", ["visit_invite"]),
     (
@@ -72,6 +80,11 @@ NEGATIVE = [
      "trình cho các con từ khoảng 15 tháng đến 6 tuổi, lộ trình khác nhau theo từng độ tuổi. Bé nhà mình được "
      "bao nhiêu tháng tuổi ạ? [QUICK:age]"),
     ("chỉ liệt kê tên cơ sở", "Casa có cơ sở Chùa Láng, Mỹ Đình và Kim Mã ạ. Nhà mình ở gần cơ sở nào ạ?"),
+    ("3 cơ sở rồi hỏi cơ sở nào", "Casa có 3 cơ sở: Chùa Láng, Mỹ Đình và Kim Mã. Nhà mình gần cơ sở nào ạ?"),
+    ("tên khoản phí có ngoại khóa", "Ngoài học phí còn có tiền ăn, phí phát triển trường, phí học liệu và hoạt động "
+     "ngoại khóa và đồng phục ạ."),
+    ("khoản phí dùng cho cơ sở vật chất", "Phí phát triển trường dùng để đầu tư, bảo trì và nâng cấp định kỳ cơ sở "
+     "vật chất, trang thiết bị ạ."),
     ("học thử không nói 1 tuần", "Ba/Mẹ có muốn cho bé học thử không ạ?"),
     ("Smart không phải Art", "Lớp có màn hình Smart TV ạ."),
     ("xin SĐT", "Ba/Mẹ cho em xin SĐT hoặc Zalo để tư vấn viên gửi chi tiết nhé ạ? [QUICK:phone]"),

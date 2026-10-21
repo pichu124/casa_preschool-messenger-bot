@@ -144,49 +144,62 @@ def test_never_due_outside_sending_hours_or_after_23_hours():
     assert sent > 0
 
 
+def cron_minutes() -> list[int]:
+    """Phút trong giờ của các lịch `M * * * *` trong workflow."""
+    _, triggers = load_workflow()
+    return sorted(int(entry["cron"].split()[0]) for entry in triggers["schedule"])
+
+
 def cron_runs(parent_at: datetime) -> list[datetime]:
-    """Các lần chạy của workflow (phút 17 mỗi giờ) trong 24 giờ sau tin cuối mà phụ huynh đến hạn."""
-    first = parent_at.replace(minute=17, second=0, microsecond=0)
-    if first <= parent_at:
-        first += H
-    runs = [first + i * H for i in range(24)]
+    """Các lần chạy của workflow (các phút cron_minutes, mỗi giờ) trong 24 giờ sau tin cuối mà phụ huynh đến hạn."""
+    hour = parent_at.replace(minute=0, second=0, microsecond=0)
+    runs = [hour + h * H + m * M for h in range(25) for m in cron_minutes()]
+    runs = [now for now in runs if parent_at < now <= parent_at + 24 * H]
     return [now for now in runs if followup.due_followups({CID: profile(silence=now - parent_at, now=now)}, now)]
 
 
 # Tin cuối mà quy tắc cũ (deadline trong 8:00–20:59 là đủ) bỏ sót hoặc chỉ cho 1 lần chạy, hoặc cho slot lẹm
-# trước 8:00. (tin cuối, latest_send mong đợi, 2 lần chạy phút 17 trong slot)
+# trước 8:00. (tin cuối, latest_send mong đợi, các lần chạy phút 17 và 47 trong slot)
+EVENING_RUNS = [vn(19, 17), vn(19, 47), vn(20, 17), vn(20, 47)]
 MORNING_CASES = [
-    ("09:00", vn(9), vn(20, 59, 59), [vn(19, 17), vn(20, 17)]),
-    ("09:10", vn(9, 10), vn(20, 59, 59), [vn(19, 17), vn(20, 17)]),
-    ("09:16", vn(9, 16), vn(20, 59, 59), [vn(19, 17), vn(20, 17)]),
-    ("09:30", vn(9, 30), vn(20, 59, 59), [vn(19, 17), vn(20, 17)]),
-    ("10:00", vn(10), vn(20, 59, 59), [vn(19, 17), vn(20, 17)]),
-    ("10:59", vn(10, 59), vn(20, 59, 59), [vn(19, 17), vn(20, 17)]),
-    ("11:00", vn(11), vn(10, day=21), [vn(8, 17, day=21), vn(9, 17, day=21)]),
+    ("09:00", vn(9), vn(20, 59, 59), EVENING_RUNS),
+    ("09:10", vn(9, 10), vn(20, 59, 59), EVENING_RUNS),
+    ("09:16", vn(9, 16), vn(20, 59, 59), EVENING_RUNS),
+    ("09:30", vn(9, 30), vn(20, 59, 59), EVENING_RUNS),
+    ("10:00", vn(10), vn(20, 59, 59), EVENING_RUNS),
+    ("10:59", vn(10, 59), vn(20, 59, 59), EVENING_RUNS),
+    ("11:00", vn(11), vn(10, day=21), [vn(8, 17, day=21), vn(8, 47, day=21), vn(9, 17, day=21), vn(9, 47, day=21)]),
 ]
+
+
+def is_due(parent_at: datetime, now: datetime) -> bool:
+    return followup.due_followups({CID: profile(silence=now - parent_at, now=now)}, now) != []
 
 
 @pytest.mark.parametrize(
     ("parent_at", "latest_send", "runs"), [c[1:] for c in MORNING_CASES], ids=[c[0] for c in MORNING_CASES]
 )
-def test_morning_last_message_gets_two_runs_in_a_slot_within_sending_hours(parent_at, latest_send, runs):
-    def due(now):
-        return followup.due_followups({CID: profile(silence=now - parent_at, now=now)}, now) != []
-
+def test_morning_last_message_gets_its_runs_in_a_slot_within_sending_hours(parent_at, latest_send, runs):
     assert cron_runs(parent_at) == runs
     slot_start = latest_send - followup.SEND_SLOT
     assert 8 <= slot_start.astimezone(VN).hour and latest_send.astimezone(VN).hour <= 20
     assert slot_start.astimezone(VN).date() == latest_send.astimezone(VN).date()
-    assert due(slot_start) and due(latest_send)
-    assert not due(slot_start - timedelta(seconds=1)) and not due(latest_send + timedelta(seconds=1))
+    assert is_due(parent_at, slot_start) and is_due(parent_at, latest_send)
+    assert not is_due(parent_at, slot_start - timedelta(seconds=1))
+    assert not is_due(parent_at, latest_send + timedelta(seconds=1))
 
 
-def test_every_last_message_gets_two_hourly_runs_3_to_23_hours_later():
-    """Mọi tin cuối theo bước 1 phút trong 24 giờ: ít nhất 2 lần chạy phút 17 đến hạn, cách tin cuối 3h–23h."""
+def test_every_last_message_gets_three_runs_the_first_an_hour_before_latest_send():
+    """Mọi tin cuối theo bước 1 phút trong 24 giờ: ít nhất 3 lần chạy (phút 17 và 47) đến hạn, cách tin cuối
+    3h–23h, lần đầu còn ít nhất 60 phút trước latest_send (GitHub Actions hay trễ hoặc bỏ lượt)."""
     for minute in range(24 * 60):
         parent_at = vn(0) + minute * M
+        label = parent_at.astimezone(VN).strftime("%H:%M")
+        latest_send = followup._latest_send(parent_at)
+        assert is_due(parent_at, latest_send) and not is_due(parent_at, latest_send + timedelta(seconds=1)), label
         runs = cron_runs(parent_at)
-        assert len(runs) >= 2, parent_at.astimezone(VN).strftime("%H:%M")
+        assert len(runs) >= 3, label
+        assert latest_send - runs[0] >= 60 * M, label
         for now in runs:
             assert 3 * H <= now - parent_at <= 23 * H
             assert 8 <= now.astimezone(VN).hour <= 20
@@ -600,11 +613,11 @@ def load_workflow():
     return workflow, workflow.get("on", workflow.get(True))
 
 
-def test_workflow_runs_hourly_or_by_hand_never_on_push_or_pr():
+def test_workflow_runs_twice_an_hour_or_by_hand_never_on_push_or_pr():
     _, triggers = load_workflow()
 
     assert set(triggers) == {"schedule", "workflow_dispatch"}
-    assert triggers["schedule"] == [{"cron": "17 * * * *"}]
+    assert triggers["schedule"] == [{"cron": "17 * * * *"}, {"cron": "47 * * * *"}]
 
 
 def test_workflow_jobs_run_only_when_repo_variable_enabled():

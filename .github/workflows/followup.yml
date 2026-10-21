@@ -1,4 +1,6 @@
-# Hourly follow-up to parents who went quiet (app/followup.py). Runs only when the repo variable
+# Follow-up to parents who went quiet (app/followup.py), at minutes 17 and 47 since GitHub Actions often delays or
+# drops scheduled runs: each parent's 2-hour send slot gets at least 3 runs, and is still messaged once (the bot
+# records followup_sent_at and serializes runs). Runs only when the repo variable
 # FOLLOWUP_ENABLED is 'true'; the bot also needs FOLLOWUP_ENABLED=true on Render to actually send.
 # This repo is public, so its Actions logs are too: print only the HTTP status, never the response body.
 name: Follow-up
@@ -6,6 +8,7 @@ name: Follow-up
 on:
   schedule:
     - cron: '17 * * * *'
+    - cron: '47 * * * *'
   workflow_dispatch:
 
 permissions: {}

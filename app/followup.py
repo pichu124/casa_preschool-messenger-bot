@@ -1,6 +1,6 @@
 """Follow-up: one fixed message to a parent who went quiet mid-consultation, just before Messenger's 24-hour window closes.
 
-Run hourly by .github/workflows/followup.yml through POST /followup/run. Sends nothing unless
+Run twice an hour by .github/workflows/followup.yml through POST /followup/run. Sends nothing unless
 settings.FOLLOWUP_ENABLED; logs and results carry no name, phone number or message text.
 """
 import asyncio
@@ -25,7 +25,7 @@ VN_TZ = timezone(timedelta(hours=7))
 # So the follow-up goes out as late as the window and the sending hours allow.
 MESSENGER_WINDOW = timedelta(hours=24)
 WINDOW_MARGIN = timedelta(hours=1)  # deadline = parent's last message + 23h
-SEND_SLOT = timedelta(hours=2)  # due from latest send - 2h: two hourly runs, all within sending hours
+SEND_SLOT = timedelta(hours=2)  # due from latest send - 2h: 3+ runs at minutes 17 and 47, all within sending hours
 MIN_SILENCE = timedelta(hours=3)
 SEND_HOURS_VN = range(8, 21)  # 8:00 to 20:59 Vietnam time
 # The consultant has the conversation: no follow-up after these.

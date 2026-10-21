@@ -1,6 +1,6 @@
 # Tin nhắc lại phụ huynh im lặng
 
-Một phụ huynh đang được tư vấn rồi im lặng nhận đúng một tin nhắc lại cố định, ngay trước khi cửa sổ 24 giờ của Messenger đóng (sau 24 giờ Graph API từ chối tin thường), chỉ trong 8:00–20:59 giờ Việt Nam. GitHub Actions gọi `POST /followup/run` mỗi giờ. Không gửi gì khi `FOLLOWUP_ENABLED` khác `true`. Code: `app/followup.py`; endpoint `followup_run` trong `app/main.py`.
+Một phụ huynh đang được tư vấn rồi im lặng nhận đúng một tin nhắc lại cố định, ngay trước khi cửa sổ 24 giờ của Messenger đóng (sau 24 giờ Graph API từ chối tin thường), chỉ trong 8:00–20:59 giờ Việt Nam. GitHub Actions gọi `POST /followup/run` hai lần mỗi giờ (phút 17 và 47). Không gửi gì khi `FOLLOWUP_ENABLED` khác `true`. Code: `app/followup.py`; endpoint `followup_run` trong `app/main.py`.
 
 ## Sub-features
 

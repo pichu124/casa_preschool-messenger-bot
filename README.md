@@ -129,13 +129,13 @@ De bot gui anh kem cau tra loi, them duong dan vao cap Q&A trong `data/qa_databa
 
 ### 10. Tin nhac lai khach (follow-up, mac dinh TAT)
 
-Moi gio GitHub Actions (`.github/workflows/followup.yml`, phut 17) goi `POST /followup/run`. Bot gui MOT tin co dinh (khong goi AI, `app/followup.py`) cho phu huynh dang tu van do dang, NGAY TRUOC khi het cua so 24 gio cua Messenger.
+Moi gio 2 lan, phut 17 va phut 47, GitHub Actions (`.github/workflows/followup.yml`) goi `POST /followup/run` (GitHub Actions hay chay tre hoac bo luot theo lich, nen chay 2 lan cho chac; moi phu huynh van chi nhan 1 tin vi bot ghi `followup_sent_at` va khong cho 2 lan chay chong nhau). Bot gui MOT tin co dinh (khong goi AI, `app/followup.py`) cho phu huynh dang tu van do dang, NGAY TRUOC khi het cua so 24 gio cua Messenger.
 
 Vi sao: Messenger chi cho Page gui tin thuong trong 24 gio ke tu tin cuoi cua phu huynh; sau do Graph API tu choi, va gan tag `HUMAN_AGENT` cho tin tu dong de vuot qua la vi pham chinh sach Messenger. Nen bot doi lau nhat co the roi moi nhac:
 
 - Han chot = tin cuoi cua phu huynh + 23 gio (chua 1 gio truoc khi cua so dong).
 - Gui muon nhat = han chot khi han chot tu 10h00 den 20h59 (2 gio truoc han chot khong som hon 8h00); ngoai ra lui ve 20h59 gan nhat truoc han chot. Vi du: tin cuoi 11h00 (han chot 10h00 hom sau) thi gui 8h00 den 10h00 sang hom sau; tin cuoi 20h50 thi 17h50 den 19h50 hom sau; tin cuoi 10h00 (han chot 9h00 hom sau) thi 18h59 den 20h59 cung ngay; tin cuoi 23h00 (han chot 22h00 hom sau) thi 18h59 den 20h59 hom sau; tin cuoi 3h00 sang (han chot 2h00 hom sau) thi 18h59 den 20h59 cung ngay.
-- Bot nhac trong 2 gio truoc thoi diem gui muon nhat, va ca 2 gio do luon nam tron trong khung gui (8h00 den 20h59 gio Viet Nam), nen moi phu huynh deu co 2 lan chay theo gio.
+- Bot nhac trong 2 gio truoc thoi diem gui muon nhat, va ca 2 gio do luon nam tron trong khung gui (8h00 den 20h59 gio Viet Nam), nen moi phu huynh deu co it nhat 3 lan chay (phut 17 va 47), lan dau con it nhat 1 gio truoc thoi diem gui muon nhat.
 
 Bot chi nhac khi DU tat ca dieu kien:
 

@@ -947,14 +947,20 @@
         "Thực đơn của trường như thế nào ạ?",
         "Thực đơn của Casa được xây dựng theo nguyên tắc nào?",
         "Ở trường con ăn mấy bữa?",
-        "Con ăn những món gì ở trường?"
+        "Con ăn những món gì ở trường?",
+        "Cho em xem thực đơn mẫu",
+        "Cho em xin thực đơn mẫu của trường"
       ],
-      "answer": "Casa xây dựng thực đơn theo tuần với bữa sáng, bữa phụ sáng, bữa trưa, bữa chiều và phụ chiều; món thay đổi mỗi ngày và theo mùa để con không ngán. Thực đơn theo nguyên tắc đa dạng – cân đối – phù hợp độ tuổi, đủ nhóm chất, hỗ trợ chiều cao, cân nặng, sức đề kháng và sự phát triển của trẻ. Ví dụ: thứ Hai có bún thịt nấu chua, cơm với đậu thịt sốt Tứ Xuyên; thứ Năm có phở bò sốt vang, thịt ngâm mắm.",
+      "answer": "Casa xây dựng thực đơn theo tuần với 5 bữa: bữa sáng, bữa nhẹ sáng, bữa trưa, bữa chiều và bữa phụ chiều; món thay đổi mỗi ngày và theo mùa để con không ngán. Thực đơn theo nguyên tắc đa dạng – cân đối – phù hợp độ tuổi, đủ nhóm chất, hỗ trợ chiều cao, cân nặng, sức đề kháng và sự phát triển của trẻ. Ví dụ thứ Hai: bữa sáng bún mọc, bánh pancake bơ đậu phộng, sữa yến mạch hạt điều; bữa nhẹ sáng táo; bữa trưa cơm tám thơm, cá sốt cà chua, gà KFC, cải ngồng luộc, đậu cove xào, canh cải xanh nấu thịt bằm; bữa chiều bánh chuối nướng, nước chanh sả; bữa phụ chiều sữa tươi Vinamilk không đường. Ảnh thực đơn mẫu 1 tuần (thứ Hai – thứ Sáu) được gửi kèm để Ba/Mẹ tham khảo.",
       "keywords": [
         "thực đơn",
         "bữa ăn",
         "dinh dưỡng",
-        "món ăn"
+        "món ăn",
+        "thực đơn mẫu"
+      ],
+      "images": [
+        "static/thuc-don-mau.jpg"
       ]
     },
     {

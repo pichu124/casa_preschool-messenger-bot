@@ -51,6 +51,19 @@ logging.basicConfig(
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
+# uvicorn logs every request path with its query: the admin secret and Facebook's verify token.
+_SECRET_QUERY = re.compile(r"([?&](?:secret|hub\.verify_token)=)[^&\s]*")
+
+
+class _MaskSecretQuery(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(_SECRET_QUERY.sub(r"\1***", a) if isinstance(a, str) else a for a in record.args)
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(_MaskSecretQuery())
+
 APP_VERSION = "1.6.0"
 app = FastAPI(title="Preschool Messenger Bot", version=APP_VERSION)
 # Public files (Q&A images such as the sample menu), referenced as "static/<file>" in qa_database.json.

@@ -242,21 +242,29 @@ class DeepSeekProvider(AIProvider):
 
 class GeminiProvider(AIProvider):
     def __init__(self):
-        import google.generativeai as genai
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel("gemini-2.0-flash")
+        from google import genai
+        self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
     async def generate(self, system_prompt: str, user_message: str, conversation_history: list[dict]) -> str:
-        # Build conversation for Gemini
-        full_prompt = f"{system_prompt}\n\n"
-        for msg in conversation_history:
-            role = "Khach hang" if msg["role"] == "user" else "Tu van vien"
-            full_prompt += f"{role}: {msg['content']}\n"
-        full_prompt += f"Khach hang: {user_message}\nTu van vien:"
+        from google.genai import types
 
-        response = await self.model.generate_content_async(
-            full_prompt,
-            generation_config={"max_output_tokens": 1024, "temperature": 0.3},
+        contents = [
+            types.Content(
+                role="user" if msg["role"] == "user" else "model",
+                parts=[types.Part.from_text(text=msg["content"])],
+            )
+            for msg in conversation_history
+        ]
+        contents.append(types.Content(role="user", parts=[types.Part.from_text(text=user_message)]))
+
+        response = await self.client.aio.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=contents,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                max_output_tokens=1024,
+                temperature=0.3,
+            ),
         )
         return response.text
 

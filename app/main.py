@@ -373,17 +373,35 @@ VIETNAM_PHONE = re.compile(r"0(?:[35789]\d{8}|2\d{9})")
 
 
 def _phone_in_run(run: str) -> str | None:
+    """The first phone number in a DIGIT_RUN: the one it starts with, else one starting at a later group that
+    starts with 0 ("Tầng 12 - 0912345678"; "1 912 345 678" is none); None when there is none."""
+    groups = list(re.finditer(r"\d+", run))
+    for start in [0] + [g.start() for g in groups[1:] if g.group().startswith("0")]:
+        phone = _phone_at(run[start:])
+        if phone:
+            return phone
+    return None
+
+
+def _phone_at(run: str) -> str | None:
     """The phone number a DIGIT_RUN starts with; None when there is none.
 
-    A "+" not followed by 84 starts a foreign number: the whole run, 8 to 15 digits. A Vietnamese number ends at
-    the first group boundary where it is complete. A group of 1 or 2 digits or one starting with 0 may follow
-    ("0912345678 2 bé", "0912345678 0987654321"), a longer one means it runs on ("+84 911 222 501 999" is none).
+    A "+" not followed by 84 starts a foreign number of 8 to 15 digits. It ends before a group of 1 or 2 digits
+    once it has 8, or before a Vietnamese number ("+65 9123 4567 2 bé", "+65 9123 4567 0912345678"), else at the
+    end of the run. A Vietnamese number ends at the first group boundary where it is complete. A group of 1 or 2
+    digits or one starting with 0 may follow ("0912345678 2 bé", "0912345678 0987654321"), a longer one means it
+    runs on ("+84 911 222 501 999" is none).
     """
-    if run.startswith("+") and not run.startswith("+84"):
-        return run if 8 <= len(re.sub(r"\D", "", run)) <= 15 else None
+    foreign = run.startswith("+") and not run.startswith("+84")
     groups = list(re.finditer(r"\d+", run))
     for i, group in enumerate(groups):
         phone = run[: group.end()]
+        if foreign:
+            digits = len(re.sub(r"\D", "", phone))
+            rest = run[groups[i + 1].start() :] if i + 1 < len(groups) else ""
+            if not rest or (digits >= 8 and len(groups[i + 1].group()) <= 2) or (rest[0] == "0" and _phone_at(rest)):
+                return phone if 8 <= digits <= 15 else None
+            continue
         normalized = normalize_phone(phone)
         if VIETNAM_PHONE.fullmatch(normalized):
             following = groups[i + 1].group() if i + 1 < len(groups) else ""

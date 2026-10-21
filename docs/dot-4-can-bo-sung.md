@@ -35,6 +35,7 @@ Bảo mật:
 
 - [x] ~~Kim Mã có học Cambridge Early Years không?~~ Có, 1 môn English; hệ Quốc tế học đủ 3 môn (`docs/quyet-dinh-noi-dung.md`, mục 2c).
 - [ ] Diện tích lớp ở Kim Mã?
+- [ ] Kim Mã học Cambridge môn English; còn toán và khám phá khoa học ở Kim Mã học theo khung/phương pháp nào? (Phụ huynh hỏi kỹ thì bot chưa có thông tin.)
 - [ ] Có cho đóng học phí theo tháng không (hiện chỉ biết quý / 6 tháng / 12 tháng)?
 - [ ] Camera: xem tại văn phòng "bất kỳ lúc nào trong giờ hành chính" hay "khi có sự việc cụ thể, theo quy trình"?
 - [ ] "Cư dân tòa nhà" là cư dân tòa nào (Hongkong Tower, FLC…)?

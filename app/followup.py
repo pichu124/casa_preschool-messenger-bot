@@ -25,7 +25,7 @@ VN_TZ = timezone(timedelta(hours=7))
 # So the follow-up goes out as late as the window and the sending hours allow.
 MESSENGER_WINDOW = timedelta(hours=24)
 WINDOW_MARGIN = timedelta(hours=1)  # deadline = parent's last message + 23h
-SEND_SLOT = timedelta(hours=2)  # due from latest send - 2h: two hourly runs, fewer where 8:00 cuts the slot
+SEND_SLOT = timedelta(hours=2)  # due from latest send - 2h: two hourly runs, all within sending hours
 MIN_SILENCE = timedelta(hours=3)
 SEND_HOURS_VN = range(8, 21)  # 8:00 to 20:59 Vietnam time
 # The consultant has the conversation: no follow-up after these.
@@ -80,9 +80,14 @@ def _template_key(profile: dict) -> str:
 
 
 def _latest_send(parent_at: datetime) -> datetime:
-    """The deadline, or the end of sending hours (20:59:59 Vietnam time) last before it when it falls outside them."""
+    """The deadline, or the end of sending hours (20:59:59 Vietnam time) last before it.
+
+    The deadline is kept only when the whole slot [deadline - SEND_SLOT, deadline] falls within sending hours
+    (deadline 10:00 to 20:59:59), so every slot, and so every due run, lies within them.
+    """
     deadline = (parent_at + MESSENGER_WINDOW - WINDOW_MARGIN).astimezone(VN_TZ)
-    if deadline.hour in SEND_HOURS_VN:
+    start_of_hours = deadline.replace(hour=SEND_HOURS_VN[0], minute=0, second=0, microsecond=0)
+    if deadline - SEND_SLOT >= start_of_hours and deadline.hour in SEND_HOURS_VN:
         return deadline
     end_of_hours = deadline.replace(hour=SEND_HOURS_VN[-1], minute=59, second=59, microsecond=0)
     if end_of_hours > deadline:

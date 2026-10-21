@@ -67,18 +67,18 @@ def profile(silence=22 * H, now=NOW, last="assistant", bot_text=BOT_TEXT, **fiel
     return {"parent_name": FB_NAME, "message_count": 2, "conversation_history": history, **fields}
 
 
-# Giờ VN, phụ huynh nhắn lần cuối ngày 20. deadline = tin cuối + 23h; ngoài 8:00–20:59 thì lùi về 20:59:59
-# gần nhất trước đó (latest_send). Gửi trong [latest_send − 2h, latest_send], chỉ trong 8:00–20:59.
+# Giờ VN, phụ huynh nhắn lần cuối ngày 20. deadline = tin cuối + 23h; slot [deadline − 2h, deadline] không nằm
+# trọn trong 8:00–20:59:59 thì lùi về 20:59:59 gần nhất trước deadline (latest_send). Gửi trong
+# [latest_send − 2h, latest_send].
 WINDOW_CASES = [
-    # 10:00 → deadline 09:00 ngày 21 (trong khung): slot 07:00–09:00, gửi được 08:00–09:00
-    ("10:00, 3h sau (quy tắc cũ có gửi)", vn(10), vn(13), False),
-    ("10:00, ngày 21 06:59, trước slot", vn(10), vn(6, 59, day=21), False),
-    ("10:00, ngày 21 07:00, đầu slot nhưng ngoài khung giờ", vn(10), vn(7, day=21), False),
-    ("10:00, ngày 21 07:59, ngoài khung giờ", vn(10), vn(7, 59, day=21), False),
-    ("10:00, ngày 21 08:00", vn(10), vn(8, day=21), True),
-    ("10:00, ngày 21 09:00, đúng latest_send", vn(10), vn(9, day=21), True),
-    ("10:00, ngày 21 09:01, quá 1 phút", vn(10), vn(9, 1, day=21), False),
-    ("10:00, ngày 21 10:00, đủ 24h", vn(10), vn(10, day=21), False),
+    # 10:00 → deadline 09:00 ngày 21 (slot 07:00–09:00 lẹm trước 8:00) → 20:59:59 ngày 20, 10h59 sau tin cuối
+    ("10:00, 3h sau", vn(10), vn(13), False),
+    ("10:00, ngày 20 18:59:58, trước slot", vn(10), vn(18, 59, 58), False),
+    ("10:00, ngày 20 18:59:59, latest_send − 2h", vn(10), vn(18, 59, 59), True),
+    ("10:00, ngày 20 20:59:59, đúng latest_send", vn(10), vn(20, 59, 59), True),
+    ("10:00, ngày 20 21:00:59, quá 1 phút", vn(10), vn(21, 0, 59), False),
+    ("10:00, ngày 21 08:00 (quy tắc cũ có gửi)", vn(10), vn(8, day=21), False),
+    ("10:00, ngày 21 09:00, deadline (quy tắc cũ có gửi)", vn(10), vn(9, day=21), False),
     # 23:00 → deadline 22:00 ngày 21 (ngoài khung) → 20:59:59 ngày 21: slot 18:59:59–20:59:59
     ("23:00, ngày 21 10:00 (quy tắc cũ có gửi)", vn(23), vn(10, day=21), False),
     ("23:00, ngày 21 18:59:58, trước slot", vn(23), vn(18, 59, 58, day=21), False),
@@ -108,8 +108,14 @@ WINDOW_CASES = [
     ("22:00 → deadline 21:00 ngoài khung, 20:59:59", vn(22), vn(20, 59, 59, day=21), True),
     ("08:59 → deadline 07:59 → 20:59:59 cùng ngày tin cuối", vn(8, 59), vn(20), True),
     ("08:59 → deadline 07:59, ngày 21 07:30 không gửi", vn(8, 59), vn(7, 30, day=21), False),
-    ("09:00 → deadline 08:00 trong khung, đúng deadline", vn(9), vn(8, day=21), True),
-    ("09:00 → deadline 08:00, quá 1 giây", vn(9), vn(8, 0, 1, day=21), False),
+    ("09:00 → deadline 08:00 → 20:59:59 cùng ngày tin cuối", vn(9), vn(20, 59, 59), True),
+    ("09:00 → deadline 08:00, ngày 21 08:00 không gửi (quy tắc cũ có gửi)", vn(9), vn(8, day=21), False),
+    ("10:59:59 → deadline 09:59:59 → 20:59:59 cùng ngày tin cuối", vn(10, 59, 59), vn(20, 59, 59), True),
+    ("10:59:59 → deadline 09:59:59, ngày 21 09:17 không gửi (quy tắc cũ có gửi)", vn(10, 59, 59), vn(9, 17, day=21), False),
+    ("11:00 → deadline 10:00, slot 08:00–10:00 trọn trong khung, đầu slot", vn(11), vn(8, day=21), True),
+    ("11:00 → deadline 10:00, đúng deadline", vn(11), vn(10, day=21), True),
+    ("11:00 → deadline 10:00, trước slot 1 giây", vn(11), vn(7, 59, 59, day=21), False),
+    ("11:00 → deadline 10:00, ngày 20 20:59:59 không gửi", vn(11), vn(20, 59, 59), False),
 ]
 
 
@@ -136,6 +142,54 @@ def test_never_due_outside_sending_hours_or_after_23_hours():
                 assert 3 * H <= now - parent_at <= 23 * H
                 assert 8 <= now.astimezone(VN).hour <= 20
     assert sent > 0
+
+
+def cron_runs(parent_at: datetime) -> list[datetime]:
+    """Các lần chạy của workflow (phút 17 mỗi giờ) trong 24 giờ sau tin cuối mà phụ huynh đến hạn."""
+    first = parent_at.replace(minute=17, second=0, microsecond=0)
+    if first <= parent_at:
+        first += H
+    runs = [first + i * H for i in range(24)]
+    return [now for now in runs if followup.due_followups({CID: profile(silence=now - parent_at, now=now)}, now)]
+
+
+# Tin cuối mà quy tắc cũ (deadline trong 8:00–20:59 là đủ) bỏ sót hoặc chỉ cho 1 lần chạy, hoặc cho slot lẹm
+# trước 8:00. (tin cuối, latest_send mong đợi, 2 lần chạy phút 17 trong slot)
+MORNING_CASES = [
+    ("09:00", vn(9), vn(20, 59, 59), [vn(19, 17), vn(20, 17)]),
+    ("09:10", vn(9, 10), vn(20, 59, 59), [vn(19, 17), vn(20, 17)]),
+    ("09:16", vn(9, 16), vn(20, 59, 59), [vn(19, 17), vn(20, 17)]),
+    ("09:30", vn(9, 30), vn(20, 59, 59), [vn(19, 17), vn(20, 17)]),
+    ("10:00", vn(10), vn(20, 59, 59), [vn(19, 17), vn(20, 17)]),
+    ("10:59", vn(10, 59), vn(20, 59, 59), [vn(19, 17), vn(20, 17)]),
+    ("11:00", vn(11), vn(10, day=21), [vn(8, 17, day=21), vn(9, 17, day=21)]),
+]
+
+
+@pytest.mark.parametrize(
+    ("parent_at", "latest_send", "runs"), [c[1:] for c in MORNING_CASES], ids=[c[0] for c in MORNING_CASES]
+)
+def test_morning_last_message_gets_two_runs_in_a_slot_within_sending_hours(parent_at, latest_send, runs):
+    def due(now):
+        return followup.due_followups({CID: profile(silence=now - parent_at, now=now)}, now) != []
+
+    assert cron_runs(parent_at) == runs
+    slot_start = latest_send - followup.SEND_SLOT
+    assert 8 <= slot_start.astimezone(VN).hour and latest_send.astimezone(VN).hour <= 20
+    assert slot_start.astimezone(VN).date() == latest_send.astimezone(VN).date()
+    assert due(slot_start) and due(latest_send)
+    assert not due(slot_start - timedelta(seconds=1)) and not due(latest_send + timedelta(seconds=1))
+
+
+def test_every_last_message_gets_two_hourly_runs_3_to_23_hours_later():
+    """Mọi tin cuối theo bước 1 phút trong 24 giờ: ít nhất 2 lần chạy phút 17 đến hạn, cách tin cuối 3h–23h."""
+    for minute in range(24 * 60):
+        parent_at = vn(0) + minute * M
+        runs = cron_runs(parent_at)
+        assert len(runs) >= 2, parent_at.astimezone(VN).strftime("%H:%M")
+        for now in runs:
+            assert 3 * H <= now - parent_at <= 23 * H
+            assert 8 <= now.astimezone(VN).hour <= 20
 
 
 def test_slot_too_close_to_the_last_message_is_not_due(monkeypatch):

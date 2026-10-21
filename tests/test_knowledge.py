@@ -380,10 +380,12 @@ def test_tuition_is_paid_by_quarter_6_or_12_months_never_monthly():
     payment = _norm(_pair_with_question("Có đóng học phí theo tháng được không?")["answer"])
     assert "thu theo quý, 6 tháng hoặc 12 tháng" in payment, payment
     assert re.search(r"không thu (học phí )?theo tháng", payment), payment
+    # Học phí hay tổng chi phí "theo tháng" chỉ được nói ở câu phủ định. Gói trông sớm/muộn theo tháng và phí
+    # đầu kỳ thu tròn theo tháng là dữ kiện đúng, không phải học phí.
     for answer in ANSWERS:
         for sentence in _sentences(answer):
-            if "học phí" in sentence and re.search(r"(theo|hằng|mỗi) tháng", sentence):
-                assert "không" in sentence, sentence
+            if re.search(r"(học|chi) phí", sentence) and re.search(r"(theo|hằng|mỗi) tháng", sentence):
+                assert re.search(r"không (thu|đóng)[^.;]*(theo|hằng|mỗi) tháng", sentence), sentence
 
 
 def test_camera_can_be_viewed_at_the_office_during_office_hours():

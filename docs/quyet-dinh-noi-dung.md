@@ -25,6 +25,23 @@ Thứ tự ưu tiên khi mâu thuẫn: (1) phản hồi của trường bên dư
 6. Tạm thời k tư vấn xe bus
 7. Đồng ý k hỏi thẳng ngân sách
 
+## 2b. Phản hồi của trường, đợt 3 (phần duyệt nội dung, nguyên văn)
+
+a, 4 câu gợi ý
+- Học phí của trường là bao nhiêu?
+- Trường nhận bé từ bao nhiêu tháng?
+- Hiện tại Nhà trường có ưu đãi gì?
+- Có chương trình học thử miễn phí cho học sinh mới không?
+b. Tin đầu tiên: Cơ sở quan tâm - chương trình học - đặt lịch tham quan - ưu đãi
+Độ tuổi của bé: Dưới 2 tuổi, 2-3 tuổi, 3-5 tuổi, 5-6 tuổi
+Còn lại ok
+c. (3 mẫu tin nhắc lại — dùng nguyên văn trong `app/followup.py`)
+d. Chưa bật
+e. Giữ
+f. có nới
+- Hệ Kim Mã bị chê đắt thì sao lại gợi ý tham khảo hệ Kim Mã, hệ quốc tế là Chùa Láng và Mỹ Đình chứ
+- Xe bus: Sẽ tư vấn theo kiểu hiện tại Nhà trường chưa có tuyến xe bus, khi nào có đủ phụ huynh đăng ký nhà trường sẽ tiến hành mở tuyến xe bus
+
 ## 3. Cách bot áp dụng
 
 - Nhận bé từ 15 tháng, đã đi vững.
@@ -40,7 +57,10 @@ Thứ tự ưu tiên khi mâu thuẫn: (1) phản hồi của trường bên dư
 - Dã ngoại: 6 chuyến/năm.
 - Chương trình: 3–6 tuổi học Cambridge Early Years là khung chính, Montessori là phương pháp và giáo cụ bổ trợ; 15 tháng–3 tuổi xây nền tảng qua Montessori, làm quen tiếng Anh với giáo viên nước ngoài.
 - Bỏ toàn bộ nội dung workshop của cô Phan Thúy (sheet "Workshop" trong kịch bản). Câu trả lời về sự kiện chung của trường (Family Day, workshop, lễ hội…) vẫn giữ — chờ trường xác nhận (docs/dot-3-can-bo-sung.md, mục C6).
-- Xe bus: bot không tư vấn (không nêu tuyến, phí, ưu đãi); nói tư vấn viên sẽ trao đổi trực tiếp, xin SĐT; không cho số → chuyển nhân viên.
+- Xe bus: hiện Nhà trường chưa có tuyến xe bus; khi đủ phụ huynh đăng ký, Nhà trường sẽ mở tuyến. Bot mời để lại khu vực nhà + SĐT/Zalo để ghi nhận nhu cầu.
+- Khi phụ huynh chê đắt (CARE): không gợi ý hệ/cơ sở khác như phương án rẻ hơn; nêu giá trị khác biệt và mời học thử/tham quan.
+- Câu hỏi gợi ý, nút trả lời nhanh, mẫu tin nhắc lại: theo mục 2b. Tin nhắc lại vẫn tắt.
+- SĐT: nhận cả số thiếu số 0 đầu, viết tách lạ, số nước ngoài.
 - Thực đơn mẫu: gửi thẳng cho phụ huynh khi đã có file trong Q&A (trường `images`).
 - Không hỏi thẳng ngân sách; có thể hỏi gia đình cân nhắc hệ Quốc tế hay Song ngữ.
 - Tài liệu chưa có file (bảng phí, catalogue, hồ sơ giáo viên): không hứa gửi ngay trên chat; tư vấn viên gửi qua Zalo khi có SĐT, hoặc mời tham quan.

@@ -1,6 +1,6 @@
 ---
 name: verify-casa-bot
-description: Chạy bot Messenger Casa dei Bambini (FastAPI, app/main.py) thật trên máy, cách ly hoàn toàn khỏi internet, rồi đóng vai Facebook và Telegram gửi sự kiện vào (tin chữ, quick reply, postback, referral, echo, admin reply) và đọc lại những gì bot gửi ra Graph API, Telegram, Google Sheet, GitHub, OpenAI. Dùng khi cần bằng chứng hành vi người dùng thấy cho một thay đổi trong app/ (verifier, implementer tự thử), không dùng cho chuyện chỉ cần pytest.
+description: Chạy bot Messenger Casa dei Bambini (FastAPI, app/main.py) thật trên máy, cách ly hoàn toàn khỏi internet, rồi đóng vai Facebook và Telegram gửi sự kiện vào (tin chữ, quick reply, postback, referral, echo, admin reply) và đọc lại những gì bot gửi ra Graph API, Telegram, Google Sheet, GitHub, model AI (OpenAI, Gemini). Dùng khi cần bằng chứng hành vi người dùng thấy cho một thay đổi trong app/ (verifier, implementer tự thử), không dùng cho chuyện chỉ cần pytest.
 ---
 
 # Kiểm chứng bot Casa trên app thật
@@ -26,9 +26,9 @@ Môi trường agent có `GITHUB_TOKEN`/`GH_TOKEN` **thật**, và `app/github_s
 
 - **Không** chạy `uvicorn app.main:app` trực tiếp trong repo để kiểm chứng. Luôn dùng `ctl.py up`.
 - `ctl.py up` chép working tree (file tracked và untracked chưa bị ignore; **không** chép `.env*`, `data/customers.json`, `artifacts/`) sang `$TMPDIR/casa-verify/<slug>/app`, nằm ngoài mọi repo, nên `load_dotenv()` không tìm được `.env`. `data/customers.json` của bản sao là `{}`: dữ liệu phụ huynh thật không bao giờ vào bản sao hay bằng chứng.
-- App và fake chạy dưới `/usr/bin/env -i` với mọi biến trong `app/config.py` đặt sẵn giá trị giả có run id: `GITHUB_TOKEN=fake-github-token-…`, không có `GH_TOKEN`. `launcher.py` từ chối khởi động nếu thấy `GH_TOKEN`, `GITHUB_TOKEN` không bắt đầu bằng `fake-`, `GEMINI_API_KEY` (gRPC đi vòng qua httpx), biến proxy bất kỳ (`HTTP_PROXY`, `https_proxy`, `ALL_PROXY`, … mọi tên kết thúc bằng `_PROXY` trừ `NO_PROXY`: httpx sẽ gửi request qua proxy đó), hoặc `.env` ở thư mục cha.
-- `launcher.py` chặn DNS tới mọi tên không phải loopback và TCP connect tới mọi đích trừ port của fake và của app trên loopback (proxy của môi trường agent chạy ở `127.0.0.1` cũng bị chặn; ghi `BLOCKED` vào `netlog.txt`), viết lại mọi request httpx (cả OpenAI SDK) về fake, và ép uvicorn dùng loop `asyncio` (uvloop connect bằng C, lọt qua guard).
-- Không request internet thật, không gửi tin cho phụ huynh thật. `--env` của `ctl.py up` từ chối `GH_TOKEN`, `GITHUB_PAT`, `GITHUB_TOKEN` thật, `GEMINI_API_KEY` và biến `*_PROXY` (trừ `NO_PROXY`); `doctor` báo `FAIL` nếu process app có biến proxy.
+- App và fake chạy dưới `/usr/bin/env -i` với mọi biến trong `app/config.py` đặt sẵn giá trị giả có run id: `GITHUB_TOKEN=fake-github-token-…`, không có `GH_TOKEN`. `launcher.py` từ chối khởi động nếu thấy `GH_TOKEN`, `GITHUB_TOKEN` không bắt đầu bằng `fake-`, `GEMINI_API_KEY` có giá trị không bắt đầu bằng `fake`, `GEMINI_API_KEY` có giá trị khi `aiohttp` được cài (google-genai sẽ gửi qua aiohttp, lọt khỏi chỗ viết lại httpx), biến proxy bất kỳ (`HTTP_PROXY`, `https_proxy`, `ALL_PROXY`, … mọi tên kết thúc bằng `_PROXY` trừ `NO_PROXY`: httpx sẽ gửi request qua proxy đó), hoặc `.env` ở thư mục cha.
+- `launcher.py` chặn DNS tới mọi tên không phải loopback và TCP connect tới mọi đích trừ port của fake và của app trên loopback (proxy của môi trường agent chạy ở `127.0.0.1` cũng bị chặn; ghi `BLOCKED` vào `netlog.txt`), viết lại mọi request httpx (cả OpenAI SDK và google-genai của Gemini: client của nó kế thừa `httpx.AsyncClient`) về fake, và ép uvicorn dùng loop `asyncio` (uvloop connect bằng C, lọt qua guard).
+- Không request internet thật, không gửi tin cho phụ huynh thật. `--env` của `ctl.py up` từ chối `GH_TOKEN`, `GITHUB_PAT`, `GITHUB_TOKEN` thật, `GEMINI_API_KEY` không bắt đầu bằng `fake` và biến `*_PROXY` (trừ `NO_PROXY`); `doctor` báo `FAIL` nếu process app có biến proxy hoặc `GEMINI_API_KEY` thật.
 
 ## Launch
 
@@ -38,6 +38,8 @@ Từ gốc repo hoặc worktree cần kiểm (bản sao lấy đúng code đang 
 python3 .claude/skills/verify-casa-bot/harness/ctl.py up --slug <slug>
 # tuỳ chọn: --env FOLLOWUP_ENABLED=true   --scenario <file.json>   --source <thư mục repo khác>
 ```
+
+Mặc định model là OpenAI giả (`AI_MODEL_ORDER=openai`, các key khác rỗng). Kiểm provider Gemini (SDK google-genai): `ctl.py up --slug <slug> --env GEMINI_API_KEY=fake --env AI_MODEL_ORDER=gemini`, thêm `--env GEMINI_MODEL=<tên>` để thử tên model khác (mặc định `gemini-3.5-flash` của `app/config.py`). Chuỗi dự phòng: `--env AI_MODEL_ORDER=openai,gemini` cùng `fail.openai` trong kịch bản.
 
 `<slug>` ngắn, không dấu, vd `gd36-quick-age`; mọi lệnh sau dùng `--slug <slug>` hoặc `export CASA_VERIFY_SLUG=<slug>`. Port app và fake do hệ điều hành cấp, secret sinh mới mỗi lần, nên nhiều instance (slug khác nhau) chạy song song được.
 
@@ -100,7 +102,11 @@ Webhook trả 200 ngay rồi xử lý nền, nên HTTP 200 **không** chứng mi
 | `DECLINE` | extract `phone_declined: true` |
 | (khác) | `Dạ Casa chào Ba/Mẹ ạ, em hỗ trợ ngay ạ.`; extract `{}` |
 
-Chữ trên nút (`--text`), nghĩa của nút và câu ice breaker lấy từ `QUICK_REPLIES` và `ICE_BREAKERS` trong `app/messenger.py`; `tests/test_verify_skill.py` đỏ khi kịch bản, feature map hay ví dụ ở đây lệch khỏi đó. Cần câu trả lời khác thì chép file đó, sửa `rules` (thứ tự quan trọng), rồi `ctl.py scenario --slug <slug> <file>`; fake đọc lại kịch bản ở mỗi request, không cần restart. Cùng file đó điều khiển lỗi ở ranh giới (`fail.graph_send`, `fail.telegram`, `fail.openai`, `fail.github_put`: true; `fail.sheet`: `ok`/`false`/`500`), giờ hiện tại mà `app/followup.py` thấy (`now_utc`, ISO có múi giờ; `null` là giờ thật) và tên Facebook trả cho mọi PSID (`fb_profile`).
+Chữ trên nút (`--text`), nghĩa của nút và câu ice breaker lấy từ `QUICK_REPLIES` và `ICE_BREAKERS` trong `app/messenger.py`; `tests/test_verify_skill.py` đỏ khi kịch bản, feature map hay ví dụ ở đây lệch khỏi đó.
+
+Fake trả lời theo cùng kịch bản cho cả hai dạng request: OpenAI-style `POST …/chat/completions` (system là message `system`, tin là message cuối) và Gemini REST `POST generativelanguage.googleapis.com/v1beta/models/<model>:generateContent` (system là `systemInstruction`, tin là phần tử cuối của `contents`; trả `candidates[0].content.parts[0].text`, role `model`, `finishReason: STOP`). Đọc request Gemini: `read_back.py outbox --host ai` in `AI chat rule='ASK_AGE' model=gemini-3.5-flash` (model lấy từ path); `--full` cho `path`, `body.systemInstruction.parts[0].text` (cắt còn 200 ký tự kèm độ dài), `body.contents` (role `user`/`model`, lịch sử trước tin cuối) và `body.generationConfig`. Key Gemini đi trong header `x-goog-api-key`, không ghi vào outbox.
+
+Cần câu trả lời khác thì chép file đó, sửa `rules` (thứ tự quan trọng), rồi `ctl.py scenario --slug <slug> <file>`; fake đọc lại kịch bản ở mỗi request, không cần restart. Cùng file đó điều khiển lỗi ở ranh giới (`fail.graph_send`, `fail.telegram`, `fail.openai`, `fail.github_put`: true; `fail.sheet`: `ok`/`false`/`500`; `fail.openai` chỉ làm hỏng `/chat/completions`, Gemini không có công tắc lỗi), giờ hiện tại mà `app/followup.py` thấy (`now_utc`, ISO có múi giờ; `null` là giờ thật) và tên Facebook trả cho mọi PSID (`fb_profile`).
 
 **Endpoint admin**: `curl "$CASA_APP/customers?secret=$CASA_SECRET"`; danh sách đầy đủ trong [features/admin-endpoints.md](features/admin-endpoints.md).
 
@@ -110,7 +116,7 @@ Mọi thứ của run nằm ở `artifacts/verify/<slug>/` của repo nguồn (�
 
 | File | Nội dung |
 |---|---|
-| `outbox.jsonl` | mỗi request bot gửi ra: `seq`, `method`, `host`, `path`, `query`, `authorization`, `body` (system prompt và nội dung base64 bị cắt ngắn), `status`, `response`; với AI có `kind`, `rule` |
+| `outbox.jsonl` | mỗi request bot gửi ra: `seq`, `method`, `host`, `path`, `query`, `authorization`, `body` (system prompt và nội dung base64 bị cắt ngắn), `status`, `response`; với AI có `kind`, `rule`, `model` |
 | `app.log` | stdout/stderr của uvicorn và app |
 | `netlog.txt` | mỗi lần viết lại URL, mọi lần bị chặn (`BLOCKED`) |
 | `github/repos/<owner>/<repo>/contents/<path>` | nội dung đã giải mã của mỗi lần PUT lên GitHub giả |
@@ -139,5 +145,5 @@ Chỉ tắt hai pid ghi trong `state.json` của slug đó, và chỉ khi pid c�
 
 - Python: `ctl.py` tìm interpreter có fastapi/uvicorn/httpx/openai ở `.venv` của nguồn, rồi `.venv` của checkout chính (worktree của agent không có `.venv` riêng), rồi `python3`. Thiếu thì chạy `python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt`.
 - `CASA_VERIFY_ROOT` đổi chỗ đặt thư mục run (mặc định `$TMPDIR/casa-verify`); không đặt nó bên trong repo (`up` từ chối nếu thư mục cha có `.env`).
-- Đã chạy thử end-to-end ngày 2026-10-21 trên commit 2ca7261: up, doctor, tin chữ có `[QUICK:age]`, nút SĐT ra lead Telegram và Sheet, đổi SĐT, hẹn tham quan, ảnh, postback, referral, echo, dedup, chữ ký sai, escalation và admin reply, dựng lại escalation từ text, secret của mọi endpoint admin, follow-up (dry run và gửi thật với `now_utc`), xuất Excel, Graph API và Sheet hỏng, down. Chưa chạy: `fail.telegram`, `fail.github_put`, `/import-excel`, ảnh thật trong `static/`. Chạy lại ngày 2026-10-21 trên c027d3b cộng guard proxy: up, doctor, `ASK_AGE`, nút `QR:age:1` → `kid_age` 2-3 tuổi (qua `/customers` và `--disk`), `IB_1`, access log che `secret` và `hub.verify_token`, down.
+- Đã chạy thử end-to-end ngày 2026-10-21 trên commit 2ca7261: up, doctor, tin chữ có `[QUICK:age]`, nút SĐT ra lead Telegram và Sheet, đổi SĐT, hẹn tham quan, ảnh, postback, referral, echo, dedup, chữ ký sai, escalation và admin reply, dựng lại escalation từ text, secret của mọi endpoint admin, follow-up (dry run và gửi thật với `now_utc`), xuất Excel, Graph API và Sheet hỏng, down. Chưa chạy: `fail.telegram`, `fail.github_put`, `/import-excel`, ảnh thật trong `static/`. Chạy lại ngày 2026-10-21 trên c027d3b cộng guard proxy: up, doctor, `ASK_AGE`, nút `QR:age:1` → `kid_age` 2-3 tuổi (qua `/customers` và `--disk`), `IB_1`, access log che `secret` và `hub.verify_token`, down. Chạy với Gemini ngày 2026-10-21 trên afeeafd cộng harness Gemini: up `GEMINI_API_KEY=fake AI_MODEL_ORDER=gemini`, doctor, `ASK_AGE` → FB có `QUICK=[...age...]`, request Gemini mang `gemini-3.5-flash` và `systemInstruction` đủ (58977 ký tự); up lại với `GEMINI_MODEL=verify-gem-x` → path và `model=` đổi theo, nút `QR:age:1` → `kid_age` 2-3 tuổi; netlog không có `BLOCKED`; down.
 - Bảo trì: chạy lại `/create-verify-skill` hoặc giao `verifier` đối chiếu feature map với app mỗi tuần. Map lệch app thì sửa map trong PR riêng; map phát hiện lỗi sản phẩm thì báo lỗi, không sửa map để che.

@@ -1036,3 +1036,8 @@ def test_eval_flags_asking_the_start_date_before_the_age_right_after_the_phone()
     assert any("nhập học" in p for p in problems), problems
     asks_age = "Em chuyển số cho tư vấn viên liên hệ Ba/Mẹ sớm ạ. Bé nhà mình được mấy tháng rồi ạ? [QUICK:age]"
     assert eval_chat.check_turn(turn, False, False, asks_age, [turn.message]) == []
+
+
+# Production 2026-10-22: "Với lứa nhỏ như bé nhà mình…"; nguồn là câu ví dụ "Lứa này con học…" trong prompt.
+def test_prompt_never_teaches_lua_for_a_child():
+    assert "lứa" not in SYSTEM_PROMPT.replace("{qa_context}", "").lower()

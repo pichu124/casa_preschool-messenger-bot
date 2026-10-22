@@ -612,15 +612,18 @@ def test_eval_scenario_invites_first_and_asks_the_week_after_the_parent_agrees()
 LEARN_MORE = QUICK_REPLIES["trial_invite"][1][1]
 
 
+def _learn_more_turn():
+    return next(t for t in eval_chat.SCENARIOS["tim_hieu_them"] if t.message == LEARN_MORE)
+
+
 def test_eval_accepts_asking_what_the_parent_wants_to_know_after_learn_more():
-    turn = eval_chat.Turn(LEARN_MORE)
+    turn = _learn_more_turn()
     reply = "Dạ vâng ạ, Ba/Mẹ muốn biết thêm về điều gì của Casa ạ? [QUICK:topics]"
     assert eval_chat.check_turn(turn, False, False, reply, [turn.message]) == []
 
 
 def test_eval_scenario_learn_more_asks_what_to_know_without_inviting_again():
-    turns = eval_chat.SCENARIOS["tim_hieu_them"]
-    learn = next(t for t in turns if t.message == LEARN_MORE)
+    learn = _learn_more_turn()
     assert not learn.agreed
     for token in ("[QUICK:trial_invite]", "[QUICK:visit_invite]", "[QUICK:trial_week]", "[QUICK:visit_time]"):
         assert token in learn.none_of
@@ -637,6 +640,16 @@ def test_eval_counts_registration_as_next_step_only_when_asked():
     assert len(problems) == 1 and "bước tiếp theo" in problems[0], problems
     question = "Dạ Casa có ưu đãi cho bé thứ 2 ạ. Không biết Ba/Mẹ có muốn đăng ký cho con luôn không ạ?"
     assert eval_chat.check_turn(turn, False, False, question, [turn.message]) == []
+
+
+@pytest.mark.parametrize(
+    "closing", ["Ba/Mẹ còn muốn biết thêm gì không ạ?", "Ba/Mẹ còn quan tâm điều gì nữa không ạ?"]
+)
+def test_eval_flags_generic_closing_question_on_a_regular_turn(closing):
+    turn = eval_chat.Turn("cho hỏi học phí bao nhiêu 1 tháng ạ")
+    reply = f"Dạ học phí tùy hệ và nhóm tuổi của bé ạ. {closing}"
+    problems = eval_chat.check_turn(turn, False, False, reply, [turn.message])
+    assert len(problems) == 1 and "bước tiếp theo" in problems[0], problems
 
 
 def test_phone_is_asked_softly():

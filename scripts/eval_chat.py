@@ -45,11 +45,12 @@ from app.qa_database import QADatabase
 
 ASKS_PHONE = ("sđt", "số điện thoại", "zalo")
 # Câu cuối đạt nếu có hành động cụ thể, hoặc là câu hỏi lấy thông tin còn thiếu để tư vấn tiếp. "đăng ký" chỉ là bước
-# tiếp theo khi hỏi ("…khi đủ phụ huynh đăng ký sẽ mở tuyến" thì không); "biết thêm"/"quan tâm": hỏi sau "Tìm hiểu thêm".
+# tiếp theo khi hỏi ("…khi đủ phụ huynh đăng ký sẽ mở tuyến" thì không). "Còn muốn biết thêm gì không ạ?" là câu chốt
+# chung chung, không tính; chỉ lượt "Tìm hiểu thêm" mới được hỏi vậy (next_step=False, any_of kiểm riêng).
 NEXT_ACTIONS = ASKS_PHONE + ("tham quan", "học thử", "liên hệ", "đặt lịch", "giữ lịch")
 NEXT_QUESTIONS = (
     "tuổi", "tháng", "ngày sinh", "cơ sở", "khu vực", "địa chỉ", "nhập học",
-    "buổi sáng", "buổi chiều", "tuần này", "tuần sau", "đăng ký", "biết thêm", "quan tâm",
+    "buổi sáng", "buổi chiều", "tuần này", "tuần sau", "đăng ký",
 )
 GREETING = ("casa chào", "casa xin chào", "chào ba/mẹ", "chào ba mẹ")
 
@@ -89,7 +90,8 @@ class Turn:
     any_of: list[tuple[str, ...]] = field(default_factory=list)  # mỗi nhóm phải có ít nhất 1 cụm
     none_of: tuple[str, ...] = ()
     known: dict = field(default_factory=dict)  # hồ sơ bot đã có trước lượt này (khối [THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT])
-    next_step: bool = True  # False: lượt chốt hẹn và sau đó ("Đã hẹn" là ngoại lệ của nguyên tắc 6)
+    # False: lượt chốt hẹn và sau đó ("Đã hẹn" là ngoại lệ của nguyên tắc 6), lượt "Tìm hiểu thêm" (any_of kiểm riêng)
+    next_step: bool = True
     agreed: bool = False  # phụ huynh đã đồng ý học thử/tham quan: bot mới được hỏi tuần/buổi
 
 
@@ -208,6 +210,7 @@ SCENARIOS: dict[str, list[Turn]] = {
             known=VISIT_MD,
             any_of=[("biết thêm", "quan tâm", "tìm hiểu")],
             none_of=("[QUICK:trial_invite]", "[QUICK:visit_invite]", "[QUICK:trial_week]", "[QUICK:visit_time]"),
+            next_step=False,
         ),
     ],
 }

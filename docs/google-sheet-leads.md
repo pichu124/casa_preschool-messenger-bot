@@ -142,7 +142,7 @@ function leadsSheet() {
   if (taken >= 0) {
     throw new HeaderTaken(
       'Ô ' + String.fromCharCode(65 + taken) + '1 là "' + header[taken] + '", script cần "' + COLUMNS[taken][1] +
-        '": chèn cột trống trước cột tự thêm (docs/google-sheet-leads.md, mục 5)'
+        '": chuyển cột tự thêm ra sau cột P (docs/google-sheet-leads.md, mục 5)'
     );
   }
   COLUMNS.forEach(([, title], i) => {

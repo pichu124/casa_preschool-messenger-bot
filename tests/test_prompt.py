@@ -403,6 +403,15 @@ def test_parent_is_ba_me_unless_they_name_themselves_never_from_facebook_name(mo
         assert not LONE_ME.search(sample) and not ANH_CHI.search(sample), sample
 
 
+def test_bot_never_calls_itself_or_the_parent_by_banned_pronouns(monkeypatch):
+    # 1a087ea rút gọn prompt và rơi mất "chúng tôi": model trả "Hiện chúng tôi có 3 cơ sở…".
+    for text in [SYSTEM_PROMPT] + _reminders(monkeypatch):
+        clause = re.search(r"Không dùng (.*?)\.\s", text)
+        assert clause, text
+        banned = {word.strip() for word in re.split(r"[\"'/,]", clause.group(1)) if word.strip()}
+        assert {"bạn", "quý khách", "tôi", "chúng tôi"} <= banned, clause.group(0)
+
+
 def test_known_info_is_used_not_read_back(monkeypatch):
     for text in [SYSTEM_PROMPT] + _reminders(monkeypatch)[1:]:
         lowered = text.lower()

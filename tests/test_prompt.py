@@ -1076,3 +1076,51 @@ def test_quick_reply_rule_says_the_token_is_hidden_from_the_parent():
     rule = next(line for line in SYSTEM_PROMPT.splitlines() if "thêm ĐÚNG MỘT token" in line)
     assert "ẩn token" in rule, rule
 
+
+class ScriptedProvider(FakeProvider):
+    """Trả lần lượt từng câu trong replies, như model thật qua các lượt."""
+
+    def __init__(self, replies: list[str]):
+        super().__init__(None)
+        self.replies = list(replies)
+
+    async def generate(self, system_prompt, user_message, conversation_history, max_tokens=1024) -> str:
+        self.calls += 1
+        return self.replies.pop(0)
+
+
+FEES_FIRST = "Dạ Casa chào Ba/Mẹ ạ 🌿 Cảm ơn Ba/Mẹ đã quan tâm đến Casa dei Bambini. Bé nhà mình được mấy tuổi rồi ạ? [QUICK:age]"
+FEES_ASK_PHONE = (
+    "Hệ Quốc tế Mỹ Đình có giáo viên nước ngoài cả ngày và cam kết không tăng học phí suốt thời gian con học ạ. "
+    "Nếu tiện, Ba/Mẹ để lại SĐT/Zalo để tư vấn viên gửi bảng phí chi tiết nhé? [QUICK:phone]"
+)
+EVASIVE = (
+    "Học phí tùy chương trình và kỳ đóng ạ. Không biết Ba/Mẹ có muốn ghé tham quan lớp một buổi không ạ? [QUICK:visit_invite]"
+)
+
+
+@pytest.mark.parametrize(("last_reply", "failures"), [("[ESCALATE]", 0), (EVASIVE, 1)], ids=["escalate", "vong-vo"])
+def test_eval_escalates_fees_asked_again_without_leaving_a_phone(monkeypatch, last_reply, failures):
+    turns = eval_chat.SCENARIOS["hoc_phi_chua_de_so"]
+    assert "học phí" in turns[0].message
+    assert re.search(r"\d+ tuổi", turns[1].message) and "Mỹ Đình" in turns[1].message
+    assert turns[-1].expect_escalate is True and not turns[-1].known.get("phone")
+    assert not turns[-1].known.get("phone_declined")
+    assert all(t.expect_escalate is False for t in turns[:-1])
+    engine = make_engine(monkeypatch, fake=ScriptedProvider([FEES_FIRST, FEES_ASK_PHONE, last_reply]))
+
+    assert asyncio.run(eval_chat.run_scenario(engine, "hoc_phi_chua_de_so", turns)) == (failures, True)
+    # Lượt gửi tuổi + cơ sở phải xin số; không xin là lỗi.
+    no_ask = "Hệ Quốc tế Mỹ Đình có giáo viên nước ngoài cả ngày ạ. Không biết Ba/Mẹ có muốn ghé tham quan không ạ?"
+    assert eval_chat.check_turn(turns[1], False, False, FEES_ASK_PHONE, [t.message for t in turns[:2]]) == []
+    assert any("sđt" in p for p in eval_chat.check_turn(turns[1], False, False, no_ask, [turns[1].message]))
+
+
+def test_eval_age_question_after_the_phone_is_specific():
+    turn = eval_chat.SCENARIOS["gui_sdt_chon_tuoi"][1]
+    any_time = "Dạ Casa nhận nhập học quanh năm, tư vấn viên sẽ liên hệ Ba/Mẹ sớm ạ. Bé nhà mình được mấy tháng rồi ạ? [QUICK:age]"
+    assert eval_chat.check_turn(turn, False, False, any_time, [turn.message]) == []
+    no_age = "Dạ học phí theo tuổi bé, tư vấn viên sẽ liên hệ Ba/Mẹ sớm ạ. Ba/Mẹ quan tâm cơ sở nào ạ? [QUICK:campus]"
+    assert any("mấy tháng" in p for p in eval_chat.check_turn(turn, False, False, no_age, [turn.message]))
+    starts = "Tư vấn viên sẽ liên hệ Ba/Mẹ sớm ạ. Bé nhà mình mấy tuổi và dự kiến đi học từ khi nào ạ?"
+    assert any("đi học từ" in p for p in eval_chat.check_turn(turn, False, False, starts, [turn.message]))

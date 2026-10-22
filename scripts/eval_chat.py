@@ -134,6 +134,13 @@ SCENARIOS: dict[str, list[Turn]] = {
             none_of=("kim mã", "tối ưu chi phí"),
         ),
     ],
+    # Review 2026-10-22: chưa để số, chưa từ chối rõ (extract không đặt phone_declined) mà hỏi lại học phí: bot không
+    # được nêu số, không xin lại ngay, nên [ESCALATE]; main gửi kèm lời xin SĐT/Zalo (ESCALATION_MESSAGE_ASK_PHONE).
+    "hoc_phi_chua_de_so": [
+        Turn("cho mình hỏi học phí ạ", known=FB_NAME),
+        Turn("bé nhà mình 3 tuổi, mình quan tâm cơ sở Mỹ Đình", known=FB_NAME, any_of=[ASKS_PHONE]),
+        Turn("em cứ báo con số luôn đi", known=VISIT_MD, expect_escalate=True),
+    ],
     "uu_dai_tu_choi": [
         Turn("trường đang có ưu đãi gì không ạ", any_of=[ASKS_PHONE], none_of=("%",)),
         Turn("thôi mình chưa muốn để lại số đâu", any_of=[("ưu đãi",)], none_of=("%",) + ASKS_PHONE),
@@ -179,8 +186,8 @@ SCENARIOS: dict[str, list[Turn]] = {
         Turn(
             TEST_PHONE,
             known=FB_NAME,
-            any_of=[("liên hệ", "gọi"), ("tuổi", "mấy tháng", "bao nhiêu tháng", "[quick:age]")],
-            none_of=("nhập học",),
+            any_of=[("liên hệ", "gọi"), ("mấy tuổi", "bao nhiêu tuổi", "mấy tháng", "bao nhiêu tháng", "[quick:age]")],
+            none_of=("dự kiến nhập học", "đi học từ"),
         ),
         Turn("Dưới 2 tuổi", known={**FB_NAME, "phone": TEST_PHONE}),
     ],

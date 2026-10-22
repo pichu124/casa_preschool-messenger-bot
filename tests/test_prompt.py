@@ -259,6 +259,43 @@ def test_bus_answer_is_no_route_yet_and_never_escalates(monkeypatch, history):
     assert "xe bus" not in _escalate_rules(system_prompt, user_message)
 
 
+# Production 2026-10-22: máy chủ khởi động lại nạp hồ sơ cũ (GapHours 4609.8, lịch sử 3 tin), phụ huynh hỏi "tôi muốn
+# tìm hiểu thông tin về trường" và DeepSeek trả [ESCALATE] vì dòng "Không chắc → [ESCALATE]" không kèm điều kiện.
+# Quyết định: câu hỏi chung về trường luôn tự trả lời; "không chắc" chỉ áp cho một dữ kiện cụ thể không có trong Q&A.
+GENERAL_QUESTION = "tôi muốn tìm hiểu thông tin về trường"
+OLD_HISTORY = [
+    {"role": "user", "content": "chào em"},
+    {"role": "user", "content": "cho mình hỏi học phí"},
+    {"role": "assistant", "content": "Dạ Casa chào Ba/Mẹ ạ. Bé nhà mình được bao nhiêu tháng rồi ạ?"},
+]
+RETURNING_LONG_AGO = {
+    "conversation_history": OLD_HISTORY,
+    "customer_context": "[THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT]:\n[TRẠNG THÁI TƯ VẤN]:\n- Giai đoạn: Mới\n- Còn thiếu: tuổi bé, cơ sở/khu vực, SĐT/Zalo",
+    "gap_hours": 4609.8,
+}
+ANSWER_GENERAL = re.compile(r"câu hỏi chung về trường[^\n]*LUÔN tự trả lời[^\n]*kể cả khách cũ[^\n]*tuổi bé/cơ sở", re.I)
+
+
+@pytest.mark.parametrize(
+    "kwargs", [RETURNING_LONG_AGO, {}, {"conversation_history": OLD_HISTORY}], ids=["khach-cu-6-thang", "tin-dau", "tin-tiep"]
+)
+def test_general_question_about_the_school_is_answered_not_escalated(monkeypatch, kwargs):
+    system_prompt, user_message = model_input(monkeypatch, GENERAL_QUESTION, **kwargs)
+    if kwargs is RETURNING_LONG_AGO:
+        assert "phụ huynh CŨ quay lại sau khoảng 6 tháng" in user_message
+    section = system_prompt.split('KHI NÀO TRẢ LỜI ĐÚNG CHUỖI "[ESCALATE]"', 1)[1].split("KÈM HÌNH ẢNH", 1)[0]
+    reminder = [line for line in user_message.splitlines() if "BẮT BUỘC trả lời chính xác chuỗi [ESCALATE]" in line]
+
+    assert len(reminder) == 1
+    for text in [section] + reminder:
+        assert ANSWER_GENERAL.search(text), text
+    uncertain = [line for line in section.splitlines() if "không chắc" in line.lower()]
+    assert uncertain and all("dữ kiện cụ thể" in line for line in uncertain), uncertain
+    # Các ca chuyển người khác giữ nguyên.
+    assert "ngoài lề" in section and "từ chối cho số" in section
+    assert re.search(r"dữ kiện cụ thể[^\n]*không có trong Q&A", section, re.I), section
+
+
 def _care_text(system_prompt: str) -> str:
     """Quy tắc CARE cộng câu trả lời mẫu cho phụ huynh chê đắt."""
     lines = system_prompt.splitlines()

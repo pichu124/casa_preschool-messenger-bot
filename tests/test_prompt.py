@@ -10,6 +10,7 @@ import pytest
 from app import ai_engine
 from app.ai_engine import SYSTEM_PROMPT, AIEngine, AIProvider, strip_reasoning
 from app.config import settings
+from app.messenger import QUICK_REPLIES
 
 
 class FakeProvider(AIProvider):
@@ -254,7 +255,7 @@ REQUIRED_KNOWLEDGE = [
     "Đã hẹn:",
 ]
 
-QUICK_KEYS = {"topics", "age", "campus", "phone", "visit_time", "trial_week"}
+QUICK_KEYS = {"topics", "age", "campus", "phone", "trial_invite", "visit_invite", "visit_time", "trial_week"}
 
 
 @pytest.mark.parametrize("phrase", REQUIRED_KNOWLEDGE + [f"[QUICK:{key}]" for key in sorted(QUICK_KEYS)])
@@ -471,6 +472,62 @@ def test_bot_never_promises_a_visit_slot_only_the_consultant_confirms(monkeypatc
     assert "sang mai duoc khong" in parent
     assert "được ạ" not in reply, reply
     assert "xác nhận" in reply, reply
+
+
+# Người vận hành 2026-10-22: "…học thử 1 tuần miễn phí…, tuần này hay tuần sau ạ?" cụt và ép buộc. Lời mời học
+# thử/tham quan là câu hỏi ý mềm kèm nút Đăng ký học thử / Đặt lịch tham quan – Tìm hiểu thêm; phụ huynh đồng ý rồi
+# bot mới hỏi tuần (Tuần này/Tuần sau) hay buổi (Buổi sáng/Buổi chiều).
+FORCED_CHOICE = re.compile(r"tuần này hay tuần sau|sáng hay (?:buổi )?chiều", re.I)
+AGREES = tuple(QUICK_REPLIES[key][0][1] for key in ("trial_invite", "visit_invite"))
+ASKS_TIME = ("[QUICK:trial_week]", "[QUICK:visit_time]")
+
+
+def _next_step_rules(monkeypatch) -> list[str]:
+    """Nguyên tắc 6 của prompt cộng dòng bước tiếp theo trong mỗi khối nhắc nhở."""
+    rule6 = next(line for line in SYSTEM_PROMPT.splitlines() if line.startswith("6. "))
+    reminders = [line for r in _reminders(monkeypatch) for line in r.splitlines() if "bước tiếp theo cụ thể" in line]
+    assert len(reminders) == 3
+    return [rule6] + reminders
+
+
+def test_invitation_is_a_soft_question_and_the_time_is_asked_only_after_the_parent_agrees(monkeypatch):
+    for rule in _next_step_rules(monkeypatch):
+        assert "không biết Ba/Mẹ có muốn" in rule, rule
+        assert "không thúc ép" in rule, rule
+        assert re.search(r"\[QUICK:trial_invite\][^\n]*\[QUICK:visit_invite\]", rule), rule
+        assert re.search(r"đồng ý[^\n]*mới hỏi[^\n]*\[QUICK:trial_week\][^\n]*\[QUICK:visit_time\]", rule), rule
+        assert re.search(r"tìm hiểu thêm[^\n]*chưa mời lại", rule, re.I), rule
+    instructions = SYSTEM_PROMPT.split("\nVÍ DỤ", 1)[0]
+    for text in [instructions] + _reminders(monkeypatch):
+        assert not FORCED_CHOICE.search(text), FORCED_CHOICE.search(text)
+
+
+def test_quick_reply_section_teaches_invite_buttons_before_time_buttons():
+    section = SYSTEM_PROMPT.split("NÚT TRẢ LỜI NHANH", 1)[1].split("\nVÍ DỤ", 1)[0]
+    lines = {key: line for key in QUICK_KEYS for line in section.splitlines() if f"[QUICK:{key}]" in line}
+    for key in ("trial_invite", "visit_invite"):
+        assert "mời" in lines[key] and "Tìm hiểu thêm" in lines[key], lines[key]
+    for key in ("trial_week", "visit_time"):
+        assert "đã đồng ý" in lines[key], lines[key]
+
+
+def test_examples_invite_softly_and_ask_the_time_only_after_the_parent_agrees():
+    examples = _examples()
+    for parent, reply in examples:
+        if FORCED_CHOICE.search(reply) or any(token in reply for token in ASKS_TIME):
+            assert any(agree in parent for agree in AGREES), (parent, reply)
+    for token in ("[QUICK:trial_invite]", "[QUICK:visit_invite]", "[QUICK:trial_week]"):
+        assert any(token in reply for _, reply in examples), token
+    invites = [reply for _, reply in examples if "_invite]" in reply]
+    # Mỗi lời mời diễn đạt khác nhau, để model không chép một câu mẫu
+    assert len({eval_chat.sentences(reply)[-1] for reply in invites}) == len(invites) >= 3
+
+
+def test_phone_is_asked_softly(monkeypatch):
+    rule7 = next(line for line in SYSTEM_PROMPT.splitlines() if line.startswith("7. "))
+    assert "Nếu tiện" in rule7, rule7
+    asks_phone = [reply for _, reply in _examples() if reply.endswith("[QUICK:phone]")]
+    assert asks_phone and all("nếu tiện" in reply.lower() for reply in asks_phone), asks_phone
 
 
 # Thử DeepSeek thật 2026-10-22: vừa xác nhận tham quan buổi sáng, phụ huynh hỏi "sáng mai được không" thì bot gửi lại

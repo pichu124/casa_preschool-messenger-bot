@@ -191,6 +191,34 @@ def test_school_button_tap_reaches_the_bot_as_a_clear_question(key, title, meani
     assert parse_messaging_event(event) == inbound(meaning)
 
 
+# Người vận hành 2026-10-22: lời mời học thử/tham quan hiện nút đồng ý / tìm hiểu thêm; chỉ khi phụ huynh đồng ý
+# bot mới hỏi tuần (trial_week) hay buổi (visit_time).
+INVITE_BUTTONS = [
+    ("trial_invite", "Đăng ký học thử", "Em muốn đăng ký cho bé học thử 1 tuần ạ"),
+    ("trial_invite", "Tìm hiểu thêm", "Em muốn tìm hiểu thêm trước ạ"),
+    ("visit_invite", "Đặt lịch tham quan", "Em muốn đặt lịch tham quan trường ạ"),
+    ("visit_invite", "Tìm hiểu thêm", "Em muốn tìm hiểu thêm trước ạ"),
+]
+
+
+@pytest.mark.parametrize("key", ["trial_invite", "visit_invite"])
+def test_invite_buttons_are_the_operator_labels(key):
+    assert QUICK_REPLIES[key] == [(title, meaning) for k, title, meaning in INVITE_BUTTONS if k == key]
+
+
+@pytest.mark.parametrize(
+    ("payload", "meaning"),
+    [
+        ("QR:trial_invite:0", "Em muốn đăng ký cho bé học thử 1 tuần ạ"),
+        ("QR:trial_invite:1", "Em muốn tìm hiểu thêm trước ạ"),
+        ("QR:visit_invite:0", "Em muốn đặt lịch tham quan trường ạ"),
+        ("QR:visit_invite:1", "Em muốn tìm hiểu thêm trước ạ"),
+    ],
+)
+def test_invite_button_tap_reaches_the_bot_as_its_meaning(payload, meaning):
+    assert parse_messaging_event(message_event(text="Bấm nút", quick_reply={"payload": payload})) == inbound(meaning)
+
+
 def test_visit_time_button_says_it_is_about_a_visit():
     event = message_event(text="Buổi sáng", quick_reply={"payload": build_quick_replies("visit_time")[0]["payload"]})
 
@@ -436,6 +464,24 @@ def test_quick_replies_go_on_the_text_when_there_is_no_image(bot):
     bot.say("Trường có dạy tiếng Anh không", reply=f"{MODEL_TEXT} [QUICK:visit_time]")
 
     assert bot.sent == [("text", MODEL_TEXT, build_quick_replies("visit_time"))]
+
+
+def test_trial_invite_token_reaches_messenger_as_register_and_learn_more_buttons(bot, graph, monkeypatch):
+    monkeypatch.setattr(main, "send_message", messenger.send_message)
+    invite = "Casa tặng bé 1 tuần học thử miễn phí, Ba/Mẹ có muốn cho con thử không ạ?"
+
+    bot.say("Con em nhút nhát lắm", reply=f"{invite} [QUICK:trial_invite]")
+
+    assert [body["message"] for path, _, body in graph if path.endswith("/me/messages")] == [
+        {
+            "text": invite,
+            "metadata": "casa-bot",
+            "quick_replies": [
+                {"content_type": "text", "title": "Đăng ký học thử", "payload": "QR:trial_invite:0"},
+                {"content_type": "text", "title": "Tìm hiểu thêm", "payload": "QR:trial_invite:1"},
+            ],
+        }
+    ]
 
 
 def test_unknown_quick_key_is_dropped_without_buttons(bot):

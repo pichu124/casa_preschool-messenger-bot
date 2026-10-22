@@ -20,7 +20,7 @@ _SIGNALS = {
         r"|tạo hình|thủ công|family day|chuyến (?:đi|trải nghiệm)"
     ),
     "menu": r"thực đơn|dinh dưỡng|bữa (?:ăn|sáng|trưa|phụ|chiều|nhẹ)|nhóm chất|nhà bếp|khu bếp|bếp ăn",
-    "trial": r"học thử[^.?!]*(?:1|một) tuần|(?:1|một) tuần học thử|\[QUICK:\s*trial_week\s*\]",
+    "trial": r"học thử[^.?!]*(?:1|một) tuần|(?:1|một) tuần học thử|\[QUICK:\s*trial_(?:invite|week)\s*\]",
     # "giáo cụ" (Montessori materials) is the programme, not the facilities
     "facilities": (
         r"cơ sở vật chất|m²|\d\s*m2\b|phòng gym|thư viện|sân chơi|điều h(?:òa|oà)|diện tích"
@@ -29,7 +29,7 @@ _SIGNALS = {
     # A bare "tham quan" is also a field trip ("dã ngoại tham quan nông trại")
     "visit_invite": (
         r"(?:đến|ghé|hẹn|đặt lịch|mời|sắp xếp)[^.?!]{0,20}tham quan|tham quan (?:trường|lớp|cơ sở|trực tiếp)"
-        r"|\[QUICK:\s*visit_time\s*\]"
+        r"|\[QUICK:\s*visit_(?:invite|time)\s*\]"
     ),
 }
 _PATTERNS = {topic: re.compile(_SIGNALS[topic], re.IGNORECASE) for topic in TOPICS}

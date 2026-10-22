@@ -30,6 +30,15 @@ QUICK_REPLIES: dict[str, list[tuple[str, str]]] = {
     ],
     # Messenger's own button offering the phone number of the parent's Facebook account (no title).
     "phone": [],
+    # Inviting to a trial week or a visit; the time buttons below come only once the parent agrees.
+    "trial_invite": [
+        ("Đăng ký học thử", "Em muốn đăng ký cho bé học thử 1 tuần ạ"),
+        ("Tìm hiểu thêm", "Em muốn tìm hiểu thêm trước ạ"),
+    ],
+    "visit_invite": [
+        ("Đặt lịch tham quan", "Em muốn đặt lịch tham quan trường ạ"),
+        ("Tìm hiểu thêm", "Em muốn tìm hiểu thêm trước ạ"),
+    ],
     "visit_time": [
         ("Buổi sáng", "Em muốn hẹn tham quan buổi sáng ạ"),
         ("Buổi chiều", "Em muốn hẹn tham quan buổi chiều ạ"),

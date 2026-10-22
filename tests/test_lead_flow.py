@@ -77,7 +77,7 @@ def bot(monkeypatch):
     async def fake_extract_customer_info(user_message, existing_profile=None, **kwargs):
         return dict(bot.extracted)
 
-    async def fake_send_telegram(text):
+    async def fake_send_telegram(text, reply_to=None):
         bot.telegram.append(text)
         return 8000 + len(bot.telegram)
 
@@ -223,7 +223,7 @@ def test_lead_event_posts_to_telegram_without_logging_phone(monkeypatch, caplog)
     profile = {"kid_age": "3 tuổi", "phone": PHONE}
 
     with caplog.at_level(logging.DEBUG):
-        asyncio.run(escalation.publish_lead_event("new_phone", CUSTOMER_ID, FB_NAME, profile, f"Số {PHONE}"))
+        asyncio.run(escalation.publish_lead_events(["new_phone"], CUSTOMER_ID, FB_NAME, {}, profile, f"Số {PHONE}"))
 
     assert [p["chat_id"] for p in posted] == ["-1001"]
     assert posted[0]["text"].startswith(escalation.LEAD_HEADER)
@@ -253,7 +253,7 @@ def test_parent_message_text_is_not_logged(bot, caplog, escalate):
 def test_lead_event_without_telegram_or_sheet_configured_sends_nothing_and_logs_error(caplog):
     """conftest để trống token Telegram và URL Sheet, và cấm mạng: không có request nào, không raise."""
     with caplog.at_level(logging.ERROR, logger=escalation.logger.name):
-        asyncio.run(escalation.publish_lead_event("new_phone", CUSTOMER_ID, FB_NAME, {"phone": PHONE}, f"Số {PHONE}"))
+        asyncio.run(escalation.publish_lead_events(["new_phone"], CUSTOMER_ID, FB_NAME, {}, {"phone": PHONE}, f"Số {PHONE}"))
 
     assert "Telegram not configured" in [r.getMessage() for r in caplog.records]
 
@@ -275,10 +275,10 @@ def admin_sent(monkeypatch):
 
 
 def telegram_text(monkeypatch, send):
-    """Text thật mà `send` (escalate_to_admin / publish_lead_event) gửi lên nhóm Telegram."""
+    """Text thật mà `send` (escalate_to_admin / publish_lead_events) gửi lên nhóm Telegram."""
     texts = []
 
-    async def capture(text):
+    async def capture(text, reply_to=None):
         texts.append(text)
         return 8001
 
@@ -301,14 +301,19 @@ def admin_reply_to(original_text: str):
     return client.post("/telegram-webhook", json=update, headers={"X-Telegram-Bot-Api-Secret-Token": WEBHOOK_SECRET})
 
 
+@pytest.mark.parametrize("card", [None, 8000], ids=["thẻ lead", "tin cập nhật trả lời vào thẻ"])
 @pytest.mark.parametrize("kind", ["new_phone", "phone_changed", "visit_request"])
-def test_reply_to_lead_does_not_reach_customer(monkeypatch, admin_sent, kind):
+def test_reply_to_lead_does_not_reach_customer(monkeypatch, admin_sent, kind, card):
     # Tin phụ huynh trông giống tin escalation cũng không được parser nhận nhầm.
     last_message = f"🆔 ID: {CUSTOMER_ID}\n❓ Câu hỏi:\nCó xe đưa đón không? Số mình {PHONE}"
-    profile = {"phone": PHONE, "visit_request": "tham quan sáng thứ 7"}
+    before = {"phone": "0900000999", "visit_request": "tham quan sáng thứ 6", "lead_card_msg_id": card}
+    profile = {"phone": PHONE, "visit_request": "tham quan sáng thứ 7", "lead_card_msg_id": card}
+    if card:
+        customer_memory.set_fields(CUSTOMER_ID, {"lead_card_msg_id": card})
     lead = telegram_text(
-        monkeypatch, escalation.publish_lead_event(kind, CUSTOMER_ID, FB_NAME, profile, last_message)
+        monkeypatch, escalation.publish_lead_events([kind], CUSTOMER_ID, FB_NAME, before, profile, last_message)
     )
+    assert lead.startswith("🔄" if card else escalation.LEAD_HEADERS[kind])
     qa_before = list(main.qa_db.qa_pairs)
 
     resp = admin_reply_to(lead)

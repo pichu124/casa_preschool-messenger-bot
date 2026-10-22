@@ -8,7 +8,7 @@ from pathlib import Path
 import httpx
 
 from app.config import settings
-from app.customer_memory import lead_stage
+from app.customer_memory import get_profile, lead_stage, set_fields
 from app.leads_sheet import VN_TZ, post_lead_row
 
 logger = logging.getLogger(__name__)
@@ -24,6 +24,10 @@ LEAD_HEADERS = {
     "phone_changed": "📞 KHÁCH ĐỔI SĐT",
     "visit_request": "📅 KHÁCH HẸN THAM QUAN/HỌC THỬ",
 }
+# Profile field: Telegram message_id of the parent's lead card, which later lead updates reply to.
+LEAD_CARD_FIELD = "lead_card_msg_id"
+# customer_id -> lock held while sending that parent's lead card or a reply to it (_send_lead_telegram).
+_lead_locks: dict[str, asyncio.Lock] = {}
 
 # Sent to the parent on escalation; only invite a phone/Zalo number when we don't have one yet and the parent
 # has not declined to leave one (then the consultant's Telegram reply comes back here, in Messenger).
@@ -69,23 +73,20 @@ def _save_pending():
 _load_pending()
 
 
-async def _send_telegram(text: str) -> int | None:
-    """Send text to the admin Telegram group. Returns its message_id, None if not configured or on error."""
+async def _send_telegram(text: str, reply_to: int | None = None) -> int | None:
+    """Send text to the admin Telegram group, as a reply to message `reply_to` if given. Returns its message_id,
+    None if not configured or on error (a reply to a deleted message is an error)."""
     if not settings.TELEGRAM_BOT_TOKEN or not settings.TELEGRAM_CHAT_ID:
         logger.error("Telegram not configured")
         return None
 
     try:
         url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
+        body = {"chat_id": settings.TELEGRAM_CHAT_ID, "text": text}
+        if reply_to is not None:
+            body["reply_parameters"] = {"message_id": reply_to}
         async with httpx.AsyncClient() as client:
-            response = await client.post(
-                url,
-                json={
-                    "chat_id": settings.TELEGRAM_CHAT_ID,
-                    "text": text,
-                },
-                timeout=10,
-            )
+            response = await client.post(url, json=body, timeout=10)
         if response.status_code != 200:
             logger.error(f"Telegram API error: {response.status_code} {response.text}")
             return None
@@ -184,34 +185,73 @@ def _known(*values) -> str:
     return _join(*values) or "chưa rõ"
 
 
-async def publish_lead_event(kind: str, customer_id: str, fb_name: str, profile: dict, last_message: str) -> None:
-    """Send a lead event to the Telegram group and the leads Google Sheet, concurrently. `profile` is the profile
-    after the parent's message.
+def _lead_card(kind: str, customer_id: str, fb_name: str, profile: dict, last_message: str) -> str:
+    concerns = profile.get("concerns")
+    concerns = concerns if isinstance(concerns, list) else [concerns]
+    return (
+        f"{LEAD_HEADERS[kind]}\n\n"
+        f"👤 Facebook: {fb_name}\n"
+        f"📱 SĐT: {_known(profile.get('phone'))}\n"
+        f"🆔 ID: {customer_id}\n"
+        f"👶 Bé: {_known(profile.get('kid_name'), profile.get('kid_age'))}\n"
+        f"🏫 Quan tâm: {_known(profile.get('interested_program'), profile.get('interested_campus'))}\n"
+        f"📍 Khu vực: {_known(profile.get('area'), profile.get('address'))}\n"
+        f"🗓 Dự kiến nhập học: {_known(profile.get('expected_start'))}\n"
+        f"📅 Hẹn: {_known(profile.get('visit_request'))}\n"
+        f"📣 Quảng cáo: {_known(profile.get('ad_title'))}\n"
+        f"📊 Giai đoạn: {lead_stage(profile)}\n"
+        f"💭 Mối quan tâm: {_known(*concerns)}\n\n"
+        f"💬 Tin nhắn gần nhất:\n{last_message}\n\n"
+        f"🕐 {datetime.now(VN_TZ).strftime('%d/%m/%Y %H:%M')}\n\n"
+        f"📲 Gọi hoặc nhắn Zalo cho phụ huynh. Reply tin này không gửi tới khách."
+    )
 
-    Not tracked in _pending: replying to this message sends nothing to the parent. Never raises; logs carry
-    neither the phone number nor the Sheet URL.
+
+def _lead_update(kinds: list[str], customer_id: str, fb_name: str, before: dict, profile: dict) -> str:
+    """Short reply to the parent's card: only what changed, old → new."""
+    changes = []
+    for kind in kinds:
+        if kind == "new_phone":
+            changes.append(f"để lại SĐT {profile.get('phone')}")
+        elif kind == "phone_changed":
+            changes.append(f"SĐT: {before.get('phone')} → {profile.get('phone')}")
+        elif kind == "visit_request":
+            old = f"{before['visit_request']} → " if before.get("visit_request") else ""
+            changes.append(f"Hẹn: {old}{profile.get('visit_request')}")
+    return f"🔄 {fb_name or customer_id}: {'; '.join(changes)}\n🕐 {datetime.now(VN_TZ).strftime('%d/%m/%Y %H:%M')}"
+
+
+async def _send_lead_telegram(
+    kinds: list[str], customer_id: str, fb_name: str, before: dict, profile: dict, last_message: str
+) -> int | None:
+    """One full card per parent, its message_id kept in the profile (LEAD_CARD_FIELD); later leads reply to it.
+    A reply Telegram refuses (card deleted: "message to be replied not found") gets a new card instead.
+    One parent at a time, card id read inside the lock: a second message while the card is being sent replies to it.
+    """
+    async with _lead_locks.setdefault(customer_id, asyncio.Lock()):
+        card_id = get_profile(customer_id).get(LEAD_CARD_FIELD)
+        if card_id:
+            update = _lead_update(kinds, customer_id, fb_name, before, profile)
+            msg_id = await _send_telegram(update, reply_to=card_id)
+            if msg_id is not None:
+                return msg_id
+            logger.warning(f"Lead card {card_id} of customer {customer_id} not replied to, sending a new card")
+        msg_id = await _send_telegram(_lead_card(kinds[0], customer_id, fb_name, profile, last_message))
+        if msg_id is not None:
+            set_fields(customer_id, {LEAD_CARD_FIELD: msg_id})
+        return msg_id
+
+
+async def publish_lead_events(
+    kinds: list[str], customer_id: str, fb_name: str, before: dict, profile: dict, last_message: str
+) -> None:
+    """Send the lead events of one parent message (lead_events) to the Telegram group and, one row per event, to
+    the leads Google Sheet, concurrently. `before` and `profile` are the profile before and after the message.
+
+    Not tracked in _pending: replying to the card or its updates sends nothing to the parent. Never raises; logs
+    carry neither the phone number nor the Sheet URL.
     """
     try:
-        concerns = profile.get("concerns")
-        concerns = concerns if isinstance(concerns, list) else [concerns]
-        stage = lead_stage(profile)
-        message = (
-            f"{LEAD_HEADERS[kind]}\n\n"
-            f"👤 Facebook: {fb_name}\n"
-            f"📱 SĐT: {_known(profile.get('phone'))}\n"
-            f"🆔 ID: {customer_id}\n"
-            f"👶 Bé: {_known(profile.get('kid_name'), profile.get('kid_age'))}\n"
-            f"🏫 Quan tâm: {_known(profile.get('interested_program'), profile.get('interested_campus'))}\n"
-            f"📍 Khu vực: {_known(profile.get('area'), profile.get('address'))}\n"
-            f"🗓 Dự kiến nhập học: {_known(profile.get('expected_start'))}\n"
-            f"📅 Hẹn: {_known(profile.get('visit_request'))}\n"
-            f"📣 Quảng cáo: {_known(profile.get('ad_title'))}\n"
-            f"📊 Giai đoạn: {stage}\n"
-            f"💭 Mối quan tâm: {_known(*concerns)}\n\n"
-            f"💬 Tin nhắn gần nhất:\n{last_message}\n\n"
-            f"🕐 {datetime.now(VN_TZ).strftime('%d/%m/%Y %H:%M')}\n\n"
-            f"📲 Gọi hoặc nhắn Zalo cho phụ huynh. Reply tin này không gửi tới khách."
-        )
         # Keys and column order: docs/google-sheet-leads.md
         row = {
             "fb_name": fb_name,
@@ -224,15 +264,23 @@ async def publish_lead_event(kind: str, customer_id: str, fb_name: str, profile:
             "expected_start": _join(profile.get("expected_start")),
             "visit_request": _join(profile.get("visit_request")),
             "ad_title": _join(profile.get("ad_title")),
-            "stage": stage,
+            "stage": lead_stage(profile),
             "last_message": last_message,
         }
-        telegram_msg_id, sheet_ok = await asyncio.gather(_send_telegram(message), post_lead_row(kind, row))
+
+        async def post_rows() -> bool:
+            # One after another: the Sheet keeps one row per parent, and its "Sự kiện" is the last event.
+            return all([await post_lead_row(kind, row) for kind in kinds])
+
+        telegram_msg_id, sheet_ok = await asyncio.gather(
+            _send_lead_telegram(kinds, customer_id, fb_name, before, profile, last_message), post_rows()
+        )
         logger.info(
-            f"Lead {kind} for customer {customer_id}: Telegram msg_id={telegram_msg_id}, Sheet written={sheet_ok}"
+            f"Lead {','.join(kinds)} for customer {customer_id}: Telegram msg_id={telegram_msg_id}, "
+            f"Sheet written={sheet_ok}"
         )
     except Exception as e:
-        logger.error(f"Lead {kind} for customer {customer_id} not published: {type(e).__name__}")
+        logger.error(f"Lead {','.join(kinds)} for customer {customer_id} not published: {type(e).__name__}")
 
 
 def get_pending_escalation(telegram_msg_id: int) -> dict | None:

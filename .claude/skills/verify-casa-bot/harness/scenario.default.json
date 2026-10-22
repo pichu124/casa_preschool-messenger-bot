@@ -1,5 +1,5 @@
 {
-  "_doc": "Read by fake_server.py on every request. rules: first rule whose kind matches and whose `contains` is a substring of what the parent wrote (chat, extract) or of the whole prompt (other kinds) gives the reply; a dict reply is sent as JSON. kinds: chat, extract, format_admin_reply, classify, summarize. fail: graph_send, telegram, openai, github_put (true/false), sheet (ok|false|500). now_utc: ISO time app/followup.py sees (null = real clock). fb_profile: what the Graph API returns for any PSID.",
+  "_doc": "Read by fake_server.py on every request. rules: first rule whose kind matches and whose `contains` is a substring of what the parent wrote (chat, extract) or of the whole prompt (other kinds) gives the reply; a dict reply is sent as JSON. kinds: chat, extract, format_admin_reply, classify, summarize. fail: graph_send, telegram, openai, github_put, telegram_reply (true/false; telegram_reply: Telegram refuses every reply, as when the replied-to lead card was deleted), sheet (ok|false|500). now_utc: ISO time app/followup.py sees (null = real clock). fb_profile: what the Graph API returns for any PSID.",
   "rules": [
     {"kind": "chat", "contains": "ASK_AGE", "reply": "Dạ Casa chào Ba/Mẹ ạ 🌿 Bé nhà mình năm nay mấy tuổi ạ? [QUICK:age]"},
     {"kind": "chat", "contains": "ASK_PHONE", "reply": "Dạ Ba/Mẹ cho em xin SĐT hoặc Zalo để tư vấn viên gửi học phí chi tiết nhé ạ. [QUICK:phone]"},
@@ -16,6 +16,7 @@
     {"kind": "extract", "contains": "PHONE_A", "reply": {"phone": "0912345678"}},
     {"kind": "extract", "contains": "PHONE_B", "reply": {"phone": "0987654321"}},
     {"kind": "extract", "contains": "VISIT_AM", "reply": {"visit_request": "tham quan buổi sáng"}},
+    {"kind": "extract", "contains": "VISIT_TOMORROW", "reply": {"visit_request": "tham quan sáng mai"}},
     {"kind": "extract", "contains": "Em muốn hẹn tham quan buổi sáng", "reply": {"visit_request": "tham quan buổi sáng"}},
     {"kind": "extract", "contains": "Em muốn đặt lịch tham quan trường", "reply": {"visit_request": "tham quan trường"}},
     {"kind": "extract", "contains": "Bé nhà em 2-3 tuổi", "reply": {"kid_age": "2-3 tuổi"}},
@@ -26,7 +27,7 @@
     "chat": "Dạ Casa chào Ba/Mẹ ạ, em hỗ trợ ngay ạ.",
     "extract": {}
   },
-  "fail": {"graph_send": false, "telegram": false, "openai": false, "github_put": false, "sheet": "ok"},
+  "fail": {"graph_send": false, "telegram": false, "telegram_reply": false, "openai": false, "github_put": false, "sheet": "ok"},
   "now_utc": null,
   "fb_profile": {"first_name": "Test", "last_name": "Parent"}
 }

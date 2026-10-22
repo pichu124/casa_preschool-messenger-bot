@@ -85,7 +85,9 @@ def summarize(rec: dict) -> str | None:
         if rec["path"].endswith("/sendMessage"):
             mid = (rec.get("response") or {}).get("result", {}).get("message_id")
             first = (body or {}).get("text", "").split("\n", 1)[0]
-            return f"{seq} TG  sendMessage message_id={mid} header={first!r}"
+            reply_to = ((body or {}).get("reply_parameters") or {}).get("message_id")
+            reply = f" reply_to={reply_to}" if reply_to else ""
+            return f"{seq} TG  sendMessage message_id={mid}{reply} header={first!r}"
         return f"{seq} TG  {rec['path']} {json.dumps(body, ensure_ascii=False)}"
     if host == "script.google.com":
         keys = ("event", "customer_id", "phone", "visit_request", "stage", "token")

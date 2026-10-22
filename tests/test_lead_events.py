@@ -7,7 +7,9 @@ Apps Script (POST /exec → 302 → JSON ở script.googleusercontent.com). proc
 import asyncio
 import json
 import logging
+import re
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import httpx
 import pytest
@@ -134,6 +136,9 @@ class Network:
 
     def __init__(self):
         self.telegram = []
+        self.telegram_sent = []  # (message_id, body) of each message Telegram accepted
+        self.deleted = set()  # message ids an admin deleted from the group
+        self.telegram_delay = 0.0  # seconds api.telegram.org takes to answer
         self.sheet = []
         self.sheet_response = lambda: httpx.Response(200, json={"ok": True})
         self.unexpected = []
@@ -141,8 +146,17 @@ class Network:
     async def handle(self, request: httpx.Request) -> httpx.Response:
         url = str(request.url)
         if request.method == "POST" and url == f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage":
-            self.telegram.append(json.loads(request.content)["text"])
-            return httpx.Response(200, json={"ok": True, "result": {"message_id": 7000 + len(self.telegram)}})
+            await asyncio.sleep(self.telegram_delay)
+            body = json.loads(request.content)
+            if body.get("reply_parameters", {}).get("message_id") in self.deleted:
+                return httpx.Response(
+                    400,
+                    json={"ok": False, "error_code": 400, "description": "Bad Request: message to be replied not found"},
+                )
+            self.telegram.append(body["text"])
+            message_id = 7000 + len(self.telegram)
+            self.telegram_sent.append((message_id, body))
+            return httpx.Response(200, json={"ok": True, "result": {"message_id": message_id}})
         if request.method == "POST" and url == SHEET_URL:
             self.sheet.append(json.loads(request.content))
             return httpx.Response(302, headers={"Location": SHEET_ECHO_URL})
@@ -396,7 +410,7 @@ def tap(payload: str) -> str:
 
 # Người vận hành 2026-10-22: bot mời tham quan (nút Đặt lịch tham quan), phụ huynh đồng ý rồi mới chọn buổi. Quyết định:
 # hai tin Telegram cho cùng một lịch là chấp nhận được (tin đầu: phụ huynh đồng ý, tư vấn viên gọi được ngay; tin sau
-# thêm buổi để chốt giờ); bấm lại cùng buổi thì không gửi nữa.
+# thêm buổi để chốt giờ, từ khi có thẻ lead là tin ngắn trả lời vào thẻ); bấm lại cùng buổi thì không gửi nữa.
 def test_agreeing_to_visit_then_choosing_the_time_publishes_each_new_detail_once(chat, net):
     known_customer(kid_age="3 tuổi", interested_campus="Mỹ Đình")
     agree, morning = tap("QR:visit_invite:0"), tap("QR:visit_time:0")
@@ -406,13 +420,158 @@ def test_agreeing_to_visit_then_choosing_the_time_publishes_each_new_detail_once
     chat.say(morning, extracted={"visit_request": "tham quan buổi sáng"})
     chat.say(morning, extracted={"visit_request": "tham quan buổi sáng"})
 
-    visits = net.leads("📅 KHÁCH HẸN THAM QUAN/HỌC THỬ")
-    assert len(net.telegram) == len(visits) == 2
-    assert "tham quan buổi sáng" in visits[1] and morning in visits[1]
+    card_id, card, updates = card_and_updates(net)
+    assert card.startswith("📅 KHÁCH HẸN THAM QUAN/HỌC THỬ") and "tham quan trường" in card and agree in card
+    assert update_lines(updates) == [(card_id, f"🔄 {FB_NAME}: Hẹn: tham quan trường → tham quan buổi sáng")]
     assert [(row["event"], row["visit_request"], row["last_message"]) for row in net.sheet] == [
         ("visit_request", "tham quan trường", agree),
         ("visit_request", "tham quan buổi sáng", morning),
     ]
+
+
+# --- Mỗi phụ huynh một thẻ Telegram; thay đổi sau là tin ngắn trả lời vào thẻ (người vận hành, 2026-10-22) ---
+
+UPDATE_TIME = r"\n🕐 \d{2}/\d{2}/\d{4} \d{2}:\d{2}"
+
+
+def replied_to(body):
+    return body.get("reply_parameters", {}).get("message_id")
+
+
+def card_and_updates(net):
+    """(id of the one full card, [(replied-to id, text) of each later message]) of what Telegram accepted."""
+    (card_id, card), *updates = net.telegram_sent
+    assert "reply_parameters" not in card
+    return card_id, card["text"], [(replied_to(body), body["text"]) for _, body in updates]
+
+
+def update_lines(updates):
+    """First line of each update; each must carry the Vietnam time on its second (and last) line."""
+    for _, text in updates:
+        assert re.fullmatch(r"🔄 [^\n]+" + UPDATE_TIME, text), text
+    return [(reply_to, text.split("\n")[0]) for reply_to, text in updates]
+
+
+def saved_card_id():
+    on_disk = json.loads(Path(customer_memory.CUSTOMERS_PATH).read_text(encoding="utf-8"))[CUSTOMER_ID]
+    assert on_disk.get("lead_card_msg_id") == customer_memory.get_profile(CUSTOMER_ID).get("lead_card_msg_id")
+    return on_disk.get("lead_card_msg_id")
+
+
+def test_phone_then_visit_then_changed_visit_is_one_card_and_two_replies(chat, net):
+    """Sự cố 2026-10-22: SĐT 09:02, hẹn buổi sáng 09:03, đổi sáng mai 09:04 ra 3 thẻ đầy đủ như 3 khách."""
+    chat.say(f"Số mình {PHONE}", extracted={"phone": PHONE})
+    chat.say("Cho mình tham quan buổi sáng", extracted={"visit_request": "tham quan buổi sáng"})
+    chat.say("À sáng mai nhé", extracted={"visit_request": "tham quan sáng mai"})
+
+    card_id, card, updates = card_and_updates(net)
+    assert card.startswith(escalation.LEAD_HEADER) and f"SĐT: {PHONE}\n" in card
+    assert update_lines(updates) == [
+        (card_id, f"🔄 {FB_NAME}: Hẹn: tham quan buổi sáng"),
+        (card_id, f"🔄 {FB_NAME}: Hẹn: tham quan buổi sáng → tham quan sáng mai"),
+    ]
+    assert saved_card_id() == card_id
+    assert [(row["event"], row["customer_id"], row["visit_request"]) for row in net.sheet] == [
+        ("new_phone", CUSTOMER_ID, ""),
+        ("visit_request", CUSTOMER_ID, "tham quan buổi sáng"),
+        ("visit_request", CUSTOMER_ID, "tham quan sáng mai"),
+    ]
+
+
+def test_phone_after_visit_card_replies_that_the_parent_left_it(chat, net):
+    chat.say(f"Cho mình hẹn {VISIT}", extracted={"visit_request": VISIT})
+    chat.say(f"Số mình {PHONE}", extracted={"phone": PHONE})
+
+    card_id, card, updates = card_and_updates(net)
+    assert card.startswith("📅 KHÁCH HẸN THAM QUAN/HỌC THỬ") and "SĐT: chưa rõ" in card
+    assert update_lines(updates) == [(card_id, f"🔄 {FB_NAME}: để lại SĐT {PHONE}")]
+
+
+def test_changed_phone_after_card_replies_old_and_new_number(chat, net):
+    chat.say(f"Số mình {PHONE}", extracted={"phone": PHONE})
+    chat.say(f"Mình đổi sang số {NEW_PHONE} nhé", extracted={"phone": NEW_PHONE})
+
+    card_id, _, updates = card_and_updates(net)
+    assert update_lines(updates) == [(card_id, f"🔄 {FB_NAME}: SĐT: {PHONE} → {NEW_PHONE}")]
+    assert [(row["event"], row["phone"]) for row in net.sheet] == [("new_phone", PHONE), ("phone_changed", NEW_PHONE)]
+
+
+def test_phone_and_visit_in_the_first_message_are_one_card(chat, net):
+    chat.say(f"Số mình {PHONE}, cho mình hẹn {VISIT}", extracted={"phone": PHONE, "visit_request": VISIT})
+
+    card_id, card, updates = card_and_updates(net)
+    assert updates == []
+    assert card.startswith(escalation.LEAD_HEADER) and f"SĐT: {PHONE}\n" in card and VISIT in card
+    assert saved_card_id() == card_id
+    assert [row["event"] for row in net.sheet] == ["new_phone", "visit_request"]
+
+
+def test_two_changes_in_one_message_are_one_reply(chat, net):
+    chat.say(f"Cho mình hẹn {VISIT}", extracted={"visit_request": VISIT})
+    chat.say(
+        f"Số mình {PHONE}, cho bé học thử tuần sau luôn",
+        extracted={"phone": PHONE, "visit_request": "học thử tuần sau"},
+    )
+
+    card_id, _, updates = card_and_updates(net)
+    assert update_lines(updates) == [
+        (card_id, f"🔄 {FB_NAME}: để lại SĐT {PHONE}; Hẹn: {VISIT} → học thử tuần sau")
+    ]
+
+
+def test_deleted_card_gets_a_new_full_card_that_later_changes_reply_to(chat, net):
+    chat.say(f"Số mình {PHONE}", extracted={"phone": PHONE})
+    old_card = saved_card_id()
+    net.deleted.add(old_card)
+
+    chat.say("Cho mình tham quan buổi sáng", extracted={"visit_request": "tham quan buổi sáng"})
+    chat.say("À sáng mai nhé", extracted={"visit_request": "tham quan sáng mai"})
+
+    (_, first), (new_card, second), (_, third) = net.telegram_sent
+    assert "reply_parameters" not in first and "reply_parameters" not in second
+    assert second["text"].startswith("📅 KHÁCH HẸN THAM QUAN/HỌC THỬ")
+    assert f"SĐT: {PHONE}\n" in second["text"] and "tham quan buổi sáng" in second["text"]
+    assert replied_to(third) == new_card != old_card
+    assert third["text"].startswith(f"🔄 {FB_NAME}: Hẹn: tham quan buổi sáng → tham quan sáng mai\n")
+    assert saved_card_id() == new_card
+
+
+def test_two_close_messages_handled_concurrently_are_one_card_and_one_reply(monkeypatch, net):
+    """Tin thứ hai tới khi thẻ của tin đầu còn đang gửi (Telegram chậm): vẫn trả lời vào thẻ đó, không ra thẻ thứ hai."""
+    # Khoá đã phải chờ thì gắn với event loop của asyncio.run này: không để lại cho test sau.
+    monkeypatch.setattr(escalation, "_lead_locks", {})
+    net.telegram_delay = 0.05
+    with_phone = {"parent_name": FB_NAME, "phone": PHONE}
+    with_visit = {**with_phone, "visit_request": VISIT}
+
+    async def two_messages():
+        await asyncio.gather(
+            escalation.publish_lead_events(["new_phone"], CUSTOMER_ID, FB_NAME, {}, with_phone, f"Số mình {PHONE}"),
+            escalation.publish_lead_events(
+                ["visit_request"], CUSTOMER_ID, FB_NAME, with_phone, with_visit, f"Cho mình hẹn {VISIT}"
+            ),
+        )
+
+    asyncio.run(two_messages())
+
+    card_id, card, updates = card_and_updates(net)
+    assert card.startswith(escalation.LEAD_HEADER) and f"SĐT: {PHONE}\n" in card
+    assert update_lines(updates) == [(card_id, f"🔄 {FB_NAME}: Hẹn: {VISIT}")]
+    assert saved_card_id() == card_id
+
+
+def test_card_not_sent_is_not_saved_and_the_next_lead_sends_the_card(monkeypatch, chat, net):
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "")
+    chat.say(f"Số mình {PHONE}", extracted={"phone": PHONE})
+    assert "lead_card_msg_id" not in customer_memory.get_profile(CUSTOMER_ID)
+
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", TELEGRAM_TOKEN)
+    chat.say(f"Cho mình hẹn {VISIT}", extracted={"visit_request": VISIT})
+
+    card_id, card, updates = card_and_updates(net)
+    assert updates == []
+    assert card.startswith("📅 KHÁCH HẸN THAM QUAN/HỌC THỬ") and f"SĐT: {PHONE}\n" in card
+    assert saved_card_id() == card_id
 
 
 def test_no_sheet_url_sends_no_sheet_request(monkeypatch, chat, net):
@@ -462,7 +621,7 @@ def test_lead_logs_contain_no_phone_or_sheet_url(chat, net, caplog, escalate):
         )
 
     assert [row["event"] for row in net.sheet] == ["new_phone", "visit_request"]
-    assert len(net.telegram) == 2 + int(escalate)
+    assert len(net.telegram) == 1 + int(escalate)
     assert [r for r in caplog.records if CUSTOMER_ID in r.getMessage()], "không bắt được log nào của tin này"
     assert leaked(caplog) == []
 
@@ -546,10 +705,11 @@ def test_escalation_and_lead_show_vietnam_time_on_a_utc_server(monkeypatch, chat
     monkeypatch.setattr(leads_sheet, "datetime", RenderClock)
 
     chat.say(f"{QUESTION} Số mình {PHONE}", extracted={"phone": PHONE}, reply="", escalate=True)
+    chat.say(f"Cho mình hẹn {VISIT}", extracted={"visit_request": VISIT})
 
-    assert len(net.leads(escalation.ESCALATION_HEADER)) == len(net.leads()) == 1
-    assert [message for message in net.telegram if "🕐 22/10/2026 08:30\n" not in message] == []
-    assert [row["time"] for row in net.sheet] == ["2026-10-22 08:30:00"]
+    assert len(net.leads(escalation.ESCALATION_HEADER)) == len(net.leads()) == len(net.leads("🔄")) == 1
+    assert [message for message in net.telegram if "🕐 22/10/2026 08:30" not in message.split("\n")] == []
+    assert [row["time"] for row in net.sheet] == ["2026-10-22 08:30:00"] * 2
 
 
 # --- post_lead_row ---
@@ -586,3 +746,39 @@ def test_post_lead_row_succeeds_only_on_ok_true(net, caplog, sheet_response, ok)
     warnings = [r for r in caplog.records if r.name == "app.leads_sheet" and r.levelno == logging.WARNING]
     assert len(warnings) == int(not ok)
     assert leaked(caplog) == []
+
+
+# --- Apps Script trong docs: mỗi phụ huynh một hàng, cột khớp khóa bot gửi ---
+
+DOCS = Path(__file__).resolve().parent.parent / "docs" / "google-sheet-leads.md"
+# Cột của Sheet đã chạy trước khi có upsert: hàng cũ ghi theo đúng thứ tự này.
+FIRST_COLUMNS = [
+    "time", "event", "fb_name", "customer_id", "phone", "kid_name", "kid_age",
+    "campus", "area", "expected_start", "visit_request", "ad_title", "stage", "last_message",
+]
+
+
+def docs_columns() -> list[tuple[str, str]]:
+    (script,) = re.findall(r"```javascript\n(.*?)```", DOCS.read_text(encoding="utf-8"), re.S)
+    (block,) = re.findall(r"const COLUMNS = \[\n(.*?)\n\];", script, re.S)
+    return re.findall(r"\['(\w+)', '([^']*)'\]", block)
+
+
+def test_docs_script_columns_are_the_keys_the_bot_sends_then_first_contact_and_updated_at(chat, net):
+    chat.say(f"Số mình {PHONE}", extracted={"phone": PHONE})
+    (body,) = net.sheet
+
+    columns = docs_columns()
+
+    assert [key for key, _ in columns[: len(FIRST_COLUMNS)]] == FIRST_COLUMNS
+    assert columns[len(FIRST_COLUMNS):] == [("first_contact", "Lần đầu liên hệ"), ("updated_at", "Cập nhật lúc")]
+    assert set(body) - {"token"} == set(FIRST_COLUMNS)
+
+
+def test_docs_column_table_lists_every_script_column_in_order():
+    text = DOCS.read_text(encoding="utf-8")
+    table = text.split("| Khóa | Cột | Nội dung |", 1)[1].split("\n\n", 1)[0]
+
+    rows = re.findall(r"^\| `(\w+)` \| ([^|]+) \|", table, re.M)
+
+    assert [(key, title.strip()) for key, title in rows] == docs_columns()

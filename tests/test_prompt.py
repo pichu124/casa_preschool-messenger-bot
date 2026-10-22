@@ -461,6 +461,18 @@ def test_booked_visit_is_the_one_exception_to_ending_with_a_next_step(monkeypatc
     assert any("bước tiếp theo" in p for p in problems), problems
 
 
+# Thử DeepSeek thật 2026-10-22 (lần 2): phụ huynh hỏi "sáng mai được không", bot chép giọng ví dụ "Dạ được ạ…" và hứa luôn
+# là được, dù chỉ tư vấn viên biết lịch trống; nhận yêu cầu, tư vấn viên gọi xác nhận giờ.
+def test_bot_never_promises_a_visit_slot_only_the_consultant_confirms(monkeypatch):
+    booked = next(line for line in SYSTEM_PROMPT.splitlines() if '"Đã hẹn: …"' in line)
+    assert "không tự hứa" in booked, booked
+    assert all("không tự hứa" in r for r in _reminders(monkeypatch))
+    parent, reply = _examples()[-1]
+    assert "sang mai duoc khong" in parent
+    assert "được ạ" not in reply, reply
+    assert "xác nhận" in reply, reply
+
+
 # Thử DeepSeek thật 2026-10-22: vừa xác nhận tham quan buổi sáng, phụ huynh hỏi "sáng mai được không" thì bot gửi lại
 # gần nguyên câu xác nhận và chép nguyên câu ví dụ chốt hẹn trong prompt; câu chê đắt gần như chép ví dụ CARE.
 REPEATED_CONFIRMATION = (

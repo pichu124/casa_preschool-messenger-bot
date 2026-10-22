@@ -78,6 +78,8 @@ PHONE_LIKE = re.compile(r"\+?\(?\d[\d ().-]{7,}\d")
 # Hỏi tuần/buổi là bước sau khi phụ huynh đã đồng ý học thử/tham quan; trước đó là ép chọn.
 FORCED_CHOICE = re.compile(r"tuần này hay tuần sau|sáng hay (?:buổi )?chiều", re.I)
 TIME_KEYS = {"trial_week", "visit_time"}
+# Phụ huynh chọn/đổi thời gian: chỉ tư vấn viên biết lịch trống, bot không tự hứa (DeepSeek thật 2026-10-22).
+PROMISES_SLOT = ("được ạ", "sắp xếp được", "còn chỗ")
 ROBOTIC_OPENING = re.compile(r"^\W*(?:dạ\W*)?em (?:đã )?ghi nhận", re.I)
 MIN_COPY_WORDS = 6
 COPY_RATIO = 0.8
@@ -186,7 +188,8 @@ SCENARIOS: dict[str, list[Turn]] = {
             next_step=False,
         ),
     ],
-    # Người vận hành 2026-10-22: mời học thử bằng câu hỏi ý, phụ huynh đồng ý rồi bot mới hỏi tuần.
+    # Người vận hành 2026-10-22: mời học thử bằng câu hỏi ý, phụ huynh đồng ý rồi bot mới hỏi tuần (chưa xin số);
+    # chọn tuần thì không hứa lịch, xin số mềm 1 lần (DeepSeek thật 2026-10-22 xin số ngay lúc đồng ý và hứa "sắp xếp được").
     "moi_hoc_thu": [
         Turn("bé nhà mình 3 tuổi, mình quan tâm cơ sở Mỹ Đình", known=FB_NAME),
         Turn(
@@ -197,7 +200,16 @@ SCENARIOS: dict[str, list[Turn]] = {
         Turn(
             "có, đăng ký luôn cho bé nhé",
             known={**FB_NAME, "kid_age": "3 tuổi", "interested_campus": "Mỹ Đình"},
-            any_of=[("tuần này", "tuần sau")],
+            any_of=[("tuần này", "tuần sau"), ("[QUICK:trial_week]",)],
+            none_of=ASKS_PHONE + ("[QUICK:phone]",),
+            agreed=True,
+        ),
+        Turn(
+            QUICK_REPLIES["trial_week"][0][1],
+            known={**FB_NAME, "kid_age": "3 tuổi", "interested_campus": "Mỹ Đình", "visit_request": "học thử 1 tuần"},
+            any_of=[("tư vấn viên",), ("xác nhận", "liên hệ", "gọi"), ASKS_PHONE],
+            none_of=PROMISES_SLOT,
+            next_step=False,
             agreed=True,
         ),
     ],

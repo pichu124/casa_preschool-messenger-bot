@@ -623,6 +623,67 @@ def test_eval_scenario_invites_first_and_asks_the_week_after_the_parent_agrees()
     assert ("tuần này", "tuần sau") in turns[i].any_of
 
 
+# DeepSeek thật qua /test-chat 2026-10-22: bấm "Đăng ký học thử" → bot xin SĐT thay vì hỏi tuần ("…để lại SĐ", cụt);
+# bấm "Tuần này" → "Tuần này sắp xếp được ạ…" (tự hứa lịch) rồi xin SĐT lần thứ hai. Quyết định: lượt đồng ý chỉ hỏi
+# tuần/buổi; lượt chọn thời gian không khẳng định lịch trống, chỉ báo tư vấn viên xếp và gọi xác nhận, rồi mới xin số
+# mềm 1 lần (dòng "Đã hẹn… chưa có SĐT" của trạng thái tư vấn).
+AGREEMENTS = {QUICK_REPLIES["trial_invite"][0][1], QUICK_REPLIES["visit_invite"][0][1], QUICK_REPLIES["topics"][2][1]}
+PROMISES = ("được ạ", "sắp xếp được", "còn chỗ")
+AGREED_ASKS_PHONE = (
+    "Vâng ạ, em báo tư vấn viên sắp xếp cho bé một tuần học thử. Nếu tiện, Ba/Mẹ để lại SĐT/Zalo để tư vấn viên "
+    "gọi nhé? [QUICK:phone]"
+)
+WEEK_PROMISED = (
+    "Tuần này sắp xếp được ạ, tư vấn viên sẽ gọi xác nhận giờ cụ thể với Ba/Mẹ. Nếu tiện, Ba/Mẹ để lại SĐT/Zalo "
+    "để tư vấn viên liên hệ nhé? [QUICK:phone]"
+)
+
+
+def test_reminder_asks_the_time_before_the_phone_right_after_the_parent_agrees(monkeypatch):
+    for reminder in _reminders(monkeypatch):
+        (line,) = [line for line in reminder.splitlines() if "vừa đồng ý" in line]
+        for meaning in AGREEMENTS:
+            assert meaning in line, (meaning, line)
+        assert re.search(r"\[QUICK:trial_week\][^\n]*\[QUICK:visit_time\][^\n]*CHƯA xin SĐT", line), line
+        # [TRẠNG THÁI TƯ VẤN] "Còn thiếu: SĐT/Zalo" từng kéo model xin số ngay ở lượt đồng ý.
+        assert "Còn thiếu" in line and "lượt sau" in line, line
+
+
+def test_reminder_never_asks_for_the_phone_twice_in_a_row(monkeypatch):
+    for reminder in _reminders(monkeypatch):
+        assert re.search(r"vừa xin SĐT[^\n]*tin trước[^\n]*không xin lại", reminder), reminder
+
+
+def test_reminder_never_promises_a_slot_when_the_parent_picks_a_time(monkeypatch):
+    for reminder in _reminders(monkeypatch):
+        (line,) = [line for line in reminder.splitlines() if "chọn/đổi" in line]
+        assert all(f"'{phrase}'" in line for phrase in PROMISES), line
+        assert re.search(r"KHÔNG nói[^\n]*báo tư vấn viên[^\n]*gọi xác nhận", line), line
+
+
+def test_eval_agreement_turn_asks_the_week_not_the_phone():
+    turn = next(t for t in eval_chat.SCENARIOS["moi_hoc_thu"] if t.agreed)
+    problems = eval_chat.check_turn(turn, False, False, AGREED_ASKS_PHONE, [turn.message])
+    assert any("[QUICK:trial_week]" in p for p in problems), problems
+    assert any("sđt" in p.lower() for p in problems), problems
+    ask_week = "Dạ vâng, Casa rất vui được đón bé. Ba/Mẹ muốn con bắt đầu tuần này hay tuần sau ạ? [QUICK:trial_week]"
+    assert eval_chat.check_turn(turn, False, False, ask_week, [turn.message]) == []
+
+
+def test_eval_week_choice_turn_flags_promising_the_slot():
+    week = QUICK_REPLIES["trial_week"][0][1]
+    turn = next(t for t in eval_chat.SCENARIOS["moi_hoc_thu"] if t.message == week)
+    assert turn.known.get("visit_request") and not turn.known.get("phone")
+    assert set(PROMISES) <= set(turn.none_of)
+    problems = eval_chat.check_turn(turn, False, False, WEEK_PROMISED, [turn.message])
+    assert any("sắp xếp được" in p for p in problems), problems
+    noted = (
+        "Dạ em chuyển tư vấn viên xếp lịch tuần này cho bé, rồi gọi Ba/Mẹ xác nhận ạ. Nếu tiện, Ba/Mẹ để "
+        "lại SĐT/Zalo để tư vấn viên gọi nhé? [QUICK:phone]"
+    )
+    assert eval_chat.check_turn(turn, False, False, noted, [turn.message]) == []
+
+
 LEARN_MORE = QUICK_REPLIES["trial_invite"][1][1]
 
 

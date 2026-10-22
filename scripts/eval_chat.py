@@ -14,7 +14,7 @@ không xưng "tôi"; không nêu số tiền (vd 1.000.000đ); câu cuối có b
 học thử, hỏi tuổi bé/cơ sở...; trừ lượt chốt hẹn và sau đó, như mục 10 "Đã hẹn" của prompt); tối đa một token [QUICK:] hợp lệ ở cuối; cộng kiểm riêng của từng lượt
 (vd không có "%" ở lượt hỏi ưu đãi đầu tiên).
 Giọng văn (phản hồi 2026-10-22, xem style_problems): tối đa 3 câu; không đọc lại SĐT phụ huynh đã gửi;
-không gọi "anh"/"chị" khi phụ huynh chưa tự xưng như vậy; không mở đầu "Dạ em ghi nhận".
+không gọi "anh"/"chị" hay "mẹ"/"ba" một mình khi phụ huynh chưa tự xưng như vậy; không mở đầu "Dạ em ghi nhận".
 Heuristic chỉ để lọc nhanh: vẫn phải đọc transcript.
 
 Exit: 0 = mọi heuristic đạt; 1 = có lượt vi phạm; 2 = INCONCLUSIVE (chưa có API key, mọi model đều lỗi)
@@ -55,10 +55,18 @@ IMAGES_TOKEN = re.compile(r"\[IMAGES:[^\]]*\]")
 QUICK_TOKEN = re.compile(r"\[QUICK:([^\]]*)\]")
 QUICK_KEYS = set(QUICK_TOKEN.findall(SYSTEM_PROMPT))
 MAX_SENTENCES = 3
-SENTENCE_SPLIT = re.compile(r"[.?!]+")
-# Gọi phụ huynh là "anh"/"chị"; không tính "tiếng Anh", "anh chị em", "anh/em", "2 anh em".
-ANH_CHI = re.compile(r"(?<!tiếng )(?<!anh )(?<!anh/)\b(?:anh|chị)\b(?! chị)(?! em)(?!/em)(?!/chị)", re.I)
-PHONE_LIKE = re.compile(r"\+?\d[\d .-]{7,}\d")
+SENTENCE_PUNCT = re.compile(r"[.?!…]+")
+# Gọi phụ huynh là "anh"/"chị"; không tính "tiếng Anh", "người Anh", "anh chị em", "anh/em", "2 anh em", "anh trai", "chị gái".
+ANH_CHI = re.compile(
+    r"(?<!tiếng )(?<!người )(?<!anh )(?<!anh/)\b(?:anh|chị)\b(?! chị)(?! em)(?!/em)(?!/chị)(?! trai)(?! gái)", re.I
+)
+# Gọi phụ huynh là "mẹ"/"ba" một mình; không tính "Ba/Mẹ", "ba mẹ", "bố mẹ", "nhớ mẹ", "thứ Ba", "ba tuổi", "Ba Đình".
+LONE_BA_ME = re.compile(
+    r"(?<!/)(?<!ba )(?<!bố )(?<!cha )(?<!nhớ )(?<!xa )(?<!đòi )(?<!sữa )(?<!bám )\bmẹ\b(?!/)"
+    r"|(?<!thứ )\bba\b(?!/)(?! mẹ)(?! (?:đình|tuổi|tháng|năm|ngày|tuần|giờ|buổi|bữa|lần|lớp|môn|cơ sở|bé|con)\b)",
+    re.I,
+)
+PHONE_LIKE = re.compile(r"\+?\(?\d[\d ().-]{7,}\d")
 ROBOTIC_OPENING = re.compile(r"^\W*(?:dạ\W*)?em (?:đã )?ghi nhận", re.I)
 
 
@@ -73,7 +81,7 @@ class Turn:
 
 
 # Tên Facebook giả trong hồ sơ: bot không được suy ra "anh"/"chị" từ tên.
-FB_NAME = {"parent_name": "Binh Le"}
+FB_NAME = {"parent_name": "Phụ Huynh Thử"}
 TEST_PHONE = "0912345678"
 VISIT = {**FB_NAME, "kid_age": "20 tháng", "interested_campus": "Chùa Láng"}
 
@@ -146,13 +154,27 @@ SCENARIOS: dict[str, list[Turn]] = {
 
 
 def sentence_count(text: str) -> int:
-    """Số câu (tách theo . ? !) của câu bot gửi, bỏ token [QUICK:]/[IMAGES:] và mẩu chỉ có emoji."""
+    """Số câu của câu bot gửi, bỏ token [QUICK:]/[IMAGES:] và mẩu chỉ có emoji.
+
+    Câu kết ở . ? ! … khi sau đó hết tin hoặc là khoảng trắng rồi chữ không viết thường. Không tách ở "v.v. và",
+    "tiếng Anh... và", "1.5", "casa.edu.vn", hay dấu câu ngay sau emoji ("ạ 🌿." đếm như câu chào chuẩn "ạ 🌿 Cảm ơn…").
+    """
     text = QUICK_TOKEN.sub("", IMAGES_TOKEN.sub("", text))
-    return sum(any(ch.isalpha() for ch in s) for s in SENTENCE_SPLIT.split(text))
+    pieces, start = [], 0
+    for match in SENTENCE_PUNCT.finditer(text):
+        rest, before = text[match.end():], text[: match.start()].rstrip().rstrip("\ufe0f")
+        if rest.strip() and (not rest[0].isspace() or rest.lstrip()[0].islower()):
+            continue
+        if before and unicodedata.category(before[-1]) == "So":
+            continue
+        pieces.append(text[start : match.end()])
+        start = match.end()
+    pieces.append(text[start:])
+    return sum(any(ch.isalpha() for ch in piece) for piece in pieces)
 
 
 def style_problems(text: str, parent_messages: list[str], known_phones: set[str]) -> list[str]:
-    """Giọng văn: ngắn, không đọc lại SĐT, chỉ gọi anh/chị khi phụ huynh đã tự xưng, không khuôn 'em ghi nhận'."""
+    """Giọng văn: ngắn, không đọc lại SĐT, chỉ gọi anh/chị/mẹ/ba khi phụ huynh đã tự xưng, không khuôn 'em ghi nhận'."""
     problems = []
     if (n := sentence_count(text)) > MAX_SENTENCES:
         problems.append(f"dài {n} câu (tối đa {MAX_SENTENCES})")
@@ -160,8 +182,9 @@ def style_problems(text: str, parent_messages: list[str], known_phones: set[str]
     phones |= {re.sub(r"\D", "", p)[-9:] for m in parent_messages for p in PHONE_LIKE.findall(m)}
     if any(re.sub(r"\D", "", p)[-9:] in phones for p in PHONE_LIKE.findall(text)):
         problems.append("đọc lại SĐT phụ huynh đã gửi")
-    if (match := ANH_CHI.search(text)) and not any(ANH_CHI.search(m) for m in parent_messages):
-        problems.append(f"gọi {match.group(0)!r} khi phụ huynh chưa tự xưng")
+    for address in (ANH_CHI, LONE_BA_ME):
+        if (match := address.search(text)) and not any(address.search(m) for m in parent_messages):
+            problems.append(f"gọi {match.group(0)!r} khi phụ huynh chưa tự xưng")
     if ROBOTIC_OPENING.search(text):
         problems.append("mở đầu khuôn 'Dạ em ghi nhận'")
     return problems

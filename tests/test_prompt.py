@@ -537,3 +537,69 @@ def test_eval_passes_short_human_replies():
     # Phụ huynh tự xưng "chị" thì bot gọi "chị" là đúng.
     assert eval_chat.style_problems("Dạ chị cho em xin tuổi bé ạ?", parent_messages=["chị muốn hỏi học phí"], known_phones=set()) == []
     assert eval_chat.sentence_count("Dạ Casa chào Ba/Mẹ ạ 🌿 Cảm ơn Ba/Mẹ. Bé mấy tháng rồi ạ? [QUICK:age]") == 2
+
+
+@pytest.mark.parametrize(
+    ("reply", "sentences"),
+    [
+        ("Con có Science, Art, v.v. và nhiều hoạt động khác ạ. Ba/Mẹ muốn ghé tham quan không ạ?", 2),
+        ("Con có Science, Art, v.v. Ba/Mẹ muốn ghé tham quan không ạ?", 2),
+        ("Lớp có Montessori, tiếng Anh... và ngoại khóa ạ. Ba/Mẹ quan tâm cơ sở nào ạ?", 2),
+        ("Lớp có Montessori, tiếng Anh… và ngoại khóa ạ. Ba/Mẹ quan tâm cơ sở nào ạ?", 2),
+        ("Dạ vâng... Bé nhà mình mấy tuổi rồi ạ?", 2),
+        ("Lớp 0–3 tuổi học với cô nước ngoài khoảng 1.5 giờ mỗi ngày ạ. Ba/Mẹ quan tâm cơ sở nào ạ?", 2),
+        ("Ba/Mẹ xem thêm ở casa.edu.vn hoặc mail info@casa.edu.vn nhé. Bé mấy tuổi rồi ạ?", 2),
+        ("Dạ Casa chào Ba/Mẹ ạ 🌿. Cảm ơn Ba/Mẹ đã quan tâm đến Casa dei Bambini. Bé mấy tháng rồi ạ? [QUICK:age]", 2),
+        ("Dạ Casa chào Ba/Mẹ ạ 🌿! Cảm ơn Ba/Mẹ đã quan tâm đến Casa dei Bambini. Bé mấy tháng rồi ạ? [QUICK:age]", 2),
+        ("Dạ có ạ. Con học Cambridge. 3 cơ sở đều có cô nước ngoài. Ba/Mẹ quan tâm cơ sở nào ạ?", 4),
+    ],
+    ids=["vv-giua-cau", "vv-cuoi-cau", "ba-cham", "dau-ba-cham", "ba-cham-het-cau", "so-thap-phan", "domain-email",
+         "emoji-cham", "emoji-cham-than", "bon-cau-that"],
+)
+def test_eval_sentence_count_ignores_dots_that_do_not_end_a_sentence(reply, sentences):
+    assert eval_chat.sentence_count(reply) == sentences
+
+
+ASK_TRIAL = " Ba/Mẹ cho bé học thử tuần này hay tuần sau ạ?"
+
+
+@pytest.mark.parametrize(
+    ("reply", "flagged"),
+    [
+        ("Mẹ yên tâm nhé, các cô đồng hành cùng bé ạ." + ASK_TRIAL, "'Mẹ'"),
+        ("Dạ ba cho em xin tuổi bé ạ?", "'ba'"),
+        ("Em gửi mẹ bé lịch tham quan nhé ạ." + ASK_TRIAL, "'mẹ'"),
+    ],
+)
+def test_eval_flags_lone_me_or_ba_when_parent_never_named_themselves(reply, flagged):
+    problems = eval_chat.style_problems(reply, parent_messages=["con mình nhút nhát lắm"], known_phones=set())
+
+    assert len(problems) == 1 and flagged in problems[0], problems
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "Family Day để ba mẹ tham gia cùng con ạ." + ASK_TRIAL,
+        "Bé ba tuổi học lớp Mầm, có buổi học thứ Ba ạ." + ASK_TRIAL,
+        "Ngày đầu bé hay khóc vì nhớ mẹ, các cô dỗ con từ từ ạ." + ASK_TRIAL,
+        "Bé có anh trai học ở Casa thì được ưu đãi anh chị em ạ." + ASK_TRIAL,
+        "Cô giáo người Anh dạy tiếng Anh cả ngày ạ." + ASK_TRIAL,
+        "Bé có chị gái đang học ở Kim Mã thì con sẽ quen nhanh ạ." + ASK_TRIAL,
+    ],
+    ids=["ba-me", "so-ba-thu-ba", "nho-me", "anh-trai", "nguoi-anh", "chi-gai"],
+)
+def test_eval_does_not_mistake_family_words_for_addressing_the_parent(reply):
+    assert eval_chat.style_problems(reply, parent_messages=["con mình nhút nhát lắm"], known_phones=set()) == []
+
+
+def test_eval_allows_me_once_parent_names_themselves():
+    reply = "Dạ mẹ Na cho em xin tuổi bé ạ?"
+    assert eval_chat.style_problems(reply, parent_messages=["mình là mẹ bé Na"], known_phones=set()) == []
+
+
+def test_eval_catches_phone_read_back_in_brackets_format():
+    reply = "Tư vấn viên sẽ gọi số (090) 000-0999 ạ."
+    for parent_messages, known_phones in (([PHONE], set()), (["số mình (090) 000-0999"], set()), ([], {PHONE})):
+        problems = eval_chat.style_problems(reply, parent_messages=parent_messages, known_phones=known_phones)
+        assert any("đọc lại SĐT" in p for p in problems), (parent_messages, problems)

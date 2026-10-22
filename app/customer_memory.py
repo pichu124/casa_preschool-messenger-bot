@@ -201,6 +201,17 @@ def set_fields(customer_id: str, fields: dict) -> dict:
     return profile
 
 
+def reset_customer(customer_id: str) -> bool:
+    """Forget everything about one customer (profile, history, summaries, lead card, follow-up) and save to disk
+    (sync_to_github() pushes it), so their next message is a first message. False if there was no profile."""
+    if not _loaded:
+        _load_from_disk()
+    if _customers.pop(customer_id, None) is None:
+        return False
+    _save_to_disk()
+    return True
+
+
 # Consulting funnel stages, in order; lead_stage() returns the furthest one reached.
 STAGES = ("Mới", "Đã biết tuổi/cơ sở", "Đã có SĐT", "Đã hẹn tham quan/học thử")
 

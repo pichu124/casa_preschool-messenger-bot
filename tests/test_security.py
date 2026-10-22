@@ -31,6 +31,7 @@ ADMIN_ENDPOINTS = [
     ("GET", "/customers", {}),
     ("GET", "/customers/export", {}),
     ("POST", "/analytics/reset", {}),
+    ("POST", "/customers/9000000000000002/reset", {}),
     ("GET", "/qa-database", {}),
     ("GET", "/qa-learned", {}),
     ("POST", "/reload-qa", {}),

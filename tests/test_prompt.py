@@ -441,7 +441,7 @@ def test_short_examples_still_name_their_topics(parent_says, topics):
 
 
 def test_booked_visit_is_the_one_exception_to_ending_with_a_next_step(monkeypatch):
-    # Ví dụ chốt hẹn ("…Hẹn gặp Ba/Mẹ và bé ở trường nhé!") không có bước tiếp theo: prompt và eval phải cùng nói vậy.
+    # Ví dụ chốt hẹn không có bước tiếp theo: prompt và eval phải cùng nói vậy.
     rule6 = next(line for line in SYSTEM_PROMPT.splitlines() if line.startswith("6. "))
     booked = next(line for line in SYSTEM_PROMPT.splitlines() if '"Đã hẹn: …"' in line)
     assert "'Đã hẹn'" in rule6.split("kết thúc bằng", 1)[0], rule6
@@ -449,12 +449,77 @@ def test_booked_visit_is_the_one_exception_to_ending_with_a_next_step(monkeypatc
     assert all("không cần bước tiếp theo" in r for r in _reminders(monkeypatch))
 
     parent, reply = _examples()[-1]
-    assert "sang mai nhe" in parent
-    turn = next(t for t in eval_chat.SCENARIOS["hen_tham_quan"] if "sáng mai nhé" in t.message)
-    assert eval_chat.check_turn(turn, False, False, reply, [turn.message]) == []
+    assert "sang mai duoc khong" in parent
+    turns = eval_chat.SCENARIOS["hen_tham_quan"]
+    i = next(i for i, t in enumerate(turns) if t.message == "sáng mai được không")
+    assert "tham quan buổi sáng" in turns[i - 1].message
+    problems = eval_chat.check_turn(turns[i], False, False, reply, [turns[i].message])
+    # Câu ví dụ đương nhiên bị bắt là chép; ở đây chỉ kiểm lượt chốt hẹn không cần bước tiếp theo.
+    assert [p for p in problems if "chép câu ví dụ" not in p] == [], problems
     # Lượt bình thường vẫn bị bắt khi thiếu bước tiếp theo.
     problems = eval_chat.check_turn(eval_chat.Turn("trường ở đâu"), False, False, reply, ["trường ở đâu"])
     assert any("bước tiếp theo" in p for p in problems), problems
+
+
+# Thử DeepSeek thật 2026-10-22: vừa xác nhận tham quan buổi sáng, phụ huynh hỏi "sáng mai được không" thì bot gửi lại
+# gần nguyên câu xác nhận và chép nguyên câu ví dụ chốt hẹn trong prompt; câu chê đắt gần như chép ví dụ CARE.
+REPEATED_CONFIRMATION = (
+    "Vâng ạ, tư vấn viên sẽ liên hệ Ba/Mẹ để chốt giờ tham quan buổi sáng tại cơ sở Chùa Láng. Hẹn gặp Ba/Mẹ và bé ở trường nhé!",
+    "Vâng ạ, tư vấn viên sẽ liên hệ Ba/Mẹ để chốt giờ tham quan sáng mai. Hẹn gặp Ba/Mẹ và bé ở trường nhé!",
+)
+
+
+def test_prompt_forbids_repeating_the_last_reply_and_copying_examples(monkeypatch):
+    reminders = _reminders(monkeypatch)
+    for text in [SYSTEM_PROMPT] + reminders:
+        lowered = text.lower()
+        assert re.search(r"không lặp lại[^\n]*vừa gửi", lowered), text
+        assert re.search(r"không chép[^\n]*câu ví dụ", lowered), text
+    # Phụ huynh đổi/chốt cụ thể hơn sau khi em đã xác nhận: trả lời thẳng ý mới, không gửi lại câu xác nhận.
+    booked = [line for line in SYSTEM_PROMPT.splitlines() if '"Đã hẹn: …"' in line]
+    booked += [line for r in reminders for line in r.splitlines() if "'Đã hẹn'" in line]
+    assert len(booked) == 1 + len(reminders)
+    for line in booked:
+        assert "không lặp lại câu xác nhận" in line, line
+
+
+def test_care_and_booking_examples_are_short_sentences():
+    examples = _examples()
+    care = [reply for parent, reply in examples if parent.endswith("(CARE)")]
+    booking = [reply for parent, reply in examples if "sang mai" in parent]
+    assert len(care) == 1 and len(booking) == 1
+    for reply in care + booking:
+        for sentence in re.split(r"(?<=[.?!])\s+", re.sub(r"\[QUICK:[^\]]*\]", "", reply).strip()):
+            assert len(re.findall(r"\w+", sentence)) <= 20, sentence
+
+
+def test_eval_flags_reply_that_repeats_the_previous_one():
+    previous, repeated = REPEATED_CONFIRMATION
+    turn = eval_chat.Turn("sáng mai được không", next_step=False)
+
+    problems = eval_chat.check_turn(turn, False, False, repeated, [turn.message], previous_reply=previous)
+
+    assert len(problems) == 1 and "lặp lại tin trước" in problems[0], problems
+    fresh = "Được ạ, sáng mai Ba/Mẹ cứ đưa bé qua nhé."
+    assert eval_chat.check_turn(turn, False, False, fresh, [turn.message], previous_reply=previous) == []
+
+
+def test_eval_flags_reply_copied_from_prompt_examples():
+    turn = eval_chat.Turn("học phí đắt quá", next_step=False)
+    care = next(reply for parent, reply in _examples() if parent.endswith("(CARE)"))
+    booking = _examples()[-1][1]
+    for reply in (care, booking):
+        problems = eval_chat.check_turn(turn, False, False, reply, [turn.message])
+        assert any("chép câu ví dụ" in p for p in problems), (reply, problems)
+
+    fresh_care = (
+        "Dạ em hiểu ạ, đây là khoản lớn với gia đình. Bù lại con được cô nước ngoài kèm cả ngày. "
+        "Ba/Mẹ đưa bé qua tham quan lớp một buổi nhé, sáng hay chiều ạ?"
+    )
+    assert eval_chat.check_turn(turn, False, False, fresh_care, [turn.message]) == []
+    # Câu chào bắt buộc ở tin đầu tiên giống hệt ví dụ nhưng không phải chép.
+    greeting = "Dạ Casa chào Ba/Mẹ ạ 🌿 Cảm ơn Ba/Mẹ đã quan tâm đến Casa dei Bambini. Bé được mấy tháng rồi ạ? [QUICK:age]"
+    assert eval_chat.check_turn(eval_chat.Turn("cho hỏi học phí"), True, False, greeting, ["cho hỏi học phí"]) == []
 
 
 def test_facebook_name_never_reaches_the_model(monkeypatch):

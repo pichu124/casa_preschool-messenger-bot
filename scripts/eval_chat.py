@@ -15,6 +15,8 @@ học thử, hỏi tuổi bé/cơ sở...; trừ lượt chốt hẹn và sau đ
 (vd không có "%" ở lượt hỏi ưu đãi đầu tiên).
 Giọng văn (phản hồi 2026-10-22, xem style_problems): tối đa 3 câu; không đọc lại SĐT phụ huynh đã gửi;
 không gọi "anh"/"chị" hay "mẹ"/"ba" một mình khi phụ huynh chưa tự xưng như vậy; không mở đầu "Dạ em ghi nhận".
+Không lặp lại câu của tin bot liền trước, không chép câu kể trong ví dụ "Em: …" của SYSTEM_PROMPT (thử DeepSeek
+2026-10-22; xem near_copies): câu từ MIN_COPY_WORDS từ trở lên, giống ≥ COPY_RATIO theo SequenceMatcher trên từ.
 Heuristic chỉ để lọc nhanh: vẫn phải đọc transcript.
 
 Exit: 0 = mọi heuristic đạt; 1 = có lượt vi phạm; 2 = INCONCLUSIVE (chưa có API key, mọi model đều lỗi)
@@ -26,6 +28,7 @@ import re
 import sys
 import unicodedata
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 from pathlib import Path
 
 # Chạy thẳng file này thì sys.path[0] là scripts/, nên thêm gốc repo trước khi import app.
@@ -68,6 +71,8 @@ LONE_BA_ME = re.compile(
 )
 PHONE_LIKE = re.compile(r"\+?\(?\d[\d ().-]{7,}\d")
 ROBOTIC_OPENING = re.compile(r"^\W*(?:dạ\W*)?em (?:đã )?ghi nhận", re.I)
+MIN_COPY_WORDS = 6
+COPY_RATIO = 0.8
 
 
 @dataclass
@@ -84,6 +89,7 @@ class Turn:
 FB_NAME = {"parent_name": "Phụ Huynh Thử"}
 TEST_PHONE = "0912345678"
 VISIT = {**FB_NAME, "kid_age": "20 tháng", "interested_campus": "Chùa Láng"}
+BOOKED = {**VISIT, "phone": TEST_PHONE, "visit_request": "tham quan Chùa Láng buổi sáng"}
 
 
 SCENARIOS: dict[str, list[Turn]] = {
@@ -141,11 +147,12 @@ SCENARIOS: dict[str, list[Turn]] = {
     "hen_tham_quan": [
         Turn("bé nhà mình 20 tháng, mình muốn đi xem trường", known=FB_NAME),
         Turn("cơ sở Chùa Láng", known={**FB_NAME, "kid_age": "20 tháng"}),
-        Turn("buổi sáng", known=VISIT),
-        Turn(f"sáng mai nhé, số mình {TEST_PHONE}", known=VISIT, any_of=[("liên hệ", "gọi")], next_step=False),
+        Turn(f"mình muốn đi tham quan buổi sáng, số mình {TEST_PHONE}", known=VISIT, any_of=[("liên hệ", "gọi")], next_step=False),
+        # Thử DeepSeek 2026-10-22: bot gửi lại gần nguyên câu xác nhận trước, chép cả câu ví dụ chốt hẹn của prompt.
+        Turn("sáng mai được không", known=BOOKED, next_step=False),
         Turn(
             "ok cảm ơn em",
-            known={**VISIT, "phone": TEST_PHONE, "visit_request": "tham quan Chùa Láng sáng mai"},
+            known={**BOOKED, "visit_request": "tham quan Chùa Láng sáng mai"},
             none_of=("sáng mai", "chùa láng"),
             next_step=False,
         ),
@@ -153,8 +160,8 @@ SCENARIOS: dict[str, list[Turn]] = {
 }
 
 
-def sentence_count(text: str) -> int:
-    """Số câu của câu bot gửi, bỏ token [QUICK:]/[IMAGES:] và mẩu chỉ có emoji.
+def sentences(text: str) -> list[str]:
+    """Các câu của câu bot gửi, bỏ token [QUICK:]/[IMAGES:] và mẩu chỉ có emoji.
 
     Câu kết ở . ? ! … khi sau đó hết tin hoặc là khoảng trắng rồi chữ không viết thường. Không tách ở "v.v. và",
     "tiếng Anh... và", "1.5", "casa.edu.vn", hay dấu câu ngay sau emoji ("ạ 🌿." đếm như câu chào chuẩn "ạ 🌿 Cảm ơn…").
@@ -170,7 +177,32 @@ def sentence_count(text: str) -> int:
         pieces.append(text[start : match.end()])
         start = match.end()
     pieces.append(text[start:])
-    return sum(any(ch.isalpha() for ch in piece) for piece in pieces)
+    return [piece.strip() for piece in pieces if any(ch.isalpha() for ch in piece)]
+
+
+def sentence_count(text: str) -> int:
+    return len(sentences(text))
+
+
+def _words(text: str) -> list[str]:
+    return re.findall(r"\w+", unicodedata.normalize("NFC", text).lower())
+
+
+def near_copies(text: str, references: list[str]) -> list[str]:
+    """Câu trong text (từ MIN_COPY_WORDS từ) gần trùng một câu tham chiếu: lộ bot khi lặp tin trước hoặc chép ví dụ."""
+    refs = [_words(r) for r in references]
+    return [
+        s for s in sentences(text)
+        if len(words := _words(s)) >= MIN_COPY_WORDS and any(SequenceMatcher(None, words, r).ratio() >= COPY_RATIO for r in refs)
+    ]
+
+
+OPENING = re.search(r'Mở bằng: "([^"]*)"', SYSTEM_PROMPT).group(1)
+# Câu kể trong các ví dụ "Em: …" của prompt. Bỏ câu chào bắt buộc và câu hỏi (bước tiếp theo được phép dùng lại).
+EXAMPLE_STATEMENTS = [
+    s for reply in re.findall(r'^Em: "(.*)"$', SYSTEM_PROMPT, re.M) for s in sentences(reply)
+    if not s.endswith("?") and _words(s) != _words(OPENING)
+]
 
 
 def style_problems(text: str, parent_messages: list[str], known_phones: set[str]) -> list[str]:
@@ -197,8 +229,10 @@ def last_sentence(text: str) -> str:
     return sentences[-1] if sentences else ""
 
 
-def check_turn(turn: Turn, is_first: bool, escalated: bool, text: str, parent_messages: list[str]) -> list[str]:
-    """parent_messages: mọi tin phụ huynh tới lượt này, kể cả turn.message."""
+def check_turn(
+    turn: Turn, is_first: bool, escalated: bool, text: str, parent_messages: list[str], previous_reply: str = ""
+) -> list[str]:
+    """parent_messages: mọi tin phụ huynh tới lượt này, kể cả turn.message; previous_reply: tin bot liền trước."""
     if turn.expect_escalate is not None and escalated != turn.expect_escalate:
         return [f"mong đợi escalate={turn.expect_escalate}, nhận escalate={escalated}"]
     if escalated:
@@ -211,6 +245,10 @@ def check_turn(turn: Turn, is_first: bool, escalated: bool, text: str, parent_me
     last = last_sentence(text).lower()
     if len(VIETNAMESE_MARKS.findall(text)) < 5:
         problems.append("thiếu dấu tiếng Việt")
+    if repeated := near_copies(text, sentences(previous_reply)):
+        problems.append(f"lặp lại tin trước: {repeated[0]!r}")
+    if copied := near_copies(text, EXAMPLE_STATEMENTS):
+        problems.append(f"chép câu ví dụ trong prompt: {copied[0]!r}")
     if match := WRONG_ADDRESS.search(text):
         problems.append(f"xưng hô sai: {match.group(0)!r}")
     if match := MONEY.search(text):
@@ -247,7 +285,8 @@ async def run_scenario(engine: AIEngine, name: str, turns: list[Turn]) -> tuple[
         shown = "[ESCALATE]" if resp.should_escalate else resp.text
         print(f"PH: {turn.message}\nBOT ({resp.model_used}): {shown}")
         parent_messages = [m["content"] for m in history if m["role"] == "user"] + [turn.message]
-        problems = check_turn(turn, not history, resp.should_escalate, resp.text, parent_messages)
+        previous_reply = history[-1]["content"] if history else ""
+        problems = check_turn(turn, not history, resp.should_escalate, resp.text, parent_messages, previous_reply)
         for problem in problems:
             print(f"  ✘ {problem}")
         failures += bool(problems)

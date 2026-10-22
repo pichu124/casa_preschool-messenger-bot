@@ -162,6 +162,8 @@ def route(method: str, host: str, path: str, headers, body) -> tuple[int, object
         if fail.get("telegram"):
             return 500, {"ok": False, "description": "fake_server: telegram failure from scenario"}, {}
         if path.endswith("/sendMessage"):
+            if fail.get("telegram_reply") and "reply_parameters" in (body or {}):  # replied-to message deleted
+                return 400, {"ok": False, "error_code": 400, "description": "Bad Request: message to be replied not found"}, {}
             return 200, {"ok": True, "result": {"message_id": next(msg_ids)}}, {}
         return 200, {"ok": True, "result": True, "description": "fake"}, {}
     if host == "script.google.com":

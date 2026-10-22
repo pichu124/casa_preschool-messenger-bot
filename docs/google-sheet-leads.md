@@ -111,10 +111,17 @@ function doPost(e) {
       sheet.appendRow(values);
     }
     return reply(true);
+  } catch (err) {
+    if (err instanceof HeaderTaken) {
+      return reply(false, err.message);
+    }
+    throw err;
   } finally {
     lock.releaseLock();
   }
 }
+
+class HeaderTaken extends Error {}
 
 function leadsSheet() {
   const book = SpreadsheetApp.getActiveSpreadsheet();
@@ -128,7 +135,15 @@ function leadsSheet() {
     return sheet;
   }
   // Sheet tạo bằng script cũ: thêm tiêu đề các cột mới ở cuối, hàng cũ giữ nguyên vị trí.
+  // Ô tiêu đề đã có chữ khác (cột người tư vấn tự thêm): không ghi gì, để không ghi đè dữ liệu của cột đó.
   const header = sheet.getRange(1, 1, 1, COLUMNS.length).getValues()[0];
+  const taken = COLUMNS.findIndex(([, title], i) => header[i] !== '' && header[i] !== title);
+  if (taken >= 0) {
+    throw new HeaderTaken(
+      'Ô ' + String.fromCharCode(65 + taken) + '1 là "' + header[taken] + '", script cần "' + COLUMNS[taken][1] +
+        '": chèn cột trống trước cột tự thêm (docs/google-sheet-leads.md, mục 5)'
+    );
+  }
   COLUMNS.forEach(([, title], i) => {
     if (header[i] === '') {
       sheet.getRange(1, i + 1).setValue(title);
@@ -170,12 +185,13 @@ function cell(key, value) {
   return text ? "'" + text : '';
 }
 
-function reply(ok) {
-  return ContentService.createTextOutput(JSON.stringify({ ok: ok })).setMimeType(ContentService.MimeType.JSON);
+function reply(ok, error) {
+  const body = error ? { ok: ok, error: error } : { ok: ok };
+  return ContentService.createTextOutput(JSON.stringify(body)).setMimeType(ContentService.MimeType.JSON);
 }
 ```
 
-Script trả `{"ok":true}` khi đã thêm hoặc cập nhật hàng, `{"ok":false}` khi body không phải JSON, sai token hoặc không lấy được khóa. Bot chỉ coi là thành công khi nhận đúng `{"ok":true}`.
+Script trả `{"ok":true}` khi đã thêm hoặc cập nhật hàng, `{"ok":false}` khi body không phải JSON, sai token hoặc không lấy được khóa, `{"ok":false,"error":"…"}` (không ghi gì) khi hàng 1 có ô tiêu đề khác tiêu đề của script trong 16 cột đầu (vd cột người tư vấn tự thêm ở O hoặc P). Bot chỉ coi là thành công khi nhận đúng `{"ok":true}`.
 
 ## 2. Deploy web app
 
@@ -227,9 +243,10 @@ Khi bot chạy, Sheet không nhận hàng thì xem log Render: `Lead … rejecte
 
 Sheet tạo theo bản cũ của trang này ghi thêm một hàng mỗi sự kiện. Đổi sang bản mỗi phụ huynh một hàng (người vận hành làm, không cần sửa gì trên Render):
 
-1. Mở Sheet → **Tiện ích mở rộng → Apps Script**. Trong `Code.gs`, xoá hết code cũ, dán toàn bộ script ở bước 1 → **Lưu**.
-2. **Deploy → Manage deployments** → chọn deployment đang dùng → biểu tượng bút chì (**Edit**) → Version: **New version** → **Deploy**. URL web app giữ nguyên, `LEADS_TOKEN` giữ nguyên. Đừng bấm **New deployment**.
-3. Xoá tay 3 hàng thử cũ trong tab **Leads**.
-4. Thử như bước 4 (hai lệnh curl, cùng `customer_id`) → một hàng, rồi xoá hàng thử.
+1. Trong tab **Leads**, kiểm tra cột O và P đang trống (script mới ghi "Lần đầu liên hệ" và "Cập nhật lúc" vào đó). Nếu đã tự thêm cột ở đó (vd "Đã gọi", "Ghi chú") thì chèn 2 cột trống trước cột tự thêm, hoặc chuyển cột tự thêm ra sau cột P; không thì script từ chối mọi lead (`{"ok":false,"error":"…"}`, log Render `rejected by Google Sheet web app`) cho tới khi O và P trống.
+2. Mở Sheet → **Tiện ích mở rộng → Apps Script**. Trong `Code.gs`, xoá hết code cũ, dán toàn bộ script ở bước 1 → **Lưu**.
+3. **Deploy → Manage deployments** → chọn deployment đang dùng → biểu tượng bút chì (**Edit**) → Version: **New version** → **Deploy**. URL web app giữ nguyên, `LEADS_TOKEN` giữ nguyên. Đừng bấm **New deployment**.
+4. Xoá tay 3 hàng thử cũ trong tab **Leads**.
+5. Thử như bước 4 (hai lệnh curl, cùng `customer_id`) → một hàng, rồi xoá hàng thử.
 
 Lead đầu tiên sau khi cập nhật, script tự thêm tiêu đề "Lần đầu liên hệ" và "Cập nhật lúc" vào hai cột cuối; các hàng cũ không lệch cột. Phụ huynh đã có nhiều hàng từ trước thì script cập nhật hàng dưới cùng của Customer ID đó (lấy "Thời gian" cũ của hàng làm "Lần đầu liên hệ"); các hàng trên của cùng Customer ID có thể xoá tay nếu muốn.

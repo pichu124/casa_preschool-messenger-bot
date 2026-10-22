@@ -28,7 +28,7 @@ _SIGNALS = {
     ),
     # A bare "tham quan" is also a field trip ("dã ngoại tham quan nông trại")
     "visit_invite": (
-        r"(?:đến|hẹn|đặt lịch|mời|sắp xếp)[^.?!]{0,20}tham quan|tham quan (?:trường|lớp|cơ sở|trực tiếp)"
+        r"(?:đến|ghé|hẹn|đặt lịch|mời|sắp xếp)[^.?!]{0,20}tham quan|tham quan (?:trường|lớp|cơ sở|trực tiếp)"
         r"|\[QUICK:\s*visit_time\s*\]"
     ),
 }

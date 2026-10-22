@@ -57,6 +57,10 @@ POSITIVE = [
     ("Ba/Mẹ muốn đến tham quan trường không ạ?", ["visit_invite"]),
     ("Em mời Ba/Mẹ đưa bé đến tham quan ạ.", ["visit_invite"]),
     ("Em sắp xếp lịch tham quan cho mình nhé ạ.", ["visit_invite"]),
+    # Ví dụ trong prompt dạy "ghé tham quan"
+    ("Ba/Mẹ có muốn ghé tham quan lớp không ạ?", ["visit_invite"]),
+    ("Ba/Mẹ có muốn ghé tham quan không ạ?", ["visit_invite"]),
+    ("Cuối tuần Ba/Mẹ ghé qua tham quan nhé ạ.", ["visit_invite"]),
     # Thứ được mời đến xem là đối tượng của lời mời, không phải thông tin cơ sở vật chất
     ("Em xin mời Ba/Mẹ ghé trường để tham quan cơ sở vật chất ạ.", ["visit_invite"]),
     ("Mời Ba/Mẹ đến tham quan không gian lớp học ạ.", ["visit_invite"]),

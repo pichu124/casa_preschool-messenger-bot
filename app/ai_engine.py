@@ -134,19 +134,16 @@ def strip_reasoning(text: str | None) -> str:
     return _THINK_RE.sub("", text or "").strip()
 
 
-# Câu trả lời chính. Model suy luận (deepseek-flash, Gemini, gpt-oss, qwen3) tính cả phần nghĩ vào max_tokens:
-# với 1024, deepseek-flash từng nghĩ gần hết chỗ và câu gửi phụ huynh cụt giữa chữ.
+# max_tokens theo loại lời gọi: "chat" câu trả lời chính, "json" trích hồ sơ/phân loại Q&A, "text" tóm tắt,
+# "admin_reply" viết lại câu admin. Model suy luận (deepseek-flash, Gemini, gpt-oss, qwen3) tính cả phần nghĩ vào
+# max_tokens, kể cả lời gọi phụ: với 1024, deepseek-flash từng nghĩ gần hết chỗ và câu gửi phụ huynh cụt giữa chữ;
+# với 300 nó nghĩ hết chỗ trước khi ra JSON. max_tokens chỉ là trần: tính tiền theo token thật dùng.
 CHAT_MAX_TOKENS = 4096
+TOKEN_BUDGET = dict.fromkeys(("chat", "json", "text", "admin_reply"), CHAT_MAX_TOKENS)
 # Groq miễn phí giới hạn 1000 token đầu ra/phút (OTPM) và tính cả max_tokens xin: xin hơn 1000 bị từ chối ngay.
-# Câu trả lời chạy cùng lúc với lời trích hồ sơ (JSON_MAX_TOKENS) nên hai lời gọi cộng lại vừa 1000.
-GROQ_CHAT_MAX_TOKENS = 700
-# JSON trích hồ sơ đủ cả 14 trường dài ~470 ký tự (~150–250 token tiếng Việt); JSON phân loại Q&A ngắn hơn.
-# Phải dưới hạn mức token đầu ra/phút của gói miễn phí (Groq: 1000), nếu không lời gọi bị từ chối ngay.
-JSON_MAX_TOKENS = 300
-# Tóm tắt 2–4 câu.
-TEXT_MAX_TOKENS = 600
-# Câu admin viết lại phải giữ đủ dữ kiện admin đưa; vẫn dưới OTPM 1000 của Groq miễn phí.
-ADMIN_REPLY_MAX_TOKENS = 900
+# Câu trả lời chạy cùng lúc với lời trích hồ sơ nên hai lời gọi cộng lại vừa 1000. JSON hồ sơ đủ cả 14 trường dài
+# ~470 ký tự (~150–250 token tiếng Việt); tóm tắt 2–4 câu; câu admin viết lại phải giữ đủ dữ kiện admin đưa.
+GROQ_TOKEN_BUDGET = {"chat": 700, "json": 300, "text": 600, "admin_reply": 900}
 
 # Mặc định SDK openai/groq chờ 600s, mistralai và google-genai không giới hạn: một lời gọi treo giữ phụ huynh
 # chờ mãi. Hết giờ thì thử lại 1 lần rồi sang model kế; model nghĩ lâu tới mức gần hết CHAT_MAX_TOKENS có thể
@@ -225,7 +222,7 @@ class AIResponse:
 
 
 class AIProvider(ABC):
-    chat_max_tokens = CHAT_MAX_TOKENS
+    token_budget = TOKEN_BUDGET
 
     @abstractmethod
     async def generate(
@@ -259,7 +256,7 @@ class OpenAIProvider(AIProvider):
 
 
 class GroqProvider(AIProvider):
-    chat_max_tokens = GROQ_CHAT_MAX_TOKENS
+    token_budget = GROQ_TOKEN_BUDGET
 
     def __init__(self):
         from groq import AsyncGroq
@@ -285,7 +282,7 @@ class GroqProvider(AIProvider):
 class GroqSecondProvider(AIProvider):
     """Second Groq model (GROQ_SECOND_MODEL); key "groq_llama" kept for existing AI_MODEL_ORDER."""
 
-    chat_max_tokens = GROQ_CHAT_MAX_TOKENS
+    token_budget = GROQ_TOKEN_BUDGET
 
     def __init__(self):
         from groq import AsyncGroq
@@ -583,7 +580,7 @@ class AIEngine:
             try:
                 logger.info(f"Trying model: {model_name}")
                 response_text = await self._generate(
-                    provider, self.system_prompt, wrapped_message, history, max_tokens=provider.chat_max_tokens
+                    provider, self.system_prompt, wrapped_message, history, max_tokens=provider.token_budget["chat"]
                 )
 
                 should_escalate = "[ESCALATE]" in response_text
@@ -655,7 +652,9 @@ class AIEngine:
             if not provider:
                 continue
             try:
-                result = await self._generate(provider, extract_prompt, user_msg, [], max_tokens=JSON_MAX_TOKENS)
+                result = await self._generate(
+                    provider, extract_prompt, user_msg, [], max_tokens=provider.token_budget["json"]
+                )
                 if result.startswith("```"):
                     result = result.split("\n", 1)[1].rsplit("```", 1)[0].strip()
                     if result.startswith("json"):
@@ -706,7 +705,9 @@ class AIEngine:
             if not provider:
                 continue
             try:
-                summary = await self._generate(provider, summarize_prompt, user_msg, [], max_tokens=TEXT_MAX_TOKENS)
+                summary = await self._generate(
+                    provider, summarize_prompt, user_msg, [], max_tokens=provider.token_budget["text"]
+                )
                 # Strip code blocks if any
                 if summary.startswith("```"):
                     summary = summary.split("\n", 1)[1].rsplit("```", 1)[0].strip()
@@ -740,7 +741,9 @@ class AIEngine:
             if not provider:
                 continue
             try:
-                return await self._generate(provider, format_prompt, user_msg, [], max_tokens=ADMIN_REPLY_MAX_TOKENS)
+                return await self._generate(
+                    provider, format_prompt, user_msg, [], max_tokens=provider.token_budget["admin_reply"]
+                )
             except Exception as e:
                 logger.warning(f"Format reply with {model_name} failed: {e}")
                 continue
@@ -766,7 +769,9 @@ class AIEngine:
             if not provider:
                 continue
             try:
-                result = await self._generate(provider, classify_prompt, user_msg, [], max_tokens=JSON_MAX_TOKENS)
+                result = await self._generate(
+                    provider, classify_prompt, user_msg, [], max_tokens=provider.token_budget["json"]
+                )
                 if result.startswith("```"):
                     result = result.split("\n", 1)[1].rsplit("```", 1)[0].strip()
                 return json.loads(result)

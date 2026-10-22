@@ -72,9 +72,9 @@ def test_prompt_shows_known_info_then_state_then_summaries():
         "session_summaries": [{"date": "2026-10-01", "summary": "Hỏi học phí hệ song ngữ"}],
     }
 
+    # Không có parent_name (tên Facebook): model không được dựa vào tên để xưng hô (phản hồi 2026-10-22).
     assert format_profile_for_prompt(profile) == (
         "[THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT]:\n"
-        "- Phụ huynh: Lan Thử\n"
         "- Khu vực: Cầu Giấy\n"
         "- Dự kiến nhập học: tháng 9\n"
         "\n"
@@ -158,3 +158,20 @@ def test_set_fields_on_new_customer_does_not_count_as_a_message():
 
     assert profile["message_count"] == 1
     assert profile["lead_source"] == "ads"
+
+
+@pytest.mark.parametrize(
+    ("profile", "line"),
+    [
+        ({"kid_age": "20 tháng"}, "- Bé: 20 tháng\n"),
+        ({"kid_age": "3 tuổi"}, "- Bé: 3 tuổi\n"),
+        ({"kid_age": "4"}, "- Bé: 4 tuổi\n"),
+        ({"kid_name": "Bông", "kid_age": "3 Tuổi"}, "- Bé: tên Bông, 3 Tuổi\n"),
+        ({"kid_name": "Bông", "kid_age": "2"}, "- Bé: tên Bông, 2 tuổi\n"),
+    ],
+)
+def test_prompt_kid_age_unit_is_not_repeated(profile, line):
+    context = format_profile_for_prompt(profile)
+
+    assert line in context
+    assert "tuổi tuổi" not in context.lower() and "tháng tuổi" not in context

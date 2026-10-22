@@ -5,13 +5,16 @@ Cách chạy (từ thư mục gốc repo, cần ít nhất một API key AI tron
     .venv/bin/python scripts/eval_chat.py che_dat xe_bus  # chỉ chạy các kịch bản được nêu tên
 
 Mỗi kịch bản là vài lượt phụ huynh nhắn liên tiếp; lịch sử hội thoại chỉ giữ trong bộ nhớ. Script dùng
-AIEngine + data/qa_database.json như bot thật, nhưng KHÔNG đi qua app.main hay app.customer_memory:
-không ghi file nào, không đụng data/customers.json, không đẩy gì lên GitHub. Mỗi lượt gọi API thật (tốn phí).
+AIEngine + data/qa_database.json như bot thật, nhưng KHÔNG đi qua app.main hay lưu hồ sơ khách (chỉ mượn hàm
+thuần customer_memory.format_profile_for_prompt để dựng khối thông tin khách như bot thật): không ghi file nào,
+không đụng data/customers.json, không đẩy gì lên GitHub. Mỗi lượt gọi API thật (tốn phí).
 
 Mỗi lượt in transcript và kiểm vài heuristic đơn giản: có dấu tiếng Việt; không gọi "bạn"/"quý khách",
 không xưng "tôi"; không nêu số tiền (vd 1.000.000đ); câu cuối có bước tiếp theo (SĐT/Zalo, tham quan,
-học thử, hỏi tuổi bé/cơ sở...); tối đa một token [QUICK:] hợp lệ ở cuối; cộng kiểm riêng của từng lượt
+học thử, hỏi tuổi bé/cơ sở...; trừ lượt chốt hẹn và sau đó, như mục 10 "Đã hẹn" của prompt); tối đa một token [QUICK:] hợp lệ ở cuối; cộng kiểm riêng của từng lượt
 (vd không có "%" ở lượt hỏi ưu đãi đầu tiên).
+Giọng văn (phản hồi 2026-10-22, xem style_problems): tối đa 3 câu; không đọc lại SĐT phụ huynh đã gửi;
+không gọi "anh"/"chị" hay "mẹ"/"ba" một mình khi phụ huynh chưa tự xưng như vậy; không mở đầu "Dạ em ghi nhận".
 Heuristic chỉ để lọc nhanh: vẫn phải đọc transcript.
 
 Exit: 0 = mọi heuristic đạt; 1 = có lượt vi phạm; 2 = INCONCLUSIVE (chưa có API key, mọi model đều lỗi)
@@ -31,6 +34,7 @@ sys.path.insert(0, str(ROOT))
 
 from app.ai_engine import API_KEY_MAP, SYSTEM_PROMPT, AIEngine
 from app.config import settings
+from app.customer_memory import format_profile_for_prompt
 from app.qa_database import QADatabase
 
 ASKS_PHONE = ("sđt", "số điện thoại", "zalo")
@@ -50,6 +54,20 @@ SENTENCE_END = re.compile(r"(?<=[.!?…])\s+")
 IMAGES_TOKEN = re.compile(r"\[IMAGES:[^\]]*\]")
 QUICK_TOKEN = re.compile(r"\[QUICK:([^\]]*)\]")
 QUICK_KEYS = set(QUICK_TOKEN.findall(SYSTEM_PROMPT))
+MAX_SENTENCES = 3
+SENTENCE_PUNCT = re.compile(r"[.?!…]+")
+# Gọi phụ huynh là "anh"/"chị"; không tính "tiếng Anh", "người Anh", "anh chị em", "anh/em", "2 anh em", "anh trai", "chị gái".
+ANH_CHI = re.compile(
+    r"(?<!tiếng )(?<!người )(?<!anh )(?<!anh/)\b(?:anh|chị)\b(?! chị)(?! em)(?!/em)(?!/chị)(?! trai)(?! gái)", re.I
+)
+# Gọi phụ huynh là "mẹ"/"ba" một mình; không tính "Ba/Mẹ", "ba mẹ", "bố mẹ", "nhớ mẹ", "thứ Ba", "ba tuổi", "Ba Đình".
+LONE_BA_ME = re.compile(
+    r"(?<!/)(?<!ba )(?<!bố )(?<!cha )(?<!nhớ )(?<!xa )(?<!đòi )(?<!sữa )(?<!bám )\bmẹ\b(?!/)"
+    r"|(?<!thứ )\bba\b(?!/)(?! mẹ)(?! (?:đình|tuổi|tháng|năm|ngày|tuần|giờ|buổi|bữa|lần|lớp|môn|cơ sở|bé|con)\b)",
+    re.I,
+)
+PHONE_LIKE = re.compile(r"\+?\(?\d[\d ().-]{7,}\d")
+ROBOTIC_OPENING = re.compile(r"^\W*(?:dạ\W*)?em (?:đã )?ghi nhận", re.I)
 
 
 @dataclass
@@ -58,6 +76,14 @@ class Turn:
     expect_escalate: bool | None = False  # None: escalate hay trả lời đều chấp nhận
     any_of: list[tuple[str, ...]] = field(default_factory=list)  # mỗi nhóm phải có ít nhất 1 cụm
     none_of: tuple[str, ...] = ()
+    known: dict = field(default_factory=dict)  # hồ sơ bot đã có trước lượt này (khối [THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT])
+    next_step: bool = True  # False: lượt chốt hẹn và sau đó ("Đã hẹn" là ngoại lệ của nguyên tắc 6)
+
+
+# Tên Facebook giả trong hồ sơ: bot không được suy ra "anh"/"chị" từ tên.
+FB_NAME = {"parent_name": "Phụ Huynh Thử"}
+TEST_PHONE = "0912345678"
+VISIT = {**FB_NAME, "kid_age": "20 tháng", "interested_campus": "Chùa Láng"}
 
 
 SCENARIOS: dict[str, list[Turn]] = {
@@ -105,7 +131,63 @@ SCENARIOS: dict[str, list[Turn]] = {
     "be_12_thang": [
         Turn("bé nhà mình mới 12 tháng thì có học được không", any_of=[("15 tháng",)]),
     ],
+    # Hội thoại production 2026-10-22: gửi SĐT, rồi bấm nút tuổi; bot từng đọc lại số và gọi "anh" theo tên Facebook.
+    "gui_sdt_chon_tuoi": [
+        Turn("cho mình hỏi học phí ạ", known=FB_NAME),
+        Turn(TEST_PHONE, known=FB_NAME, any_of=[("liên hệ", "gọi")]),
+        Turn("Dưới 2 tuổi", known={**FB_NAME, "phone": TEST_PHONE}),
+    ],
+    # Chọn cơ sở, hẹn tham quan: không kể lại cơ sở/buổi/SĐT ở mỗi tin, chỉ xác nhận ngắn lúc chốt.
+    "hen_tham_quan": [
+        Turn("bé nhà mình 20 tháng, mình muốn đi xem trường", known=FB_NAME),
+        Turn("cơ sở Chùa Láng", known={**FB_NAME, "kid_age": "20 tháng"}),
+        Turn("buổi sáng", known=VISIT),
+        Turn(f"sáng mai nhé, số mình {TEST_PHONE}", known=VISIT, any_of=[("liên hệ", "gọi")], next_step=False),
+        Turn(
+            "ok cảm ơn em",
+            known={**VISIT, "phone": TEST_PHONE, "visit_request": "tham quan Chùa Láng sáng mai"},
+            none_of=("sáng mai", "chùa láng"),
+            next_step=False,
+        ),
+    ],
 }
+
+
+def sentence_count(text: str) -> int:
+    """Số câu của câu bot gửi, bỏ token [QUICK:]/[IMAGES:] và mẩu chỉ có emoji.
+
+    Câu kết ở . ? ! … khi sau đó hết tin hoặc là khoảng trắng rồi chữ không viết thường. Không tách ở "v.v. và",
+    "tiếng Anh... và", "1.5", "casa.edu.vn", hay dấu câu ngay sau emoji ("ạ 🌿." đếm như câu chào chuẩn "ạ 🌿 Cảm ơn…").
+    """
+    text = QUICK_TOKEN.sub("", IMAGES_TOKEN.sub("", text))
+    pieces, start = [], 0
+    for match in SENTENCE_PUNCT.finditer(text):
+        rest, before = text[match.end():], text[: match.start()].rstrip().rstrip("\ufe0f")
+        if rest.strip() and (not rest[0].isspace() or rest.lstrip()[0].islower()):
+            continue
+        if before and unicodedata.category(before[-1]) == "So":
+            continue
+        pieces.append(text[start : match.end()])
+        start = match.end()
+    pieces.append(text[start:])
+    return sum(any(ch.isalpha() for ch in piece) for piece in pieces)
+
+
+def style_problems(text: str, parent_messages: list[str], known_phones: set[str]) -> list[str]:
+    """Giọng văn: ngắn, không đọc lại SĐT, chỉ gọi anh/chị/mẹ/ba khi phụ huynh đã tự xưng, không khuôn 'em ghi nhận'."""
+    problems = []
+    if (n := sentence_count(text)) > MAX_SENTENCES:
+        problems.append(f"dài {n} câu (tối đa {MAX_SENTENCES})")
+    phones = {re.sub(r"\D", "", p)[-9:] for p in known_phones}
+    phones |= {re.sub(r"\D", "", p)[-9:] for m in parent_messages for p in PHONE_LIKE.findall(m)}
+    if any(re.sub(r"\D", "", p)[-9:] in phones for p in PHONE_LIKE.findall(text)):
+        problems.append("đọc lại SĐT phụ huynh đã gửi")
+    for address in (ANH_CHI, LONE_BA_ME):
+        if (match := address.search(text)) and not any(address.search(m) for m in parent_messages):
+            problems.append(f"gọi {match.group(0)!r} khi phụ huynh chưa tự xưng")
+    if ROBOTIC_OPENING.search(text):
+        problems.append("mở đầu khuôn 'Dạ em ghi nhận'")
+    return problems
 
 
 def last_sentence(text: str) -> str:
@@ -115,14 +197,16 @@ def last_sentence(text: str) -> str:
     return sentences[-1] if sentences else ""
 
 
-def check_turn(turn: Turn, is_first: bool, escalated: bool, text: str) -> list[str]:
+def check_turn(turn: Turn, is_first: bool, escalated: bool, text: str, parent_messages: list[str]) -> list[str]:
+    """parent_messages: mọi tin phụ huynh tới lượt này, kể cả turn.message."""
     if turn.expect_escalate is not None and escalated != turn.expect_escalate:
         return [f"mong đợi escalate={turn.expect_escalate}, nhận escalate={escalated}"]
     if escalated:
         return []
 
-    problems = []
     text = unicodedata.normalize("NFC", text)
+    known_phones = {turn.known["phone"]} if turn.known.get("phone") else set()
+    problems = style_problems(text, parent_messages, known_phones)
     lowered = text.lower()
     last = last_sentence(text).lower()
     if len(VIETNAMESE_MARKS.findall(text)) < 5:
@@ -131,7 +215,7 @@ def check_turn(turn: Turn, is_first: bool, escalated: bool, text: str) -> list[s
         problems.append(f"xưng hô sai: {match.group(0)!r}")
     if match := MONEY.search(text):
         problems.append(f"nêu số tiền: {match.group(0)!r}")
-    if not (any(a in last for a in NEXT_ACTIONS) or ("?" in last and any(q in last for q in NEXT_QUESTIONS))):
+    if turn.next_step and not (any(a in last for a in NEXT_ACTIONS) or ("?" in last and any(q in last for q in NEXT_QUESTIONS))):
         problems.append(f"câu cuối không có bước tiếp theo: {last_sentence(text)!r}")
     keys = QUICK_TOKEN.findall(text)
     if len(keys) > 1 or (keys and not text.rstrip().endswith(f"[QUICK:{keys[0]}]")):
@@ -155,13 +239,15 @@ async def run_scenario(engine: AIEngine, name: str, turns: list[Turn]) -> tuple[
     history: list[dict] = []
     failures = 0
     for turn in turns:
-        resp = await engine.get_response(turn.message, conversation_history=history)
+        context = format_profile_for_prompt(turn.known)
+        resp = await engine.get_response(turn.message, conversation_history=history, customer_context=context)
         if resp.model_used == "none":
             print(f"PH: {turn.message}\n  ! mọi model đều lỗi")
             return failures, False
         shown = "[ESCALATE]" if resp.should_escalate else resp.text
         print(f"PH: {turn.message}\nBOT ({resp.model_used}): {shown}")
-        problems = check_turn(turn, not history, resp.should_escalate, resp.text)
+        parent_messages = [m["content"] for m in history if m["role"] == "user"] + [turn.message]
+        problems = check_turn(turn, not history, resp.should_escalate, resp.text, parent_messages)
         for problem in problems:
             print(f"  ✘ {problem}")
         failures += bool(problems)

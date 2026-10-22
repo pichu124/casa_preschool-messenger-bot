@@ -259,7 +259,7 @@ def test_menu_reply_sends_the_real_menu_image_parents_can_open(monkeypatch):
     images_line = re.compile(rf"Q: {re.escape(MENU_QUESTION)}[^\n]*\n   A: [^\n]*\n   Images: ([^\n]+)")
 
     class MenuModel(AIProvider):
-        async def generate(self, system_prompt, user_message, conversation_history):
+        async def generate(self, system_prompt, user_message, conversation_history, max_tokens=1024):
             match = images_line.search(system_prompt)
             return f"Dạ đây là thực đơn mẫu của Casa ạ. [IMAGES:{match.group(1)}]" if match else "Dạ vâng ạ."
 

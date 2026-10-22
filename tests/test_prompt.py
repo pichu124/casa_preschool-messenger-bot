@@ -1,7 +1,9 @@
 """Prompt tư vấn và lọc khối suy luận <think>: chỉ dùng provider giả, không mạng, không API key."""
 import asyncio
+import importlib.util
 import json
 import re
+from pathlib import Path
 
 import pytest
 
@@ -15,7 +17,7 @@ class FakeProvider(AIProvider):
         self.reply = reply
         self.calls = 0
 
-    async def generate(self, system_prompt: str, user_message: str, conversation_history: list[dict]) -> str:
+    async def generate(self, system_prompt, user_message, conversation_history, max_tokens=1024) -> str:
         self.calls += 1
         return self.reply
 
@@ -142,7 +144,7 @@ def test_format_admin_reply_never_sends_reasoning_to_parent(monkeypatch):
 class RecordingProvider(FakeProvider):
     """Ghi lại đúng những gì AIEngine gửi cho model."""
 
-    async def generate(self, system_prompt: str, user_message: str, conversation_history: list[dict]) -> str:
+    async def generate(self, system_prompt, user_message, conversation_history, max_tokens=1024) -> str:
         self.system_prompt, self.user_message = system_prompt, user_message
         return await super().generate(system_prompt, user_message, conversation_history)
 
@@ -334,3 +336,270 @@ def test_follow_up_message_is_not_marked_first(monkeypatch):
 
     assert "[FIRST_MESSAGE]" not in user_message
     assert "Dạ Casa chào Ba/Mẹ ạ" not in user_message
+
+
+# Phản hồi người dùng 2026-10-22: bot dài dòng, nhắc lại thông tin phụ huynh vừa gửi (SĐT, cơ sở, buổi hẹn) và
+# đoán "anh" từ tên Facebook. Quyết định: 1–3 câu ngắn; xưng "em" – "Ba/Mẹ", chỉ đổi khi phụ huynh tự xưng;
+# không đọc lại thông tin đã biết.
+_spec = importlib.util.spec_from_file_location("eval_chat", Path(__file__).resolve().parent.parent / "scripts" / "eval_chat.py")
+eval_chat = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(eval_chat)
+
+FOLLOW_UP = [{"role": "user", "content": "bé 3 tuổi"}, {"role": "assistant", "content": "Vâng ạ"}]
+# "mẹ" đứng riêng (gọi phụ huynh là mẹ), không tính "Ba/Mẹ", "ba mẹ".
+LONE_ME = re.compile(r"(?<!Ba/)(?<!ba )(?<!Ba )\b[Mm]ẹ\b")
+ANH_CHI = re.compile(r"(?<!tiếng )\b(?:anh|chị)\b")
+
+
+def _reminder(user_message: str) -> str:
+    return user_message.split("[NHẮC NHỞ QUAN TRỌNG]:", 1)[1]
+
+
+def _reminders(monkeypatch) -> list[str]:
+    """Khối nhắc nhở cho tin đầu tiên, tin tiếp theo và khách cũ quay lại."""
+    context = "[THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT]:\n- Bé: tên Bông, 3 tuổi"
+    cases = (
+        {},
+        {"conversation_history": FOLLOW_UP},
+        {"conversation_history": FOLLOW_UP, "customer_context": context, "gap_hours": 72},
+    )
+    return [_reminder(model_input(monkeypatch, "học phí bao nhiêu", **kwargs)[1]) for kwargs in cases]
+
+
+def _examples() -> list[tuple[str, str]]:
+    """(dòng phụ huynh, câu "Em: …" ngay sau) trong mục VÍ DỤ của prompt."""
+    lines = SYSTEM_PROMPT.split("\nVÍ DỤ", 1)[1].split("CƠ SỞ DỮ LIỆU Q&A", 1)[0].splitlines()
+    return [(lines[i - 1], m.group(1)) for i, line in enumerate(lines) if (m := re.fullmatch(r'Em: "(.*)"', line))]
+
+
+def test_replies_are_one_to_three_short_sentences(monkeypatch):
+    assert "1–3 câu" in SYSTEM_PROMPT
+    assert "2–5 câu" not in SYSTEM_PROMPT
+    for reminder in _reminders(monkeypatch):
+        assert "1–3 câu" in reminder
+        assert "2-5 câu" not in reminder
+
+
+def test_parent_is_ba_me_unless_they_name_themselves_never_from_facebook_name(monkeypatch):
+    for text in [SYSTEM_PROMPT] + _reminders(monkeypatch):
+        lowered = text.lower()
+        assert "ba/mẹ" in lowered
+        assert "tự xưng" in lowered
+        assert re.search(r"không (?:được )?đoán giới tính[^\n]*tên facebook", lowered), text
+        assert "(hoặc 'anh/chị')" not in text
+    # Câu mẫu trong khối nhắc nhở (vd chào khách cũ) không tự gọi "mẹ Bông".
+    samples = [s for r in _reminders(monkeypatch) for s in re.findall(r"VD: '([^']*)'", r)]
+    assert samples
+    for sample in samples:
+        assert not LONE_ME.search(sample) and not ANH_CHI.search(sample), sample
+
+
+def test_known_info_is_used_not_read_back(monkeypatch):
+    for text in [SYSTEM_PROMPT] + _reminders(monkeypatch)[1:]:
+        lowered = text.lower()
+        assert re.search(r"không nhắc lại[^\n]*(?:đã biết|vừa gửi)", lowered), text
+        assert re.search(r"không (?:bao giờ )?đọc lại (?:số điện thoại|sđt)", lowered), text
+    assert "nhắc tên/tuổi bé đã biết" not in SYSTEM_PROMPT
+    assert all("Tham chiếu thông tin bé đã biết" not in r for r in _reminders(monkeypatch))
+
+
+def test_known_info_steers_the_advice(monkeypatch):
+    # "Chỉ để không hỏi lại" làm model bỏ qua cơ sở đã biết: PH Kim Mã hỏi GV nước ngoài được trả lời theo hệ Quốc tế.
+    for text in [SYSTEM_PROMPT] + _reminders(monkeypatch):
+        assert "chỉ để không hỏi lại" not in text
+        assert re.search(r"tư vấn đúng hệ/cơ sở/nhóm tuổi[^\n]*không hỏi lại[^\n]*không kể lại", text), text
+
+
+def test_prompt_examples_are_short_varied_and_never_guess_how_to_address_parent():
+    examples = [reply for _, reply in _examples()]
+    assert len(examples) >= 8
+
+    for reply in examples:
+        assert eval_chat.sentence_count(reply) <= 3, reply
+        assert not ANH_CHI.search(reply), reply
+        assert not LONE_ME.search(reply), reply
+        assert "ghi nhận" not in reply, reply
+        assert not re.search(r"\d{8,}", reply), reply
+    assert sum(reply.startswith("Dạ") for reply in examples) <= len(examples) // 2
+    assert sum(bool(re.search(r"[\U0001F300-\U0001FAFF]", reply)) for reply in examples) <= 2
+
+
+@pytest.mark.parametrize(
+    ("parent_says", "topics"),
+    [
+        ("tieng anh", {"program", "visit_invite"}),
+        ("nhat nhung", {"trial"}),
+        ("Dưới 2 tuổi", {"program"}),
+    ],
+)
+def test_short_examples_still_name_their_topics(parent_says, topics):
+    from app.coverage import topics_in_reply
+
+    replies = [reply for parent, reply in _examples() if parent_says in parent]
+    assert len(replies) == 1
+    assert topics <= set(topics_in_reply(replies[0])), replies[0]
+
+
+def test_booked_visit_is_the_one_exception_to_ending_with_a_next_step(monkeypatch):
+    # Ví dụ chốt hẹn ("…Hẹn gặp Ba/Mẹ và bé ở trường nhé!") không có bước tiếp theo: prompt và eval phải cùng nói vậy.
+    rule6 = next(line for line in SYSTEM_PROMPT.splitlines() if line.startswith("6. "))
+    booked = next(line for line in SYSTEM_PROMPT.splitlines() if '"Đã hẹn: …"' in line)
+    assert "'Đã hẹn'" in rule6.split("kết thúc bằng", 1)[0], rule6
+    assert "không cần bước tiếp theo" in booked, booked
+    assert all("không cần bước tiếp theo" in r for r in _reminders(monkeypatch))
+
+    parent, reply = _examples()[-1]
+    assert "sang mai nhe" in parent
+    turn = next(t for t in eval_chat.SCENARIOS["hen_tham_quan"] if "sáng mai nhé" in t.message)
+    assert eval_chat.check_turn(turn, False, False, reply, [turn.message]) == []
+    # Lượt bình thường vẫn bị bắt khi thiếu bước tiếp theo.
+    problems = eval_chat.check_turn(eval_chat.Turn("trường ở đâu"), False, False, reply, ["trường ở đâu"])
+    assert any("bước tiếp theo" in p for p in problems), problems
+
+
+def test_facebook_name_never_reaches_the_model(monkeypatch):
+    from app.customer_memory import format_profile_for_prompt
+
+    context = format_profile_for_prompt({"parent_name": "Minh Thử", "kid_age": "20 tháng", "phone": "0900000999"})
+
+    assert "Minh Thử" not in context
+    _, user_message = model_input(monkeypatch, "sáng mai nhé", customer_context=context, conversation_history=FOLLOW_UP)
+    assert "Minh Thử" not in user_message
+    assert "20 tháng" in user_message
+
+
+def test_admin_reply_is_rewritten_in_the_same_short_voice(monkeypatch):
+    recorder = RecordingProvider("Dạ lớp mở vào tháng 9 ạ.")
+    engine = make_engine(monkeypatch, fake=recorder)
+
+    asyncio.run(engine.format_admin_reply("thang 9 mo lop", "khi nào mở lớp"))
+
+    # Harness của skill verify-casa-bot nhận diện lời gọi này qua câu mở đầu.
+    assert recorder.system_prompt.startswith("Bạn là nhân viên tư vấn trường mầm non Casa")
+    assert "ngắn gọn" in recorder.system_prompt
+    assert "Ba/Mẹ" in recorder.system_prompt
+    assert "tự xưng" in recorder.system_prompt
+    assert "khi phù hợp" not in recorder.system_prompt
+    assert "không thêm thông tin" in recorder.system_prompt
+
+
+def test_admin_reply_keeps_every_fact_admin_gave(monkeypatch):
+    # Câu admin viết lại được gửi thẳng cho phụ huynh: giới hạn "1–3 câu" từng cho phép model bỏ bớt lịch, giờ, số.
+    admin_answer = "T2 8h30 Montessori, T4 9h Science (cô Lan), T6 15h Cooking; mang 2 bộ quần áo, đóng 500k phí học liệu"
+    recorder = RecordingProvider("Dạ lịch tuần của lớp như sau ạ.")
+    engine = make_engine(monkeypatch, fake=recorder)
+
+    asyncio.run(engine.format_admin_reply(admin_answer, "lịch học tuần này thế nào"))
+
+    prompt = recorder.system_prompt
+    assert recorder.system_prompt.startswith("Bạn là nhân viên tư vấn trường mầm non Casa")
+    assert "1–3 câu" not in prompt
+    assert re.search(r"giữ đủ mọi dữ kiện[^.]*ngày, giờ, con số, tên[^.]*danh sách", prompt, re.I), prompt
+    assert "dài hơn 3 câu" in prompt
+    assert admin_answer in recorder.user_message
+
+
+PHONE = "0900000999"
+PRODUCTION_LIKE = {
+    "doc-lai-sdt-doan-anh": (
+        f"Dạ em cảm ơn anh Minh đã để lại số ạ 🌿 Em đã ghi nhận SĐT {PHONE} và tư vấn viên sẽ liên hệ anh sớm ạ. "
+        "Anh cho em biết bé được bao nhiêu tháng tuổi nhé ạ?",
+        ["đọc lại SĐT", "gọi 'anh'"],
+    ),
+    "khuon-em-ghi-nhan-sdt-tach-so": (
+        "Dạ, em đã ghi nhận Ba/Mẹ muốn tham quan cơ sở Chùa Láng vào sáng mai ạ. "
+        f"Tư vấn viên sẽ liên hệ qua số {PHONE[:4]} {PHONE[4:7]} {PHONE[7:]} để xác nhận ạ.",
+        ["đọc lại SĐT", "em ghi nhận"],
+    ),
+    "nam-cau": (
+        "Dạ nhóm 15 tháng–3 tuổi học theo Montessori ạ. Con được chăm sóc sát sao. Con làm quen tiếng Anh. "
+        "Con tự lập hơn. Ba/Mẹ quan tâm cơ sở nào ạ?",
+        ["dài 5 câu"],
+    ),
+}
+
+
+@pytest.mark.parametrize(("reply", "expected"), PRODUCTION_LIKE.values(), ids=PRODUCTION_LIKE.keys())
+def test_eval_flags_bot_like_replies(reply, expected):
+    problems = eval_chat.style_problems(reply, parent_messages=[PHONE], known_phones={PHONE})
+
+    assert len(problems) == len(expected), problems
+    for problem, phrase in zip(problems, expected):
+        assert phrase in problem
+
+
+def test_eval_passes_short_human_replies():
+    good = (
+        "Cảm ơn Ba/Mẹ, tư vấn viên sẽ liên hệ sớm ạ. Bé học tiếng Anh cả ngày với cô nước ngoài. "
+        "Bé dự kiến nhập học khi nào ạ? [QUICK:age]"
+    )
+    assert eval_chat.style_problems(good, parent_messages=[PHONE], known_phones={PHONE}) == []
+    # Phụ huynh tự xưng "chị" thì bot gọi "chị" là đúng.
+    assert eval_chat.style_problems("Dạ chị cho em xin tuổi bé ạ?", parent_messages=["chị muốn hỏi học phí"], known_phones=set()) == []
+    assert eval_chat.sentence_count("Dạ Casa chào Ba/Mẹ ạ 🌿 Cảm ơn Ba/Mẹ. Bé mấy tháng rồi ạ? [QUICK:age]") == 2
+
+
+@pytest.mark.parametrize(
+    ("reply", "sentences"),
+    [
+        ("Con có Science, Art, v.v. và nhiều hoạt động khác ạ. Ba/Mẹ muốn ghé tham quan không ạ?", 2),
+        ("Con có Science, Art, v.v. Ba/Mẹ muốn ghé tham quan không ạ?", 2),
+        ("Lớp có Montessori, tiếng Anh... và ngoại khóa ạ. Ba/Mẹ quan tâm cơ sở nào ạ?", 2),
+        ("Lớp có Montessori, tiếng Anh… và ngoại khóa ạ. Ba/Mẹ quan tâm cơ sở nào ạ?", 2),
+        ("Dạ vâng... Bé nhà mình mấy tuổi rồi ạ?", 2),
+        ("Lớp 0–3 tuổi học với cô nước ngoài khoảng 1.5 giờ mỗi ngày ạ. Ba/Mẹ quan tâm cơ sở nào ạ?", 2),
+        ("Ba/Mẹ xem thêm ở casa.edu.vn hoặc mail info@casa.edu.vn nhé. Bé mấy tuổi rồi ạ?", 2),
+        ("Dạ Casa chào Ba/Mẹ ạ 🌿. Cảm ơn Ba/Mẹ đã quan tâm đến Casa dei Bambini. Bé mấy tháng rồi ạ? [QUICK:age]", 2),
+        ("Dạ Casa chào Ba/Mẹ ạ 🌿! Cảm ơn Ba/Mẹ đã quan tâm đến Casa dei Bambini. Bé mấy tháng rồi ạ? [QUICK:age]", 2),
+        ("Dạ có ạ. Con học Cambridge. 3 cơ sở đều có cô nước ngoài. Ba/Mẹ quan tâm cơ sở nào ạ?", 4),
+    ],
+    ids=["vv-giua-cau", "vv-cuoi-cau", "ba-cham", "dau-ba-cham", "ba-cham-het-cau", "so-thap-phan", "domain-email",
+         "emoji-cham", "emoji-cham-than", "bon-cau-that"],
+)
+def test_eval_sentence_count_ignores_dots_that_do_not_end_a_sentence(reply, sentences):
+    assert eval_chat.sentence_count(reply) == sentences
+
+
+ASK_TRIAL = " Ba/Mẹ cho bé học thử tuần này hay tuần sau ạ?"
+
+
+@pytest.mark.parametrize(
+    ("reply", "flagged"),
+    [
+        ("Mẹ yên tâm nhé, các cô đồng hành cùng bé ạ." + ASK_TRIAL, "'Mẹ'"),
+        ("Dạ ba cho em xin tuổi bé ạ?", "'ba'"),
+        ("Em gửi mẹ bé lịch tham quan nhé ạ." + ASK_TRIAL, "'mẹ'"),
+    ],
+)
+def test_eval_flags_lone_me_or_ba_when_parent_never_named_themselves(reply, flagged):
+    problems = eval_chat.style_problems(reply, parent_messages=["con mình nhút nhát lắm"], known_phones=set())
+
+    assert len(problems) == 1 and flagged in problems[0], problems
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "Family Day để ba mẹ tham gia cùng con ạ." + ASK_TRIAL,
+        "Bé ba tuổi học lớp Mầm, có buổi học thứ Ba ạ." + ASK_TRIAL,
+        "Ngày đầu bé hay khóc vì nhớ mẹ, các cô dỗ con từ từ ạ." + ASK_TRIAL,
+        "Bé có anh trai học ở Casa thì được ưu đãi anh chị em ạ." + ASK_TRIAL,
+        "Cô giáo người Anh dạy tiếng Anh cả ngày ạ." + ASK_TRIAL,
+        "Bé có chị gái đang học ở Kim Mã thì con sẽ quen nhanh ạ." + ASK_TRIAL,
+    ],
+    ids=["ba-me", "so-ba-thu-ba", "nho-me", "anh-trai", "nguoi-anh", "chi-gai"],
+)
+def test_eval_does_not_mistake_family_words_for_addressing_the_parent(reply):
+    assert eval_chat.style_problems(reply, parent_messages=["con mình nhút nhát lắm"], known_phones=set()) == []
+
+
+def test_eval_allows_me_once_parent_names_themselves():
+    reply = "Dạ mẹ Na cho em xin tuổi bé ạ?"
+    assert eval_chat.style_problems(reply, parent_messages=["mình là mẹ bé Na"], known_phones=set()) == []
+
+
+def test_eval_catches_phone_read_back_in_brackets_format():
+    reply = "Tư vấn viên sẽ gọi số (090) 000-0999 ạ."
+    for parent_messages, known_phones in (([PHONE], set()), (["số mình (090) 000-0999"], set()), ([], {PHONE})):
+        problems = eval_chat.style_problems(reply, parent_messages=parent_messages, known_phones=known_phones)
+        assert any("đọc lại SĐT" in p for p in problems), (parent_messages, problems)

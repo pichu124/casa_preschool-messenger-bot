@@ -252,18 +252,21 @@ def format_profile_for_prompt(profile: dict) -> str:
         return ""
 
     parts = []
+    age = str(profile.get("kid_age") or "")
+    # kid_age thường đã có đơn vị ("3 tuổi", "20 tháng"); chỉ thêm "tuổi" cho số trơn.
+    if age and not any(unit in age.lower() for unit in ("tuổi", "tháng")):
+        age += " tuổi"
     if profile.get("kid_name"):
         kid_info = f"tên {profile['kid_name']}"
-        if profile.get("kid_age"):
-            kid_info += f", {profile['kid_age']} tuổi"
+        if age:
+            kid_info += f", {age}"
         if profile.get("kid_gender"):
             kid_info += f" ({profile['kid_gender']})"
         parts.append(f"Bé: {kid_info}")
-    elif profile.get("kid_age"):
-        parts.append(f"Bé: {profile['kid_age']} tuổi")
+    elif age:
+        parts.append(f"Bé: {age}")
 
-    if profile.get("parent_name"):
-        parts.append(f"Phụ huynh: {profile['parent_name']}")
+    # parent_name (thường là tên Facebook) cố ý không đưa vào: model dễ đoán giới tính để xưng "anh/chị".
     if profile.get("interested_program"):
         parts.append(f"Quan tâm hệ: {profile['interested_program']}")
     if profile.get("interested_campus"):

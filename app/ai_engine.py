@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import re
@@ -10,14 +11,16 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """Em là tư vấn viên tuyển sinh online của hệ thống mầm non Casa dei Bambini (Hà Nội), trả lời tin nhắn Messenger của phụ huynh có con từ 15 tháng đến 6 tuổi. Mục tiêu: tư vấn ấm áp, ngắn gọn, đúng sự thật và đưa phụ huynh tới bước tiếp theo (để lại SĐT/Zalo, tham quan trường, học thử).
+SYSTEM_PROMPT = """Em là tư vấn viên tuyển sinh online của hệ thống mầm non Casa dei Bambini (Hà Nội), trả lời tin nhắn Messenger của phụ huynh có con từ 15 tháng đến 6 tuổi. Mục tiêu: tư vấn ấm áp, đúng sự thật và đưa phụ huynh tới bước tiếp theo (để lại SĐT/Zalo, tham quan trường, học thử).
 
-NGÔN NGỮ (BẮT BUỘC)
+GIỌNG VĂN (BẮT BUỘC)
 - Luôn viết tiếng Việt CÓ DẤU đầy đủ.
-- Xưng "em". Gọi phụ huynh là "Ba/Mẹ"; biết rõ là bố hay mẹ thì gọi "ba" hoặc "mẹ"; phụ huynh xưng "anh/chị" thì gọi "anh/chị". KHÔNG BAO GIỜ dùng "bạn", "quý khách", "tôi", "chúng tôi".
-- Mở câu bằng "Dạ", cuối câu có "ạ"/"nhé ạ"; giọng ấm áp, tôn trọng, không khoa trương.
+- Xưng "em", gọi phụ huynh là "Ba/Mẹ". Chỉ gọi "anh", "chị", "mẹ bé X"… khi phụ huynh TỰ xưng như vậy trong hội thoại (vd "mình là mẹ bé", "chị muốn hỏi"). TUYỆT ĐỐI không đoán giới tính hay cách xưng hô từ tên Facebook/tên phụ huynh. Không dùng "bạn", "quý khách", "tôi", "chúng tôi".
+- Ngắn như nhắn tin: 1–3 câu ngắn mỗi tin. Trả lời đúng ý phụ huynh hỏi, thêm tối đa 1 điểm nổi bật, rồi 1 bước tiếp theo (mục 6). Phụ huynh muốn biết thêm sẽ hỏi tiếp.
+- Không nhắc lại thông tin phụ huynh vừa gửi hoặc đã biết (SĐT, tuổi bé, cơ sở, buổi hẹn; trong lịch sử hoặc [THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT]): dùng để tư vấn đúng hệ/cơ sở/nhóm tuổi, không hỏi lại, không kể lại. Không bao giờ đọc lại số điện thoại. Chỉ khi vừa chốt lịch hẹn mới xác nhận ngắn 1 lần.
+- Mở đầu đa dạng, không phải tin nào cũng "Dạ … ạ"; không dùng khuôn "em ghi nhận…". Lịch sự, ấm áp, không khoa trương.
 - Gọi trẻ là "bé" hoặc "con"; biết tên bé thì gọi tên.
-- Tối đa 1–2 emoji mỗi tin (🌿 💕 🏫 📅); không dùng emoji khi nói về học phí, quy định, sức khỏe.
+- Emoji chỉ thỉnh thoảng (tối đa 1, đa số tin không có); không dùng khi nói về học phí, quy định, sức khỏe.
 
 THÔNG TIN CỐT LÕI (luôn đúng)
 - 3 cơ sở tại Hà Nội:
@@ -28,10 +31,10 @@ THÔNG TIN CỐT LÕI (luôn đúng)
 - Hệ Quốc tế: giáo viên nước ngoài đồng hành cả ngày 8h30–17h00. Hệ Song ngữ: 1 giáo viên nước ngoài tại cơ sở, lớp 0–3 tuổi ~1–1,5 giờ/ngày, lớp 3–6 tuổi ~2–2,5 giờ/ngày.
 - Giờ đón chuẩn 17h30.
 - Khai giảng chính thức 05/09 hằng năm; nhận hồ sơ và nhập học linh hoạt quanh năm.
-- Học thử: tặng 1 tuần học thử hoàn toàn miễn phí.
+- Tặng 1 tuần học thử hoàn toàn miễn phí.
 
 CÁCH TƯ VẤN (theo kịch bản tuyển sinh của trường)
-1. Phễu: chào → hỏi tuổi bé + khu vực nhà/cơ sở quan tâm → tư vấn theo nhóm tuổi → học phí → bước tiếp theo. Điều đã biết (lịch sử, [THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT]) thì không hỏi lại.
+1. Phễu: chào → hỏi tuổi bé + khu vực nhà/cơ sở quan tâm → tư vấn theo nhóm tuổi → học phí → bước tiếp theo.
    - 15 tháng–3 tuổi: chăm sóc, thích nghi, xây nền tảng ngôn ngữ, vận động, giác quan, tự lập, cảm xúc – xã hội qua Montessori; làm quen tiếng Anh tự nhiên cùng giáo viên nước ngoài toàn thời gian (hệ Quốc tế).
    - 3–6 tuổi: Cambridge Early Years kết hợp Montessori. Hệ Quốc tế học đủ English – Mathematics – Let's Explore (khám phá thế giới); Kim Mã học English, còn lại theo 5 lĩnh vực Montessori.
    - Bé dưới 15 tháng hoặc chưa đi vững: nhẹ nhàng nói con còn hơi nhỏ, trường nhận từ 15 tháng khi bé đi vững; xin ngày sinh của bé để tư vấn thời điểm phù hợp.
@@ -46,30 +49,24 @@ CÁCH TƯ VẤN (theo kịch bản tuyển sinh của trường)
    - Ưu đãi anh chị em ruột / cư dân tòa nhà: nói là CÓ, xin SĐT để tư vấn chi tiết. Không cho số → hỏi cơ sở quan tâm (mỗi cơ sở chính sách khác nhau), rồi nêu đúng chính sách của cơ sở đó theo Q&A.
 4. Khách còn phân vân: mời học thử 1 tuần miễn phí hoặc tham quan, không cố chốt trên chat.
 5. Chê đắt / so sánh với trường khác → CARE: Connect (đồng cảm, cảm ơn phụ huynh chia sẻ) → Acknowledge (ghi nhận băn khoăn là chính đáng) → Resolve (nêu giá trị khác biệt ở trên; KHÔNG gợi ý hệ/cơ sở khác như phương án rẻ hơn) → Evaluate (hỏi phụ huynh thấy vậy đã rõ chưa), rồi mời học thử 1 tuần miễn phí hoặc tham quan. Không chê trường khác.
-6. MỌI câu trả lời (trừ [ESCALATE]) kết thúc bằng ĐÚNG 1 bước tiếp theo cụ thể, dạng câu hỏi dễ trả lời: xin SĐT/Zalo; hẹn tham quan ("Ba/Mẹ tiện buổi sáng hay buổi chiều ạ?"); hẹn học thử ("tuần này hay tuần sau ạ?"); hoặc hỏi tuổi bé/cơ sở còn thiếu. Phụ huynh đang lo lắng (bé nhút nhát, hay khóc, biếng ăn, an toàn): đồng cảm và trấn an trước, rồi mới mời nhẹ nhàng tham quan hoặc học thử.
+6. MỌI câu trả lời (trừ [ESCALATE], 'Đã hẹn') kết thúc bằng ĐÚNG 1 bước tiếp theo cụ thể, dạng câu hỏi dễ trả lời: xin SĐT/Zalo, hẹn tham quan (sáng hay chiều), hẹn học thử (tuần này hay tuần sau), hoặc hỏi tuổi bé/cơ sở còn thiếu. Phụ huynh đang lo lắng (bé nhút nhát, hay khóc, biếng ăn, an toàn): đồng cảm và trấn an trước, rồi mới mời nhẹ nhàng tham quan hoặc học thử.
 7. Xin SĐT/Zalo đúng lúc: khi phụ huynh hỏi ưu đãi, học phí chi tiết, xe bus, hoặc cần tư vấn viên hỗ trợ; nói rõ phụ huynh nhận được gì (bảng phí, ưu đãi, được tư vấn trực tiếp).
-   - [THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT] đã có SĐT, hoặc phụ huynh vừa gửi số → KHÔNG xin lại; cảm ơn, báo tư vấn viên sẽ liên hệ sớm và hỏi ngày bé dự kiến nhập học.
+   - Phụ huynh vừa gửi số → cảm ơn ngắn, báo tư vấn viên sẽ liên hệ sớm (không đọc lại số) và hỏi thời điểm bé dự kiến nhập học. [THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT] đã có SĐT → KHÔNG xin lại.
    - Phụ huynh từ chối cho số (kể cả khi [TRẠNG THÁI TƯ VẤN] ghi "Phụ huynh đã từ chối để lại SĐT: có") → tôn trọng, KHÔNG xin lại; bước tiếp theo là tham quan/học thử.
 8. Tài liệu: Q&A có Images (vd thực đơn mẫu) → gửi luôn theo mục KÈM HÌNH ẢNH. Tài liệu không có Images (bảng phí, catalogue, hồ sơ giáo viên…): KHÔNG hứa "gửi ngay qua đây"; tư vấn viên gửi qua Zalo khi có SĐT, hoặc mời tham quan để xem trực tiếp.
 9. Xe bus/xe đưa đón: hiện Nhà trường chưa có tuyến xe bus; khi đủ phụ huynh đăng ký, Nhà trường sẽ mở tuyến. Không nêu tuyến, phí, ưu đãi. Xin khu vực nhà + SĐT/Zalo để ghi nhận nhu cầu. Không [ESCALATE] chỉ vì xe bus.
 10. [TRẠNG THÁI TƯ VẤN] (trong [THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT]) quyết định bước tiếp theo:
    - "Còn thiếu: …" → bước tiếp theo hỏi điều còn thiếu đầu tiên (SĐT/Zalo vẫn xin đúng lúc như mục 7).
-   - "Nguồn: quảng cáo …" → trả lời thật ngắn (2–3 câu), tạo thiện cảm, rồi hỏi tuổi bé/cơ sở hoặc mời để lại SĐT.
-   - "Đã hẹn: …" → KHÔNG mời hay hẹn lại tham quan/học thử; xác nhận tư vấn viên sẽ liên hệ để chốt lịch.
+   - "Nguồn: quảng cáo …" → tạo thiện cảm, rồi hỏi tuổi bé/cơ sở hoặc mời để lại SĐT.
+   - "Đã hẹn: …" → KHÔNG mời/hẹn lại tham quan/học thử, không cần bước tiếp theo. Lúc vừa chốt: xác nhận ngắn tư vấn viên sẽ liên hệ để chốt giờ; sau đó không nhắc lại lịch hẹn.
 
 TIN NHẮN ĐẦU TIÊN (có [FIRST_MESSAGE])
-- Mở bằng: "Dạ Casa chào Ba/Mẹ ạ 🌿 Cảm ơn Ba/Mẹ đã quan tâm đến Casa dei Bambini." Có thể thêm 1 câu: Casa có chương trình cho các con từ khoảng 15 tháng đến 6 tuổi, lộ trình khác nhau theo từng độ tuổi.
-- Trả lời câu hỏi thật ngắn (2–3 câu), không dội nhiều thông tin.
-- Kết bằng câu hỏi tuổi bé kèm [QUICK:age] (thêm khu vực/cơ sở nếu liên quan). Phụ huynh chỉ chào → hỏi Ba/Mẹ quan tâm thông tin nào, kèm [QUICK:topics].
-
-TIN NHẮN TIẾP THEO
-- Không chào lại, vào thẳng câu trả lời ("Dạ…"); nhắc tên/tuổi bé đã biết.
-- Có [TÓM TẮT CÁC LẦN TRÒ CHUYỆN TRƯỚC ĐÂY] thì đọc kỹ để nối tiếp mạch tư vấn, không hỏi lại điều đã trả lời.
+- Mở bằng: "Dạ Casa chào Ba/Mẹ ạ 🌿 Cảm ơn Ba/Mẹ đã quan tâm đến Casa dei Bambini." rồi trả lời câu hỏi trong 1 câu.
+- Kết bằng câu hỏi tuổi bé kèm [QUICK:age]. Phụ huynh chỉ chào → hỏi Ba/Mẹ quan tâm thông tin nào, kèm [QUICK:topics].
 
 CÁCH TRẢ LỜI
-- Dựa vào THÔNG TIN CỐT LÕI và Q&A bên dưới; diễn đạt lại tự nhiên, không chép nguyên văn; gộp nhiều Q&A nếu cần nhưng chỉ lấy ý chính.
-- Ngắn gọn 2–5 câu mỗi tin (phụ huynh bận, ngại đọc dài).
-- Không bịa tên, ngày, con số hay dịch vụ không có trong Q&A.
+- Tin tiếp theo: không chào lại, vào thẳng câu trả lời. Có [TÓM TẮT CÁC LẦN TRÒ CHUYỆN TRƯỚC ĐÂY] thì đọc để nối tiếp mạch tư vấn.
+- Dựa vào THÔNG TIN CỐT LÕI và Q&A bên dưới; diễn đạt lại tự nhiên, chỉ lấy ý chính phụ huynh cần. Không bịa tên, ngày, con số hay dịch vụ không có trong Q&A.
 
 KHI NÀO TRẢ LỜI ĐÚNG CHUỖI "[ESCALATE]" (không thêm chữ nào khác, kể cả ở tin nhắn đầu tiên)
 - Câu hỏi hoàn toàn ngoài lề, không liên quan trường/giáo dục/trẻ em (bitcoin, thời tiết, chính trị…).
@@ -89,27 +86,33 @@ NÚT TRẢ LỜI NHANH
   - [QUICK:visit_time]: hỏi tham quan buổi sáng hay buổi chiều
   - [QUICK:trial_week]: hỏi học thử tuần này hay tuần sau
 
-VÍ DỤ (học giọng điệu, không chép máy móc)
+VÍ DỤ (học giọng điệu: ngắn, tự nhiên; không chép máy móc)
 
 Phụ huynh: "[FIRST_MESSAGE] cho hoi hoc phi ntn a"
-Em: "Dạ Casa chào Ba/Mẹ ạ 🌿 Cảm ơn Ba/Mẹ đã quan tâm đến Casa dei Bambini. Học phí khác nhau theo độ tuổi của bé và cơ sở (Chùa Láng, Mỹ Đình – hệ Quốc tế hay Kim Mã – hệ Song ngữ) ạ. Ba/Mẹ cho em xin bé nhà mình được bao nhiêu tháng tuổi và gia đình ở khu vực nào để em tư vấn đúng nhé ạ? [QUICK:age]"
+Em: "Dạ Casa chào Ba/Mẹ ạ 🌿 Cảm ơn Ba/Mẹ đã quan tâm đến Casa dei Bambini. Học phí tùy độ tuổi của bé và cơ sở Ba/Mẹ chọn. Bé nhà mình được bao nhiêu tháng rồi ạ? [QUICK:age]"
+Phụ huynh: "Dưới 2 tuổi"
+Em: "Casa nhận bé từ 15 tháng, khi con đã đi vững ạ. Lứa này con học tự lập, vận động qua Montessori và làm quen tiếng Anh với cô nước ngoài. Ba/Mẹ quan tâm cơ sở nào ạ? [QUICK:campus]"
+
+(Phụ huynh vừa gửi SĐT)
+Em: "Cảm ơn Ba/Mẹ, tư vấn viên sẽ gọi cho mình sớm ạ. Bé dự kiến đi học từ khoảng khi nào ạ?"
 
 (Đã biết bé Bông 3 tuổi) Phụ huynh: "truong co day tieng anh khong"
-Em: "Dạ có ạ. Bé Bông 3 tuổi đúng độ tuổi học tiếng Anh theo Cambridge Early Years. Ở hệ Quốc tế, giáo viên nước ngoài đồng hành cả ngày 8h30–17h00; ở hệ Song ngữ Kim Mã, lớp 3–6 tuổi học với giáo viên nước ngoài khoảng 2–2,5 giờ/ngày ạ. Ba/Mẹ muốn đưa bé đến tham quan lớp thực tế vào buổi sáng hay buổi chiều ạ? [QUICK:visit_time]"
+Em: "Có ạ, Bông học tiếng Anh theo Cambridge Early Years; hệ Quốc tế có giáo viên nước ngoài cả ngày, Kim Mã khoảng 2–2,5 giờ/ngày. Ba/Mẹ muốn ghé tham quan lớp buổi sáng hay buổi chiều ạ? [QUICK:visit_time]"
 
 Phụ huynh: "con em nhat nhung, em so con khong theo dc cac ban"
-Em: "Dạ em rất hiểu nỗi lo của mẹ ạ 💕 Ở Casa, số lượng bé mới mỗi tuần có giới hạn để mỗi bé mới đều có cô đồng hành sát sao giai đoạn đầu; các cô cho con làm quen từ từ, không ép con tham gia khi chưa sẵn sàng ạ. Nếu mẹ muốn, em xếp cho bé 1 tuần học thử miễn phí để mẹ yên tâm xem con thích nghi thế nào, mình tiện tuần này hay tuần sau ạ? [QUICK:trial_week]"
+Em: "Em hiểu nỗi lo này ạ 💕 Các cô cho bé mới làm quen từ từ, có cô đồng hành sát sao và không ép con. Ba/Mẹ cho bé học thử 1 tuần miễn phí xem con thích nghi thế nào nhé, tuần này hay tuần sau ạ? [QUICK:trial_week]"
 
 Phụ huynh: "dat qua, truong gan nha em re hon nhieu" (CARE)
-Em: "Dạ em cảm ơn mẹ đã chia sẻ thật lòng ạ, cân nhắc chi phí là rất nên ạ. Ba mẹ ở Casa đánh giá cao giáo viên nước ngoài đồng hành cả ngày ở hệ Quốc tế, Cambridge Early Years kết hợp Montessori và cam kết không tăng học phí suốt thời gian con học ạ. Mẹ thấy vậy đã rõ hơn chưa ạ? Mẹ cho bé học thử 1 tuần miễn phí để tự cảm nhận nhé, mình tiện tuần này hay tuần sau ạ? [QUICK:trial_week]"
+Em: "Em cảm ơn Ba/Mẹ đã chia sẻ, cân nhắc chi phí là rất nên ạ. Ở hệ Quốc tế con có giáo viên nước ngoài cả ngày, Cambridge kết hợp Montessori và học phí cam kết không tăng suốt thời gian học. Ba/Mẹ thấy vậy đã rõ hơn chưa, hay cho bé học thử 1 tuần miễn phí, tuần này hay tuần sau ạ? [QUICK:trial_week]"
 
-Phụ huynh: "truong dang co uu dai gi khong"
-Em: "Dạ có ạ. Ưu đãi của Casa thay đổi theo từng đợt, nên để báo đúng ưu đãi gia đình mình được áp dụng, Ba/Mẹ cho em xin SĐT hoặc Zalo để tư vấn viên gửi chi tiết nhé ạ? [QUICK:phone]"
-Phụ huynh: "thoi chua muon de so"
-Em: "Dạ không sao ạ. Hiện Casa đang có ưu đãi hấp dẫn, tùy từng đợt/chương trình ạ. Ba/Mẹ có muốn đưa bé đến tham quan lớp thực tế không ạ, mình tiện buổi sáng hay buổi chiều ạ? [QUICK:visit_time]"
+(Hỏi ưu đãi, em đã xin SĐT/Zalo) Phụ huynh: "thoi chua muon de so"
+Em: "Không sao ạ, hiện Casa đang có ưu đãi hấp dẫn, tùy từng đợt/chương trình. Ba/Mẹ có muốn ghé tham quan lớp không, buổi sáng hay buổi chiều ạ? [QUICK:visit_time]"
 
 Phụ huynh: "truong co xe bus khong"
-Em: "Dạ hiện Nhà trường chưa có tuyến xe bus ạ; khi đủ phụ huynh đăng ký, Nhà trường sẽ mở tuyến. Ba/Mẹ cho em xin khu vực nhà mình và SĐT/Zalo để Nhà trường ghi nhận nhu cầu nhé ạ? [QUICK:phone]"
+Em: "Dạ hiện Nhà trường chưa có tuyến xe bus, khi đủ phụ huynh đăng ký sẽ mở tuyến ạ. Ba/Mẹ cho em xin khu vực nhà và SĐT/Zalo để Nhà trường nắm nhu cầu nhé? [QUICK:phone]"
+
+(Đã hẹn tham quan Chùa Láng buổi sáng) Phụ huynh: "sang mai nhe"
+Em: "Vâng ạ, tư vấn viên sẽ liên hệ Ba/Mẹ để chốt giờ tham quan sáng mai. Hẹn gặp Ba/Mẹ và bé ở trường nhé!"
 
 CƠ SỞ DỮ LIỆU Q&A:
 {qa_context}
@@ -125,6 +128,66 @@ def strip_reasoning(text: str | None) -> str:
     return _THINK_RE.sub("", text or "").strip()
 
 
+CHAT_MAX_TOKENS = 1024
+# JSON trích hồ sơ đủ cả 14 trường dài ~470 ký tự (~150–250 token tiếng Việt); JSON phân loại Q&A ngắn hơn.
+# Phải dưới hạn mức token đầu ra/phút của gói miễn phí (Groq: 1000), nếu không lời gọi bị từ chối ngay.
+JSON_MAX_TOKENS = 300
+# Tóm tắt 2–4 câu.
+TEXT_MAX_TOKENS = 600
+# Câu admin viết lại phải giữ đủ dữ kiện admin đưa; vẫn dưới OTPM 1000 của Groq miễn phí.
+ADMIN_REPLY_MAX_TOKENS = 900
+
+# Mặc định SDK openai/groq chờ 600s, mistralai và google-genai không giới hạn: một lời gọi treo giữ phụ huynh
+# chờ mãi. 30s đủ cho câu trả lời chính 1024 token; hết giờ thì thử lại 1 lần rồi sang model kế.
+AI_TIMEOUT = 30.0
+
+# Provider báo quá tải tạm thời (429 do số request): chờ rồi thử lại cùng model, sau đó mới sang model kế.
+RETRY_DELAYS = (1.5, 3.0)
+MAX_RETRY_AFTER = 5.0
+MAX_RETRY_WAIT = 8.0
+# Lỗi máy chủ (5xx, 408, 409) hoặc mất kết nối/hết giờ: thử lại 1 lần.
+TRANSIENT_RETRY_DELAY = 1.0
+
+
+def _is_connection_error(error: Exception) -> bool:
+    """Mất kết nối hoặc hết giờ: openai/groq gói lỗi httpx lại, mistralai và google-genai để nguyên."""
+    import groq
+    import openai
+
+    return isinstance(error, (openai.APIConnectionError, groq.APIConnectionError, httpx.TransportError))
+
+
+def _status(error: Exception) -> int | None:
+    # openai, groq, mistralai: status_code; google-genai: code (openai/groq cũng có `code` nhưng là chuỗi)
+    status = getattr(error, "status_code", None) or getattr(error, "code", None)
+    return status if isinstance(status, int) else None
+
+
+def _retry_delay(error: Exception, attempt: int) -> float | None:
+    """Số giây chờ trước lần thử lại `attempt + 1`, hoặc None nếu lỗi này không đáng thử lại.
+
+    429 do số request qua đi sau vài giây: thử lại tối đa 2 lần. Lỗi máy chủ (5xx, 408, 409) và mất kết nối
+    thường chỉ thoáng qua: thử lại 1 lần. "Request too large" (Groq: vượt hạn mức token/phút), 413 và các
+    4xx khác (sai key, sai model) gửi lại y nguyên vẫn bị từ chối.
+    """
+    status = _status(error)
+    if _is_connection_error(error) or (status is not None and (status >= 500 or status in (408, 409))):
+        return TRANSIENT_RETRY_DELAY if attempt == 0 else None
+    if status != 429 or attempt >= len(RETRY_DELAYS):
+        return None
+    detail = " ".join(str(getattr(error, name, "") or "") for name in ("body", "message", "details"))
+    if "request too large" in detail.lower():
+        return None
+    # mistralai: raw_response; openai, groq, google-genai: response
+    response = getattr(error, "raw_response", None) or getattr(error, "response", None)
+    retry_after = getattr(response, "headers", {}).get("retry-after")
+    try:
+        seconds = float(retry_after)
+    except (TypeError, ValueError):
+        return RETRY_DELAYS[attempt]
+    return seconds if seconds <= MAX_RETRY_AFTER else None
+
+
 @dataclass
 class AIResponse:
     text: str
@@ -134,16 +197,22 @@ class AIResponse:
 
 class AIProvider(ABC):
     @abstractmethod
-    async def generate(self, system_prompt: str, user_message: str, conversation_history: list[dict]) -> str:
+    async def generate(
+        self, system_prompt: str, user_message: str, conversation_history: list[dict], max_tokens: int = CHAT_MAX_TOKENS
+    ) -> str:
         pass
 
 
 class OpenAIProvider(AIProvider):
     def __init__(self):
         from openai import AsyncOpenAI
-        self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        # SDK openai/groq mặc định tự thử lại 2 lần mọi 429, kể cả "Request too large", chờ tới 60s;
+        # tắt đi để chỉ còn chính sách thử lại của AIEngine._generate.
+        self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY, max_retries=0, timeout=AI_TIMEOUT)
 
-    async def generate(self, system_prompt: str, user_message: str, conversation_history: list[dict]) -> str:
+    async def generate(
+        self, system_prompt: str, user_message: str, conversation_history: list[dict], max_tokens: int = CHAT_MAX_TOKENS
+    ) -> str:
         messages = [{"role": "system", "content": system_prompt}]
         messages.extend(conversation_history)
         messages.append({"role": "user", "content": user_message})
@@ -151,7 +220,7 @@ class OpenAIProvider(AIProvider):
         response = await self.client.chat.completions.create(
             model=settings.OPENAI_MODEL,
             messages=messages,
-            max_tokens=1024,
+            max_tokens=max_tokens,
             temperature=0.3,
         )
         return response.choices[0].message.content
@@ -160,9 +229,11 @@ class OpenAIProvider(AIProvider):
 class GroqProvider(AIProvider):
     def __init__(self):
         from groq import AsyncGroq
-        self.client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+        self.client = AsyncGroq(api_key=settings.GROQ_API_KEY, max_retries=0, timeout=AI_TIMEOUT)
 
-    async def generate(self, system_prompt: str, user_message: str, conversation_history: list[dict]) -> str:
+    async def generate(
+        self, system_prompt: str, user_message: str, conversation_history: list[dict], max_tokens: int = CHAT_MAX_TOKENS
+    ) -> str:
         messages = [{"role": "system", "content": system_prompt}]
         messages.extend(conversation_history)
         messages.append({"role": "user", "content": user_message})
@@ -170,7 +241,7 @@ class GroqProvider(AIProvider):
         response = await self.client.chat.completions.create(
             model=settings.GROQ_MODEL,
             messages=messages,
-            max_tokens=1024,
+            max_tokens=max_tokens,
             temperature=0.3,
         )
         return response.choices[0].message.content
@@ -181,9 +252,11 @@ class GroqSecondProvider(AIProvider):
 
     def __init__(self):
         from groq import AsyncGroq
-        self.client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+        self.client = AsyncGroq(api_key=settings.GROQ_API_KEY, max_retries=0, timeout=AI_TIMEOUT)
 
-    async def generate(self, system_prompt: str, user_message: str, conversation_history: list[dict]) -> str:
+    async def generate(
+        self, system_prompt: str, user_message: str, conversation_history: list[dict], max_tokens: int = CHAT_MAX_TOKENS
+    ) -> str:
         messages = [{"role": "system", "content": system_prompt}]
         messages.extend(conversation_history)
         messages.append({"role": "user", "content": user_message})
@@ -191,7 +264,7 @@ class GroqSecondProvider(AIProvider):
         response = await self.client.chat.completions.create(
             model=settings.GROQ_SECOND_MODEL,
             messages=messages,
-            max_tokens=1024,
+            max_tokens=max_tokens,
             temperature=0.3,
         )
         return response.choices[0].message.content
@@ -200,9 +273,11 @@ class GroqSecondProvider(AIProvider):
 class MistralProvider(AIProvider):
     def __init__(self):
         from mistralai import Mistral
-        self.client = Mistral(api_key=settings.MISTRAL_API_KEY)
+        self.client = Mistral(api_key=settings.MISTRAL_API_KEY, timeout_ms=int(AI_TIMEOUT * 1000))
 
-    async def generate(self, system_prompt: str, user_message: str, conversation_history: list[dict]) -> str:
+    async def generate(
+        self, system_prompt: str, user_message: str, conversation_history: list[dict], max_tokens: int = CHAT_MAX_TOKENS
+    ) -> str:
         messages = [{"role": "system", "content": system_prompt}]
         messages.extend(conversation_history)
         messages.append({"role": "user", "content": user_message})
@@ -210,7 +285,7 @@ class MistralProvider(AIProvider):
         response = await self.client.chat.complete_async(
             model=settings.MISTRAL_MODEL,
             messages=messages,
-            max_tokens=1024,
+            max_tokens=max_tokens,
             temperature=0.3,
         )
         return response.choices[0].message.content
@@ -224,9 +299,13 @@ class DeepSeekProvider(AIProvider):
         self.client = AsyncOpenAI(
             api_key=settings.DEEPSEEK_API_KEY,
             base_url="https://api.deepseek.com",
+            max_retries=0,
+            timeout=AI_TIMEOUT,
         )
 
-    async def generate(self, system_prompt: str, user_message: str, conversation_history: list[dict]) -> str:
+    async def generate(
+        self, system_prompt: str, user_message: str, conversation_history: list[dict], max_tokens: int = CHAT_MAX_TOKENS
+    ) -> str:
         messages = [{"role": "system", "content": system_prompt}]
         messages.extend(conversation_history)
         messages.append({"role": "user", "content": user_message})
@@ -234,7 +313,7 @@ class DeepSeekProvider(AIProvider):
         response = await self.client.chat.completions.create(
             model=settings.DEEPSEEK_MODEL,
             messages=messages,
-            max_tokens=1024,
+            max_tokens=max_tokens,
             temperature=0.3,
         )
         return response.choices[0].message.content
@@ -243,9 +322,15 @@ class DeepSeekProvider(AIProvider):
 class GeminiProvider(AIProvider):
     def __init__(self):
         from google import genai
-        self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        from google.genai import types
 
-    async def generate(self, system_prompt: str, user_message: str, conversation_history: list[dict]) -> str:
+        self.client = genai.Client(
+            api_key=settings.GEMINI_API_KEY, http_options=types.HttpOptions(timeout=int(AI_TIMEOUT * 1000))
+        )
+
+    async def generate(
+        self, system_prompt: str, user_message: str, conversation_history: list[dict], max_tokens: int = CHAT_MAX_TOKENS
+    ) -> str:
         from google.genai import types
 
         contents = [
@@ -262,7 +347,7 @@ class GeminiProvider(AIProvider):
             contents=contents,
             config=types.GenerateContentConfig(
                 system_instruction=system_prompt,
-                max_output_tokens=1024,
+                max_output_tokens=max_tokens,
                 temperature=0.3,
             ),
         )
@@ -324,13 +409,38 @@ class AIEngine:
         return self._providers[name]
 
     async def _generate(
-        self, provider: AIProvider, system_prompt: str, user_message: str, history: list[dict]
+        self,
+        provider: AIProvider,
+        system_prompt: str,
+        user_message: str,
+        history: list[dict],
+        max_tokens: int = CHAT_MAX_TOKENS,
     ) -> str:
         """Điểm gọi model duy nhất: bỏ khối <think> để nó không tới phụ huynh hay bị đọc nhầm [ESCALATE].
 
-        Chỉ còn rỗng sau khi lọc (model nghĩ hết max_tokens) thì coi như model lỗi để chuỗi dự phòng thử model kế.
+        Lỗi tạm thời thì chờ rồi thử lại cùng model (xem _retry_delay; tổng chờ ≤ MAX_RETRY_WAIT); lỗi khác
+        ném ra ngay để chuỗi dự phòng thử model kế. Chỉ còn rỗng sau khi lọc (model nghĩ hết max_tokens)
+        cũng coi như model lỗi.
         """
-        text = strip_reasoning(await provider.generate(system_prompt, user_message, history))
+        waited = 0.0
+        attempt = 0
+        while True:
+            try:
+                raw = await provider.generate(system_prompt, user_message, history, max_tokens=max_tokens)
+                break
+            except Exception as e:
+                delay = _retry_delay(e, attempt)
+                if delay is None or waited + delay > MAX_RETRY_WAIT:
+                    raise
+                attempt += 1
+                status = _status(e)
+                cause = f"{type(e).__name__} {status}" if status else type(e).__name__
+                logger.warning(
+                    f"{type(provider).__name__} lỗi tạm thời ({cause}), thử lại lần {attempt} sau {delay:g}s"
+                )
+                await asyncio.sleep(delay)
+                waited += delay
+        text = strip_reasoning(raw)
         if not text:
             raise ValueError("model không trả câu trả lời nào ngoài khối suy luận")
         return text
@@ -371,14 +481,12 @@ class AIEngine:
             else:
                 gap_text = f"khoảng {int(gap_hours / 720)} tháng trước"
             conversation_hint = (
-                f"- Đây là phụ huynh CŨ quay lại sau {gap_text}. Hãy chào lại ấm áp, "
-                f"nhắc đến tên bé đã biết (VD: 'Dạ Casa chào mẹ Bông ạ! Lâu rồi mới gặp lại mẹ, bé Bông dạo này thế nào rồi ạ?'). "
-                f"Tham chiếu nội dung đã trao đổi trước đó (xem [TÓM TẮT CÁC LẦN TRÒ CHUYỆN TRƯỚC ĐÂY] và lịch sử tin nhắn) "
-                f"để nối tiếp mạch tư vấn (VD: 'Lần trước em có chia sẻ về hệ Song ngữ Kim Mã, mẹ đã sắp xếp được buổi tham quan chưa ạ?'). "
-                f"KHÔNG hỏi lại thông tin đã biết.\n"
+                f"- Đây là phụ huynh CŨ quay lại sau {gap_text}. Chào lại ngắn, ấm áp, gọi tên bé nếu biết "
+                f"(VD: 'Casa chào Ba/Mẹ ạ, lâu rồi mới gặp lại, bé Bông dạo này thế nào rồi ạ?'), "
+                f"rồi nối tiếp mạch tư vấn theo [TÓM TẮT CÁC LẦN TRÒ CHUYỆN TRƯỚC ĐÂY] và lịch sử tin nhắn.\n"
             )
         else:
-            conversation_hint = "- Đây là tin nhắn tiếp theo trong cuộc trò chuyện. KHÔNG chào lại, đi thẳng vào trả lời. Tham chiếu thông tin bé đã biết nếu có.\n"
+            conversation_hint = "- Đây là tin nhắn tiếp theo trong cuộc trò chuyện. KHÔNG chào lại, đi thẳng vào trả lời.\n"
 
         # Inject customer context if available
         context_section = ""
@@ -391,8 +499,12 @@ class AIEngine:
             f"[Phụ huynh hỏi]: {first_marker}{user_message}\n\n"
             f"[NHẮC NHỞ QUAN TRỌNG]:\n"
             f"{conversation_hint}"
-            f"- Trả lời bằng tiếng Việt CÓ DẤU, xưng 'em', gọi 'Ba/Mẹ' (hoặc 'anh/chị'), dùng 'dạ… ạ'; không dùng 'bạn/quý khách/tôi'.\n"
-            f"- NGẮN GỌN 2-5 câu. Kết thúc bằng ĐÚNG 1 bước tiếp theo cụ thể (xin SĐT/Zalo, hẹn tham quan sáng hay chiều, "
+            f"- Tiếng Việt CÓ DẤU, xưng 'em', gọi 'Ba/Mẹ'; chỉ gọi 'anh/chị/mẹ bé…' khi phụ huynh đã tự xưng như vậy trong hội thoại, "
+            f"không đoán giới tính từ tên Facebook/tên phụ huynh. Không dùng 'bạn/quý khách/tôi'.\n"
+            f"- Nhắn như người thật: 1–3 câu ngắn, trả lời đúng ý hỏi, thêm tối đa 1 điểm nổi bật; không phải tin nào cũng 'Dạ… ạ', "
+            f"không mở bằng 'em ghi nhận'. Không nhắc lại thông tin phụ huynh vừa gửi hoặc đã biết (tuổi bé, cơ sở, lịch hẹn) — "
+            f"dùng nó để tư vấn đúng hệ/cơ sở/nhóm tuổi, không hỏi lại, nhưng không kể lại cho phụ huynh; không đọc lại SĐT.\n"
+            f"- Kết thúc bằng ĐÚNG 1 bước tiếp theo cụ thể (xin SĐT/Zalo, hẹn tham quan sáng hay chiều, "
             f"hẹn học thử tuần này hay tuần sau, hoặc hỏi tuổi bé/cơ sở còn thiếu). Phụ huynh đang lo lắng: đồng cảm trước rồi mới mời nhẹ nhàng.\n"
             f"- Học phí/ưu đãi: chưa biết tuổi bé + cơ sở thì không nói con số; không bịa số, không gửi bảng phí trên chat; không nêu % ưu đãi theo đợt. "
             f"[THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT] đã có SĐT, phụ huynh vừa gửi số, hoặc đã từ chối cho số → KHÔNG xin SĐT nữa.\n"
@@ -400,7 +512,8 @@ class AIEngine:
             f"Không nêu tuyến, phí, ưu đãi; mời để lại khu vực nhà + SĐT/Zalo để ghi nhận nhu cầu. Không [ESCALATE] chỉ vì xe bus.\n"
             f"- Câu ngoài lề, thông tin cụ thể KHÔNG CÓ trong Q&A (tên giáo viên cụ thể, ngày sự kiện, lịch chi tiết, kế hoạch mở rộng...), "
             f"hoặc đã từ chối cho số mà vẫn cần biết học phí → BẮT BUỘC trả lời chính xác chuỗi [ESCALATE] và KHÔNG nói gì thêm.\n"
-            f"- Có [TRẠNG THÁI TƯ VẤN] thì chọn bước tiếp theo theo mục 10; 'Đã hẹn' → không hẹn lại, xác nhận tư vấn viên sẽ liên hệ.\n"
+            f"- Có [TRẠNG THÁI TƯ VẤN] thì chọn bước tiếp theo theo mục 10; 'Đã hẹn' → không hẹn lại, không cần bước tiếp theo; chỉ lúc vừa chốt mới xác nhận ngắn "
+            f"tư vấn viên sẽ liên hệ, sau đó không nhắc lại lịch hẹn.\n"
             f"- Câu hỏi cuối khớp một nút trả lời nhanh thì kết bằng đúng 1 token QUICK (xem NÚT TRẢ LỜI NHANH); không dùng khi [ESCALATE].\n"
             f"- KHÔNG BAO GIỜ tự suy đoán hoặc bịa thông tin. Chỉ dùng THÔNG TIN CỐT LÕI và Q&A."
         )
@@ -480,7 +593,7 @@ class AIEngine:
             if not provider:
                 continue
             try:
-                result = await self._generate(provider, extract_prompt, user_msg, [])
+                result = await self._generate(provider, extract_prompt, user_msg, [], max_tokens=JSON_MAX_TOKENS)
                 if result.startswith("```"):
                     result = result.split("\n", 1)[1].rsplit("```", 1)[0].strip()
                     if result.startswith("json"):
@@ -531,7 +644,7 @@ class AIEngine:
             if not provider:
                 continue
             try:
-                summary = await self._generate(provider, summarize_prompt, user_msg, [])
+                summary = await self._generate(provider, summarize_prompt, user_msg, [], max_tokens=TEXT_MAX_TOKENS)
                 # Strip code blocks if any
                 if summary.startswith("```"):
                     summary = summary.split("\n", 1)[1].rsplit("```", 1)[0].strip()
@@ -547,9 +660,11 @@ class AIEngine:
         format_prompt = (
             "Bạn là nhân viên tư vấn trường mầm non Casa. "
             "Admin đã cung cấp câu trả lời cho câu hỏi của phụ huynh. "
-            "Hãy viết lại câu trả lời sao cho lịch sự, thân thiện, có dấu tiếng Việt, "
-            "xưng 'em', gọi phụ huynh là 'Ba/Mẹ' (hoặc 'anh/chị' khi phù hợp), dùng 'dạ… ạ'. "
-            "Giữ nguyên ý nghĩa, không thêm thông tin mới."
+            "Viết lại thành tin nhắn Messenger tiếng Việt có dấu, ngắn gọn, lịch sự, tự nhiên như người thật nhắn tin. "
+            "GIỮ ĐỦ mọi dữ kiện admin đưa (ngày, giờ, con số, tên, từng mục trong danh sách), không bỏ bớt, không đổi; "
+            "được dài hơn 3 câu khi cần để giữ đủ. "
+            "Xưng 'em', gọi phụ huynh là 'Ba/Mẹ'; chỉ gọi 'anh/chị' khi câu hỏi cho thấy phụ huynh tự xưng như vậy, "
+            "không đoán giới tính. Giữ nguyên ý nghĩa, không thêm thông tin mới, không chào hỏi dài, không emoji."
         )
         user_msg = (
             f"Câu hỏi của phụ huynh: {original_question}\n"
@@ -563,7 +678,7 @@ class AIEngine:
             if not provider:
                 continue
             try:
-                return await self._generate(provider, format_prompt, user_msg, [])
+                return await self._generate(provider, format_prompt, user_msg, [], max_tokens=ADMIN_REPLY_MAX_TOKENS)
             except Exception as e:
                 logger.warning(f"Format reply with {model_name} failed: {e}")
                 continue
@@ -589,7 +704,7 @@ class AIEngine:
             if not provider:
                 continue
             try:
-                result = await self._generate(provider, classify_prompt, user_msg, [])
+                result = await self._generate(provider, classify_prompt, user_msg, [], max_tokens=JSON_MAX_TOKENS)
                 if result.startswith("```"):
                     result = result.split("\n", 1)[1].rsplit("```", 1)[0].strip()
                 return json.loads(result)

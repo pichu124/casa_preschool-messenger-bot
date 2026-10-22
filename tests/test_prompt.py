@@ -403,6 +403,13 @@ def test_known_info_is_used_not_read_back(monkeypatch):
     assert all("Tham chiếu thông tin bé đã biết" not in r for r in _reminders(monkeypatch))
 
 
+def test_known_info_steers_the_advice(monkeypatch):
+    # "Chỉ để không hỏi lại" làm model bỏ qua cơ sở đã biết: PH Kim Mã hỏi GV nước ngoài được trả lời theo hệ Quốc tế.
+    for text in [SYSTEM_PROMPT] + _reminders(monkeypatch):
+        assert "chỉ để không hỏi lại" not in text
+        assert re.search(r"tư vấn đúng hệ/cơ sở/nhóm tuổi[^\n]*không hỏi lại[^\n]*không kể lại", text), text
+
+
 def test_prompt_examples_are_short_varied_and_never_guess_how_to_address_parent():
     examples = [reply for _, reply in _examples()]
     assert len(examples) >= 8
@@ -452,11 +459,27 @@ def test_admin_reply_is_rewritten_in_the_same_short_voice(monkeypatch):
 
     # Harness của skill verify-casa-bot nhận diện lời gọi này qua câu mở đầu.
     assert recorder.system_prompt.startswith("Bạn là nhân viên tư vấn trường mầm non Casa")
-    assert "1–3 câu" in recorder.system_prompt
+    assert "ngắn gọn" in recorder.system_prompt
     assert "Ba/Mẹ" in recorder.system_prompt
     assert "tự xưng" in recorder.system_prompt
     assert "khi phù hợp" not in recorder.system_prompt
     assert "không thêm thông tin" in recorder.system_prompt
+
+
+def test_admin_reply_keeps_every_fact_admin_gave(monkeypatch):
+    # Câu admin viết lại được gửi thẳng cho phụ huynh: giới hạn "1–3 câu" từng cho phép model bỏ bớt lịch, giờ, số.
+    admin_answer = "T2 8h30 Montessori, T4 9h Science (cô Lan), T6 15h Cooking; mang 2 bộ quần áo, đóng 500k phí học liệu"
+    recorder = RecordingProvider("Dạ lịch tuần của lớp như sau ạ.")
+    engine = make_engine(monkeypatch, fake=recorder)
+
+    asyncio.run(engine.format_admin_reply(admin_answer, "lịch học tuần này thế nào"))
+
+    prompt = recorder.system_prompt
+    assert recorder.system_prompt.startswith("Bạn là nhân viên tư vấn trường mầm non Casa")
+    assert "1–3 câu" not in prompt
+    assert re.search(r"giữ đủ mọi dữ kiện[^.]*ngày, giờ, con số, tên[^.]*danh sách", prompt, re.I), prompt
+    assert "dài hơn 3 câu" in prompt
+    assert admin_answer in recorder.user_message
 
 
 PHONE = "0900000999"

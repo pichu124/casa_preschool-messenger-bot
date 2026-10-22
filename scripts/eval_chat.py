@@ -40,14 +40,16 @@ sys.path.insert(0, str(ROOT))
 from app.ai_engine import API_KEY_MAP, SYSTEM_PROMPT, AIEngine
 from app.config import settings
 from app.customer_memory import format_profile_for_prompt
+from app.messenger import QUICK_REPLIES
 from app.qa_database import QADatabase
 
 ASKS_PHONE = ("sđt", "số điện thoại", "zalo")
-# Câu cuối đạt nếu có hành động cụ thể, hoặc là câu hỏi lấy thông tin còn thiếu để tư vấn tiếp.
-NEXT_ACTIONS = ASKS_PHONE + ("tham quan", "học thử", "liên hệ", "đặt lịch", "giữ lịch", "đăng ký")
+# Câu cuối đạt nếu có hành động cụ thể, hoặc là câu hỏi lấy thông tin còn thiếu để tư vấn tiếp. "đăng ký" chỉ là bước
+# tiếp theo khi hỏi ("…khi đủ phụ huynh đăng ký sẽ mở tuyến" thì không); "biết thêm"/"quan tâm": hỏi sau "Tìm hiểu thêm".
+NEXT_ACTIONS = ASKS_PHONE + ("tham quan", "học thử", "liên hệ", "đặt lịch", "giữ lịch")
 NEXT_QUESTIONS = (
     "tuổi", "tháng", "ngày sinh", "cơ sở", "khu vực", "địa chỉ", "nhập học",
-    "buổi sáng", "buổi chiều", "tuần này", "tuần sau",
+    "buổi sáng", "buổi chiều", "tuần này", "tuần sau", "đăng ký", "biết thêm", "quan tâm",
 )
 GREETING = ("casa chào", "casa xin chào", "chào ba/mẹ", "chào ba mẹ")
 
@@ -195,6 +197,17 @@ SCENARIOS: dict[str, list[Turn]] = {
             known={**FB_NAME, "kid_age": "3 tuổi", "interested_campus": "Mỹ Đình"},
             any_of=[("tuần này", "tuần sau")],
             agreed=True,
+        ),
+    ],
+    # "Tìm hiểu thêm" (mục 2f): hỏi Ba/Mẹ muốn biết thêm gì, chưa mời lại, chưa hỏi tuần/buổi.
+    "tim_hieu_them": [
+        Turn("bé nhà mình 3 tuổi, mình quan tâm cơ sở Mỹ Đình", known=FB_NAME),
+        Turn("trường có cho học thử không ạ", known=VISIT_MD, any_of=[("học thử",)]),
+        Turn(
+            QUICK_REPLIES["trial_invite"][1][1],
+            known=VISIT_MD,
+            any_of=[("biết thêm", "quan tâm", "tìm hiểu")],
+            none_of=("[QUICK:trial_invite]", "[QUICK:visit_invite]", "[QUICK:trial_week]", "[QUICK:visit_time]"),
         ),
     ],
 }

@@ -609,6 +609,36 @@ def test_eval_scenario_invites_first_and_asks_the_week_after_the_parent_agrees()
     assert ("tuần này", "tuần sau") in turns[i].any_of
 
 
+LEARN_MORE = QUICK_REPLIES["trial_invite"][1][1]
+
+
+def test_eval_accepts_asking_what_the_parent_wants_to_know_after_learn_more():
+    turn = eval_chat.Turn(LEARN_MORE)
+    reply = "Dạ vâng ạ, Ba/Mẹ muốn biết thêm về điều gì của Casa ạ? [QUICK:topics]"
+    assert eval_chat.check_turn(turn, False, False, reply, [turn.message]) == []
+
+
+def test_eval_scenario_learn_more_asks_what_to_know_without_inviting_again():
+    turns = eval_chat.SCENARIOS["tim_hieu_them"]
+    learn = next(t for t in turns if t.message == LEARN_MORE)
+    assert not learn.agreed
+    for token in ("[QUICK:trial_invite]", "[QUICK:visit_invite]", "[QUICK:trial_week]", "[QUICK:visit_time]"):
+        assert token in learn.none_of
+    reinvite = "Dạ vâng ạ. Không biết Ba/Mẹ có muốn cho bé học thử 1 tuần không ạ? [QUICK:trial_invite]"
+    assert eval_chat.check_turn(learn, False, False, reinvite, [learn.message])
+    ask = "Dạ vâng ạ, Ba/Mẹ muốn biết thêm về điều gì của Casa ạ? [QUICK:topics]"
+    assert eval_chat.check_turn(learn, False, False, ask, [learn.message]) == []
+
+
+def test_eval_counts_registration_as_next_step_only_when_asked():
+    turn = eval_chat.Turn("trường có xe bus không")
+    statement = "Trường chưa có xe đưa đón ạ, khi nào đủ phụ huynh đăng ký thì Nhà trường sẽ mở tuyến."
+    problems = eval_chat.check_turn(turn, False, False, statement, [turn.message])
+    assert len(problems) == 1 and "bước tiếp theo" in problems[0], problems
+    question = "Dạ Casa có ưu đãi cho bé thứ 2 ạ. Không biết Ba/Mẹ có muốn đăng ký cho con luôn không ạ?"
+    assert eval_chat.check_turn(turn, False, False, question, [turn.message]) == []
+
+
 def test_phone_is_asked_softly():
     rule7 = next(line for line in SYSTEM_PROMPT.splitlines() if line.startswith("7. "))
     assert "Nếu tiện" in rule7, rule7

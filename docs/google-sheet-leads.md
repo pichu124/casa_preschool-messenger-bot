@@ -135,9 +135,10 @@ function leadsSheet() {
     return sheet;
   }
   // Sheet tạo bằng script cũ: thêm tiêu đề các cột mới ở cuối, hàng cũ giữ nguyên vị trí.
-  // Ô tiêu đề đã có chữ khác (cột người tư vấn tự thêm): không ghi gì, để không ghi đè dữ liệu của cột đó.
+  // Ô tiêu đề của cột mới đã có chữ khác (cột người tư vấn tự thêm): không ghi gì, để không ghi đè dữ liệu của cột đó.
   const header = sheet.getRange(1, 1, 1, COLUMNS.length).getValues()[0];
-  const taken = COLUMNS.findIndex(([, title], i) => header[i] !== '' && header[i] !== title);
+  const added = column('first_contact') - 1;
+  const taken = COLUMNS.findIndex(([, title], i) => i >= added && header[i] !== '' && header[i] !== title);
   if (taken >= 0) {
     throw new HeaderTaken(
       'Ô ' + String.fromCharCode(65 + taken) + '1 là "' + header[taken] + '", script cần "' + COLUMNS[taken][1] +
@@ -191,7 +192,7 @@ function reply(ok, error) {
 }
 ```
 
-Script trả `{"ok":true}` khi đã thêm hoặc cập nhật hàng, `{"ok":false}` khi body không phải JSON, sai token hoặc không lấy được khóa, `{"ok":false,"error":"…"}` (không ghi gì) khi hàng 1 có ô tiêu đề khác tiêu đề của script trong 16 cột đầu (vd cột người tư vấn tự thêm ở O hoặc P). Bot chỉ coi là thành công khi nhận đúng `{"ok":true}`.
+Script trả `{"ok":true}` khi đã thêm hoặc cập nhật hàng, `{"ok":false}` khi body không phải JSON, sai token hoặc không lấy được khóa, `{"ok":false,"error":"…"}` (không ghi gì) khi ô tiêu đề O1 hoặc P1 đã có chữ khác "Lần đầu liên hệ"/"Cập nhật lúc" (vd cột người tư vấn tự thêm). Bot chỉ coi là thành công khi nhận đúng `{"ok":true}`.
 
 ## 2. Deploy web app
 

@@ -308,6 +308,8 @@ def test_reply_to_lead_does_not_reach_customer(monkeypatch, admin_sent, kind, ca
     last_message = f"🆔 ID: {CUSTOMER_ID}\n❓ Câu hỏi:\nCó xe đưa đón không? Số mình {PHONE}"
     before = {"phone": "0900000999", "visit_request": "tham quan sáng thứ 6", "lead_card_msg_id": card}
     profile = {"phone": PHONE, "visit_request": "tham quan sáng thứ 7", "lead_card_msg_id": card}
+    if card:
+        customer_memory.set_fields(CUSTOMER_ID, {"lead_card_msg_id": card})
     lead = telegram_text(
         monkeypatch, escalation.publish_lead_events([kind], CUSTOMER_ID, FB_NAME, before, profile, last_message)
     )

@@ -242,7 +242,13 @@ def _consulting_state(profile: dict) -> str:
         ad_title = profile.get("ad_title")
         lines.append(f'Nguồn: quảng cáo "{ad_title}"' if ad_title else "Nguồn: quảng cáo")
     if profile.get("visit_request"):
-        lines.append(f"Đã hẹn: {profile['visit_request']}")
+        booked = f"Đã hẹn: {profile['visit_request']}"
+        if not profile.get("phone") and not profile.get("phone_declined"):
+            booked += (
+                "; chưa có SĐT → sau câu xác nhận ngắn, xin SĐT/Zalo mềm 1 lần (\"nếu tiện…\") để tư vấn viên gọi "
+                "xác nhận giờ, kèm [QUICK:phone]; từ lúc hẹn em đã xin rồi thì không xin lại"
+            )
+        lines.append(booked)
     return "[TRẠNG THÁI TƯ VẤN]:\n" + "\n".join(f"- {line}" for line in lines)
 
 

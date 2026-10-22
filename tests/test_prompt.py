@@ -10,6 +10,7 @@ import pytest
 from app import ai_engine
 from app.ai_engine import SYSTEM_PROMPT, AIEngine, AIProvider, strip_reasoning
 from app.config import settings
+from app.messenger import QUICK_REPLIES
 
 
 class FakeProvider(AIProvider):
@@ -112,6 +113,48 @@ def test_extract_prompt_asks_for_lead_fields_and_sends_only_profile_fields(monke
     assert "3 tuổi" in recorder.user_message and "Mỹ Đình" in recorder.user_message
     for leaked in ("LICH-SU-BI-MAT", "TOM-TAT-CU", "conversation_history", "session_summaries", "message_count"):
         assert leaked not in recorder.user_message
+
+
+# Lead khi phụ huynh đồng ý chỉ có nếu extract ghi visit_request. Prompt cũ chỉ cho ghi lịch "ĐÃ CHỐT" nên bấm
+# "Đăng ký học thử" rồi rời đi (chưa chọn tuần) thì Telegram/Sheet không nhận gì.
+AGREE_TO_BOOK = [
+    (QUICK_REPLIES["trial_invite"][0][1], "học thử 1 tuần"),
+    (QUICK_REPLIES["visit_invite"][0][1], "tham quan trường"),
+    (QUICK_REPLIES["topics"][2][1], "tham quan trường"),
+]
+
+
+@pytest.mark.parametrize(("agree", "value"), AGREE_TO_BOOK, ids=["trial_invite", "visit_invite", "topics"])
+def test_extract_prompt_records_agreement_before_a_time_is_chosen(monkeypatch, agree, value):
+    recorder = RecordingProvider("{}")
+    engine = make_engine(monkeypatch, fake=recorder)
+
+    asyncio.run(engine.extract_customer_info(agree, {}, last_bot_message="Không biết Ba/Mẹ có muốn cho bé thử không ạ?"))
+
+    assert agree in recorder.user_message
+    rule = next(line for line in recorder.system_prompt.splitlines() if '"visit_request"' in line)
+    assert "ĐÃ CHỐT" not in rule
+    assert re.search(r"ĐỒNG Ý[^\n]*chưa chọn buổi/tuần", rule), rule
+    assert value in agree and f'"{value}"' in rule
+    assert re.search(r"chọn buổi/tuần[^\n]*cụ thể hơn", rule), rule
+    # Chỉ hỏi, còn cân nhắc hay bấm "Tìm hiểu thêm" thì vẫn chưa phải lead.
+    refuse = rule.split("KHÔNG ghi", 1)[1]
+    assert "hỏi" in refuse and "cân nhắc" in refuse
+    assert "tìm hiểu thêm" in refuse.lower()
+
+
+# Phụ huynh đã hẹn "tham quan buổi sáng" bấm lại "Đặt lịch tham quan": ghi "tham quan trường" thì hồ sơ/Sheet lùi
+# về bản chung chung và Telegram nhận một lead thừa.
+def test_extract_prompt_keeps_a_specific_booking_over_a_vaguer_one(monkeypatch):
+    recorder = RecordingProvider("{}")
+    engine = make_engine(monkeypatch, fake=recorder)
+    agree = QUICK_REPLIES["visit_invite"][0][1]
+
+    asyncio.run(engine.extract_customer_info(agree, {"visit_request": "tham quan buổi sáng"}))
+
+    assert "tham quan buổi sáng" in recorder.user_message
+    rule = next(line for line in recorder.system_prompt.splitlines() if '"visit_request"' in line)
+    assert re.search(r"Thông tin đã biết[^\n]*cụ thể hơn \(buổi/tuần\)[^\n]*KHÔNG ghi lại bản chung chung hơn", rule), rule
 
 
 def test_classify_qa_parses_json_after_reasoning(monkeypatch):
@@ -254,7 +297,7 @@ REQUIRED_KNOWLEDGE = [
     "Đã hẹn:",
 ]
 
-QUICK_KEYS = {"topics", "age", "campus", "phone", "visit_time", "trial_week"}
+QUICK_KEYS = {"topics", "age", "campus", "phone", "trial_invite", "visit_invite", "visit_time", "trial_week"}
 
 
 @pytest.mark.parametrize("phrase", REQUIRED_KNOWLEDGE + [f"[QUICK:{key}]" for key in sorted(QUICK_KEYS)])
@@ -327,6 +370,14 @@ def test_reminder_defers_next_step_to_consultation_state(monkeypatch):
     assert "không hẹn lại" in reminder
 
 
+def test_reminder_lets_booked_visit_without_phone_ask_for_phone_once(monkeypatch):
+    # "Đã hẹn" không cần bước tiếp theo, trừ chỉ dẫn xin SĐT mềm 1 lần mà dòng trạng thái thêm khi chưa có số.
+    for reminder in _reminders(monkeypatch):
+        booked = next(line for line in reminder.splitlines() if "'Đã hẹn'" in line)
+        assert "không cần bước tiếp theo" in booked, booked
+        assert re.search(r"chưa có SĐT[^\n]*xin SĐT/Zalo mềm 1 lần[^\n]*không xin lại", booked), booked
+
+
 def test_follow_up_message_is_not_marked_first(monkeypatch):
     _, user_message = model_input(
         monkeypatch,
@@ -392,6 +443,15 @@ def test_parent_is_ba_me_unless_they_name_themselves_never_from_facebook_name(mo
     assert samples
     for sample in samples:
         assert not LONE_ME.search(sample) and not ANH_CHI.search(sample), sample
+
+
+def test_bot_never_calls_itself_or_the_parent_by_banned_pronouns(monkeypatch):
+    # 1a087ea rút gọn prompt và rơi mất "chúng tôi": model trả "Hiện chúng tôi có 3 cơ sở…".
+    for text in [SYSTEM_PROMPT] + _reminders(monkeypatch):
+        clause = re.search(r"Không dùng (.*?)\.\s", text)
+        assert clause, text
+        banned = {word.strip() for word in re.split(r"[\"'/,]", clause.group(1)) if word.strip()}
+        assert {"bạn", "quý khách", "tôi", "chúng tôi"} <= banned, clause.group(0)
 
 
 def test_known_info_is_used_not_read_back(monkeypatch):
@@ -473,6 +533,146 @@ def test_bot_never_promises_a_visit_slot_only_the_consultant_confirms(monkeypatc
     assert "xác nhận" in reply, reply
 
 
+# Người vận hành 2026-10-22: "…học thử 1 tuần miễn phí…, tuần này hay tuần sau ạ?" cụt và ép buộc. Lời mời học
+# thử/tham quan là câu hỏi ý mềm kèm nút Đăng ký học thử / Đặt lịch tham quan – Tìm hiểu thêm; phụ huynh đồng ý rồi
+# bot mới hỏi tuần (Tuần này/Tuần sau) hay buổi (Buổi sáng/Buổi chiều).
+FORCED_CHOICE = re.compile(r"tuần này hay tuần sau|sáng hay (?:buổi )?chiều", re.I)
+AGREES = tuple(QUICK_REPLIES[key][0][1] for key in ("trial_invite", "visit_invite"))
+ASKS_TIME = ("[QUICK:trial_week]", "[QUICK:visit_time]")
+
+
+def _next_step_rules(monkeypatch) -> list[str]:
+    """Nguyên tắc 6 của prompt cộng dòng bước tiếp theo trong mỗi khối nhắc nhở."""
+    rule6 = next(line for line in SYSTEM_PROMPT.splitlines() if line.startswith("6. "))
+    reminders = [line for r in _reminders(monkeypatch) for line in r.splitlines() if "bước tiếp theo cụ thể" in line]
+    assert len(reminders) == 3
+    return [rule6] + reminders
+
+
+def test_invitation_is_a_soft_question_and_the_time_is_asked_only_after_the_parent_agrees(monkeypatch):
+    for rule in _next_step_rules(monkeypatch):
+        assert "không biết Ba/Mẹ có muốn" in rule, rule
+        assert "không thúc ép" in rule, rule
+        assert re.search(r"\[QUICK:trial_invite\][^\n]*\[QUICK:visit_invite\]", rule), rule
+        assert re.search(r"đồng ý[^\n]*mới hỏi[^\n]*\[QUICK:trial_week\][^\n]*\[QUICK:visit_time\]", rule), rule
+        assert re.search(r"tìm hiểu thêm[^\n]*chưa mời lại", rule, re.I), rule
+    instructions = SYSTEM_PROMPT.split("\nVÍ DỤ", 1)[0]
+    for text in [instructions] + _reminders(monkeypatch):
+        assert not FORCED_CHOICE.search(text), FORCED_CHOICE.search(text)
+
+
+def test_quick_reply_section_teaches_invite_buttons_before_time_buttons():
+    section = SYSTEM_PROMPT.split("NÚT TRẢ LỜI NHANH", 1)[1].split("\nVÍ DỤ", 1)[0]
+    lines = {key: line for key in QUICK_KEYS for line in section.splitlines() if f"[QUICK:{key}]" in line}
+    for key in ("trial_invite", "visit_invite"):
+        assert "mời" in lines[key] and "Tìm hiểu thêm" in lines[key], lines[key]
+    for key in ("trial_week", "visit_time"):
+        assert "đã đồng ý" in lines[key], lines[key]
+
+
+def test_examples_invite_softly_and_ask_the_time_only_after_the_parent_agrees():
+    examples = _examples()
+    for parent, reply in examples:
+        if FORCED_CHOICE.search(reply) or any(token in reply for token in ASKS_TIME):
+            assert any(agree in parent for agree in AGREES), (parent, reply)
+    for token in ("[QUICK:trial_invite]", "[QUICK:visit_invite]", "[QUICK:trial_week]"):
+        assert any(token in reply for _, reply in examples), token
+    invites = [reply for _, reply in examples if "_invite]" in reply]
+    # Mỗi lời mời diễn đạt khác nhau, để model không chép một câu mẫu
+    assert len({eval_chat.sentences(reply)[-1] for reply in invites}) == len(invites) >= 3
+
+
+FORCED_TRIAL = "Các cô đồng hành sát sao ạ. Ba/Mẹ cho bé học thử 1 tuần miễn phí nhé, tuần này hay tuần sau ạ?"
+SOFT_TRIAL = (
+    "Các cô đồng hành sát sao ạ. Ba/Mẹ cho bé học thử 1 tuần miễn phí để cảm nhận trực tiếp nhé, không biết Ba/Mẹ "
+    "có muốn đăng ký luôn không ạ? [QUICK:trial_invite]"
+)
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        FORCED_TRIAL,
+        FORCED_TRIAL + " [QUICK:trial_week]",
+        "Các cô đồng hành sát sao ạ. Ba/Mẹ muốn đưa bé qua tham quan sáng hay chiều ạ? [QUICK:visit_time]",
+        "Các cô đồng hành sát sao ạ. Ba/Mẹ ghé tham quan lớp nhé? [QUICK:visit_time]",
+    ],
+    ids=["tuan-nay-hay-tuan-sau", "kem-nut-tuan", "sang-hay-chieu", "nut-buoi"],
+)
+def test_eval_flags_asking_the_time_before_the_parent_agrees(reply):
+    turn = eval_chat.Turn("con mình nhút nhát lắm")
+
+    problems = eval_chat.check_turn(turn, False, False, reply, [turn.message])
+
+    assert len(problems) == 1 and "chưa đồng ý" in problems[0], problems
+
+
+def test_eval_accepts_soft_invitation_and_time_question_once_the_parent_agrees():
+    assert eval_chat.check_turn(eval_chat.Turn("con mình nhút nhát lắm"), False, False, SOFT_TRIAL, ["nhút nhát"]) == []
+    agreed = eval_chat.Turn("có, đăng ký luôn", agreed=True)
+    ask_week = "Vâng ạ. Ba/Mẹ tiện cho con bắt đầu tuần này hay tuần sau ạ? [QUICK:trial_week]"
+    assert eval_chat.check_turn(agreed, False, False, ask_week, [agreed.message]) == []
+
+
+def test_eval_scenario_invites_first_and_asks_the_week_after_the_parent_agrees():
+    turns = eval_chat.SCENARIOS["moi_hoc_thu"]
+    i = next(i for i, t in enumerate(turns) if t.agreed)
+    assert i > 0 and not turns[i - 1].agreed
+    assert ("học thử",) in turns[i - 1].any_of
+    assert "đăng ký" in turns[i].message
+    assert ("tuần này", "tuần sau") in turns[i].any_of
+
+
+LEARN_MORE = QUICK_REPLIES["trial_invite"][1][1]
+
+
+def _learn_more_turn():
+    return next(t for t in eval_chat.SCENARIOS["tim_hieu_them"] if t.message == LEARN_MORE)
+
+
+def test_eval_accepts_asking_what_the_parent_wants_to_know_after_learn_more():
+    turn = _learn_more_turn()
+    reply = "Dạ vâng ạ, Ba/Mẹ muốn biết thêm về điều gì của Casa ạ? [QUICK:topics]"
+    assert eval_chat.check_turn(turn, False, False, reply, [turn.message]) == []
+
+
+def test_eval_scenario_learn_more_asks_what_to_know_without_inviting_again():
+    learn = _learn_more_turn()
+    assert not learn.agreed
+    for token in ("[QUICK:trial_invite]", "[QUICK:visit_invite]", "[QUICK:trial_week]", "[QUICK:visit_time]"):
+        assert token in learn.none_of
+    reinvite = "Dạ vâng ạ. Không biết Ba/Mẹ có muốn cho bé học thử 1 tuần không ạ? [QUICK:trial_invite]"
+    assert eval_chat.check_turn(learn, False, False, reinvite, [learn.message])
+    ask = "Dạ vâng ạ, Ba/Mẹ muốn biết thêm về điều gì của Casa ạ? [QUICK:topics]"
+    assert eval_chat.check_turn(learn, False, False, ask, [learn.message]) == []
+
+
+def test_eval_counts_registration_as_next_step_only_when_asked():
+    turn = eval_chat.Turn("trường có xe bus không")
+    statement = "Trường chưa có xe đưa đón ạ, khi nào đủ phụ huynh đăng ký thì Nhà trường sẽ mở tuyến."
+    problems = eval_chat.check_turn(turn, False, False, statement, [turn.message])
+    assert len(problems) == 1 and "bước tiếp theo" in problems[0], problems
+    question = "Dạ Casa có ưu đãi cho bé thứ 2 ạ. Không biết Ba/Mẹ có muốn đăng ký cho con luôn không ạ?"
+    assert eval_chat.check_turn(turn, False, False, question, [turn.message]) == []
+
+
+@pytest.mark.parametrize(
+    "closing", ["Ba/Mẹ còn muốn biết thêm gì không ạ?", "Ba/Mẹ còn quan tâm điều gì nữa không ạ?"]
+)
+def test_eval_flags_generic_closing_question_on_a_regular_turn(closing):
+    turn = eval_chat.Turn("cho hỏi học phí bao nhiêu 1 tháng ạ")
+    reply = f"Dạ học phí tùy hệ và nhóm tuổi của bé ạ. {closing}"
+    problems = eval_chat.check_turn(turn, False, False, reply, [turn.message])
+    assert len(problems) == 1 and "bước tiếp theo" in problems[0], problems
+
+
+def test_phone_is_asked_softly():
+    rule7 = next(line for line in SYSTEM_PROMPT.splitlines() if line.startswith("7. "))
+    assert "Nếu tiện" in rule7, rule7
+    asks_phone = [reply for _, reply in _examples() if reply.endswith("[QUICK:phone]")]
+    assert asks_phone and all("nếu tiện" in reply.lower() for reply in asks_phone), asks_phone
+
+
 # Thử DeepSeek thật 2026-10-22: vừa xác nhận tham quan buổi sáng, phụ huynh hỏi "sáng mai được không" thì bot gửi lại
 # gần nguyên câu xác nhận và chép nguyên câu ví dụ chốt hẹn trong prompt; câu chê đắt gần như chép ví dụ CARE.
 REPEATED_CONFIRMATION = (
@@ -526,7 +726,7 @@ def test_eval_flags_reply_copied_from_prompt_examples():
 
     fresh_care = (
         "Dạ em hiểu ạ, đây là khoản lớn với gia đình. Bù lại con được cô nước ngoài kèm cả ngày. "
-        "Ba/Mẹ đưa bé qua tham quan lớp một buổi nhé, sáng hay chiều ạ?"
+        "Nếu tiện, Ba/Mẹ đưa bé qua tham quan lớp một buổi nhé?"
     )
     assert eval_chat.check_turn(turn, False, False, fresh_care, [turn.message]) == []
     # Câu chào bắt buộc ở tin đầu tiên giống hệt ví dụ nhưng không phải chép.

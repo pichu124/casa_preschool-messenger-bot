@@ -14,7 +14,7 @@ Khi một tin của phụ huynh đem lại SĐT mới, SĐT khác số cũ, ho�
 
 ## How to get to it (user POV)
 
-- Phụ huynh: bấm nút SĐT Messenger dưới câu bot xin số (`[QUICK:phone]`), gõ số trong tin, hoặc chốt lịch tham quan (gõ, hoặc bấm nút `visit_time`/`trial_week`).
+- Phụ huynh: bấm nút SĐT Messenger dưới câu bot xin số (`[QUICK:phone]`), gõ số trong tin, hoặc chốt lịch tham quan/học thử (gõ, hoặc bấm nút đồng ý `visit_invite`/`trial_invite` rồi nút buổi/tuần `visit_time`/`trial_week`).
 - Tư vấn viên: đọc tin trong nhóm Telegram; quản lý: xem Google Sheet.
 - Hệ thống: `POST /webhook` (Messenger) → `api.telegram.org/bot…/sendMessage` + `script.google.com/macros/s/…/exec`.
 
@@ -29,7 +29,8 @@ Preconditions:
 - **Xác nhận lưu bền.** `read profile 9000000000000011 --fields phone,parent_name` → `0912345678`, `Test Parent`; `read profile 9000000000000011 --fields phone --disk` → cùng số; `read log --grep "Lead new_phone"` → `Telegram msg_id=<n>, Sheet written=True`.
 - **Gửi lại cùng số, viết khác.** `send text 9000000000000011 "+84 912 345 678"` với kịch bản có rule extract trả `{"phone": "+84 912 345 678"}` → không có dòng SHEET hay TG mới.
 - **Đổi số.** `send text 9000000000000011 "PHONE_B số mới của em"` → `SHEET {"event": "phone_changed", … "phone": "0987654321" …}` và `TG … header='📞 KHÁCH ĐỔI SĐT'`.
-- **Hẹn tham quan.** `send text 9000000000000011 "VISIT_AM em chốt sáng thứ 7"` → `SHEET {"event": "visit_request", …, "visit_request": "tham quan buổi sáng", "stage": "Đã hẹn tham quan/học thử"}` và `TG … header='📅 KHÁCH HẸN THAM QUAN/HỌC THỬ'`. Gửi lại `VISIT_AM` → không có lead mới. Cũng thử bằng nút: `send text … ASK_VISIT` rồi `send quick … QR:visit_time:0 --text "Buổi sáng"`.
+- **Hẹn tham quan.** `send text 9000000000000011 "VISIT_AM em chốt sáng thứ 7"` → `SHEET {"event": "visit_request", …, "visit_request": "tham quan buổi sáng", "stage": "Đã hẹn tham quan/học thử"}` và `TG … header='📅 KHÁCH HẸN THAM QUAN/HỌC THỬ'`. Gửi lại `VISIT_AM` → không có lead mới.
+- **Hẹn bằng nút: đồng ý rồi chọn buổi.** PSID mới: `send text 9000000000000012 INVITE_VISIT` (FB có `QUICK=["QR:visit_invite:0", "QR:visit_invite:1"]`), `send quick 9000000000000012 QR:visit_invite:0 --text "Đặt lịch tham quan"` → lead `visit_request` `tham quan trường` (SHEET + TG), rồi `send quick 9000000000000012 QR:visit_time:0 --text "Buổi sáng"` → lead thứ hai `tham quan buổi sáng`: mỗi chi tiết hẹn mới là một lead (quyết định 2026-10-22, xem `docs/quyet-dinh-noi-dung.md`). Bấm lại `Buổi sáng` → không có lead mới.
 - **Sheet hỏng.** Kịch bản có `"fail": {"sheet": "false"}` (hoặc `"500"`), PSID mới, `send phone <psid> 0912000111` → dòng `SHEET` có status `200` (hoặc `500`), `TG` vẫn có, phụ huynh vẫn nhận trả lời FB. `read log --grep "Google Sheet"` có `Lead new_phone rejected by Google Sheet web app (HTTP 200)` (với `false`) hoặc `Lead new_phone not written to Google Sheet: JSONDecodeError` (với `500`), và `read log --grep "Sheet written=False"` có dòng. Các dòng đó không chứa URL Sheet hay SĐT.
 - **Bằng chứng.** Transcript qua `tee`; `outbox.jsonl` có body đầy đủ của Sheet và Telegram.
 

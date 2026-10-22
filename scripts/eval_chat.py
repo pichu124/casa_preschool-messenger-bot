@@ -13,6 +13,8 @@ Mỗi lượt in transcript và kiểm vài heuristic đơn giản: có dấu ti
 không xưng "tôi"; không nêu số tiền (vd 1.000.000đ); câu cuối có bước tiếp theo (SĐT/Zalo, tham quan,
 học thử, hỏi tuổi bé/cơ sở...; trừ lượt chốt hẹn và sau đó, như mục 10 "Đã hẹn" của prompt); tối đa một token [QUICK:] hợp lệ ở cuối; cộng kiểm riêng của từng lượt
 (vd không có "%" ở lượt hỏi ưu đãi đầu tiên).
+Mời trước, hỏi thời gian sau (người vận hành 2026-10-22): khi phụ huynh chưa đồng ý học thử/tham quan
+(Turn.agreed), câu cuối không ép chọn "tuần này hay tuần sau"/"sáng hay chiều" và không kèm nút tuần/buổi.
 Giọng văn (phản hồi 2026-10-22, xem style_problems): tối đa 3 câu; không đọc lại SĐT phụ huynh đã gửi;
 không gọi "anh"/"chị" hay "mẹ"/"ba" một mình khi phụ huynh chưa tự xưng như vậy; không mở đầu "Dạ em ghi nhận".
 Không lặp lại câu của tin bot liền trước, không chép câu kể trong ví dụ "Em: …" của SYSTEM_PROMPT (thử DeepSeek
@@ -38,14 +40,17 @@ sys.path.insert(0, str(ROOT))
 from app.ai_engine import API_KEY_MAP, SYSTEM_PROMPT, AIEngine
 from app.config import settings
 from app.customer_memory import format_profile_for_prompt
+from app.messenger import QUICK_REPLIES
 from app.qa_database import QADatabase
 
 ASKS_PHONE = ("sđt", "số điện thoại", "zalo")
-# Câu cuối đạt nếu có hành động cụ thể, hoặc là câu hỏi lấy thông tin còn thiếu để tư vấn tiếp.
+# Câu cuối đạt nếu có hành động cụ thể, hoặc là câu hỏi lấy thông tin còn thiếu để tư vấn tiếp. "đăng ký" chỉ là bước
+# tiếp theo khi hỏi ("…khi đủ phụ huynh đăng ký sẽ mở tuyến" thì không). "Còn muốn biết thêm gì không ạ?" là câu chốt
+# chung chung, không tính; chỉ lượt "Tìm hiểu thêm" mới được hỏi vậy (next_step=False, any_of kiểm riêng).
 NEXT_ACTIONS = ASKS_PHONE + ("tham quan", "học thử", "liên hệ", "đặt lịch", "giữ lịch")
 NEXT_QUESTIONS = (
     "tuổi", "tháng", "ngày sinh", "cơ sở", "khu vực", "địa chỉ", "nhập học",
-    "buổi sáng", "buổi chiều", "tuần này", "tuần sau",
+    "buổi sáng", "buổi chiều", "tuần này", "tuần sau", "đăng ký",
 )
 GREETING = ("casa chào", "casa xin chào", "chào ba/mẹ", "chào ba mẹ")
 
@@ -70,6 +75,9 @@ LONE_BA_ME = re.compile(
     re.I,
 )
 PHONE_LIKE = re.compile(r"\+?\(?\d[\d ().-]{7,}\d")
+# Hỏi tuần/buổi là bước sau khi phụ huynh đã đồng ý học thử/tham quan; trước đó là ép chọn.
+FORCED_CHOICE = re.compile(r"tuần này hay tuần sau|sáng hay (?:buổi )?chiều", re.I)
+TIME_KEYS = {"trial_week", "visit_time"}
 ROBOTIC_OPENING = re.compile(r"^\W*(?:dạ\W*)?em (?:đã )?ghi nhận", re.I)
 MIN_COPY_WORDS = 6
 COPY_RATIO = 0.8
@@ -82,7 +90,9 @@ class Turn:
     any_of: list[tuple[str, ...]] = field(default_factory=list)  # mỗi nhóm phải có ít nhất 1 cụm
     none_of: tuple[str, ...] = ()
     known: dict = field(default_factory=dict)  # hồ sơ bot đã có trước lượt này (khối [THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT])
-    next_step: bool = True  # False: lượt chốt hẹn và sau đó ("Đã hẹn" là ngoại lệ của nguyên tắc 6)
+    # False: lượt chốt hẹn và sau đó ("Đã hẹn" là ngoại lệ của nguyên tắc 6), lượt "Tìm hiểu thêm" (any_of kiểm riêng)
+    next_step: bool = True
+    agreed: bool = False  # phụ huynh đã đồng ý học thử/tham quan: bot mới được hỏi tuần/buổi
 
 
 # Tên Facebook giả trong hồ sơ: bot không được suy ra "anh"/"chị" từ tên.
@@ -90,6 +100,7 @@ FB_NAME = {"parent_name": "Phụ Huynh Thử"}
 TEST_PHONE = "0912345678"
 VISIT = {**FB_NAME, "kid_age": "20 tháng", "interested_campus": "Chùa Láng"}
 BOOKED = {**VISIT, "phone": TEST_PHONE, "visit_request": "tham quan Chùa Láng buổi sáng"}
+VISIT_MD = {**FB_NAME, "kid_age": "3 tuổi", "interested_campus": "Mỹ Đình"}
 
 
 SCENARIOS: dict[str, list[Turn]] = {
@@ -145,8 +156,8 @@ SCENARIOS: dict[str, list[Turn]] = {
     ],
     # Chọn cơ sở, hẹn tham quan: không kể lại cơ sở/buổi/SĐT ở mỗi tin, chỉ xác nhận ngắn lúc chốt.
     "hen_tham_quan": [
-        Turn("bé nhà mình 20 tháng, mình muốn đi xem trường", known=FB_NAME),
-        Turn("cơ sở Chùa Láng", known={**FB_NAME, "kid_age": "20 tháng"}),
+        Turn("bé nhà mình 20 tháng, mình muốn đi xem trường", known=FB_NAME, agreed=True),
+        Turn("cơ sở Chùa Láng", known={**FB_NAME, "kid_age": "20 tháng"}, agreed=True),
         Turn(f"mình muốn đi tham quan buổi sáng, số mình {TEST_PHONE}", known=VISIT, any_of=[("liên hệ", "gọi")], next_step=False),
         # Thử DeepSeek 2026-10-22: bot gửi lại gần nguyên câu xác nhận trước, chép cả câu ví dụ chốt hẹn của prompt.
         Turn("sáng mai được không", known=BOOKED, next_step=False),
@@ -154,6 +165,51 @@ SCENARIOS: dict[str, list[Turn]] = {
             "ok cảm ơn em",
             known={**BOOKED, "visit_request": "tham quan Chùa Láng sáng mai"},
             none_of=("sáng mai", "chùa láng"),
+            next_step=False,
+        ),
+    ],
+    # Luồng mời mềm 2026-10-22: bấm "Đặt lịch tham quan" rồi "Buổi sáng" mà chưa để số → xác nhận ngắn và xin số mềm
+    # 1 lần (đó không phải lời mời/hẹn lại), lượt sau không xin nữa.
+    "hen_chua_co_so": [
+        Turn("bé nhà mình 3 tuổi, mình quan tâm cơ sở Mỹ Đình", known=FB_NAME),
+        Turn("Em muốn đặt lịch tham quan trường ạ", known=VISIT_MD, any_of=[("buổi sáng", "buổi chiều")], agreed=True),
+        Turn(
+            "Em muốn hẹn tham quan buổi sáng ạ",
+            known={**VISIT_MD, "visit_request": "tham quan Mỹ Đình"},
+            any_of=[("liên hệ", "gọi"), ("sđt", "zalo", "số điện thoại"), ("[quick:phone]",)],
+            next_step=False,
+        ),
+        Turn(
+            "ok cảm ơn em",
+            known={**VISIT_MD, "visit_request": "tham quan Mỹ Đình buổi sáng"},
+            none_of=("sđt", "zalo", "số điện thoại", "[quick:phone]"),
+            next_step=False,
+        ),
+    ],
+    # Người vận hành 2026-10-22: mời học thử bằng câu hỏi ý, phụ huynh đồng ý rồi bot mới hỏi tuần.
+    "moi_hoc_thu": [
+        Turn("bé nhà mình 3 tuổi, mình quan tâm cơ sở Mỹ Đình", known=FB_NAME),
+        Turn(
+            "trường có cho học thử không, con mình nhút nhát sợ không theo được các bạn",
+            known={**FB_NAME, "kid_age": "3 tuổi", "interested_campus": "Mỹ Đình"},
+            any_of=[("hiểu", "lo lắng", "nỗi lo", "yên tâm"), ("học thử",)],
+        ),
+        Turn(
+            "có, đăng ký luôn cho bé nhé",
+            known={**FB_NAME, "kid_age": "3 tuổi", "interested_campus": "Mỹ Đình"},
+            any_of=[("tuần này", "tuần sau")],
+            agreed=True,
+        ),
+    ],
+    # "Tìm hiểu thêm" (mục 2f): hỏi Ba/Mẹ muốn biết thêm gì, chưa mời lại, chưa hỏi tuần/buổi.
+    "tim_hieu_them": [
+        Turn("bé nhà mình 3 tuổi, mình quan tâm cơ sở Mỹ Đình", known=FB_NAME),
+        Turn("trường có cho học thử không ạ", known=VISIT_MD, any_of=[("học thử",)]),
+        Turn(
+            QUICK_REPLIES["trial_invite"][1][1],
+            known=VISIT_MD,
+            any_of=[("biết thêm", "quan tâm", "tìm hiểu")],
+            none_of=("[QUICK:trial_invite]", "[QUICK:visit_invite]", "[QUICK:trial_week]", "[QUICK:visit_time]"),
             next_step=False,
         ),
     ],
@@ -256,6 +312,8 @@ def check_turn(
     if turn.next_step and not (any(a in last for a in NEXT_ACTIONS) or ("?" in last and any(q in last for q in NEXT_QUESTIONS))):
         problems.append(f"câu cuối không có bước tiếp theo: {last_sentence(text)!r}")
     keys = QUICK_TOKEN.findall(text)
+    if not turn.agreed and (FORCED_CHOICE.search(last) or TIME_KEYS & set(keys)):
+        problems.append(f"hỏi tuần/buổi khi phụ huynh chưa đồng ý học thử/tham quan: {last_sentence(text)!r}")
     if len(keys) > 1 or (keys and not text.rstrip().endswith(f"[QUICK:{keys[0]}]")):
         problems.append(f"token [QUICK:] phải có tối đa 1 và ở cuối: {keys}")
     if unknown := [k for k in keys if k not in QUICK_KEYS]:

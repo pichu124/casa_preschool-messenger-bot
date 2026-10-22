@@ -111,6 +111,36 @@ def test_prompt_state_for_visit_with_phone():
         assert absent not in context
 
 
+# Luồng mời mềm 2026-10-22: phụ huynh bấm "Đặt lịch tham quan" rồi chọn buổi mà chưa để số thì "Đã hẹn" (không cần
+# bước tiếp theo) khiến bot không bao giờ xin số, tư vấn viên không gọi được để xác nhận giờ.
+ASK_PHONE_ONCE = "xin SĐT/Zalo mềm 1 lần"
+
+
+def test_prompt_state_for_visit_without_phone_asks_for_phone_once():
+    profile = {"kid_age": "3 tuổi", "interested_campus": "Mỹ Đình", "visit_request": "tham quan buổi sáng"}
+
+    booked = next(line for line in format_profile_for_prompt(profile).splitlines() if line.startswith("- Đã hẹn:"))
+
+    assert booked.startswith("- Đã hẹn: tham quan buổi sáng; chưa có SĐT"), booked
+    for phrase in (ASK_PHONE_ONCE, "tư vấn viên gọi xác nhận giờ", "[QUICK:phone]", "không xin lại"):
+        assert phrase in booked, booked
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [{"phone": PHONE}, {"phone_declined": True}],
+    ids=["has_phone", "phone_declined"],
+)
+def test_prompt_state_for_visit_does_not_ask_for_phone_when_known_or_declined(extra):
+    profile = {"kid_age": "3 tuổi", "interested_campus": "Mỹ Đình", "visit_request": "tham quan buổi sáng", **extra}
+
+    context = format_profile_for_prompt(profile)
+
+    assert "- Đã hẹn: tham quan buổi sáng\n" in context + "\n", context
+    assert ASK_PHONE_ONCE not in context
+    assert "[QUICK:phone]" not in context
+
+
 def test_prompt_state_for_new_customer_from_ads():
     """Khách vừa bấm quảng cáo, chưa nói gì: chỉ có khối trạng thái."""
     context = format_profile_for_prompt({"lead_source": "ads", "ad_title": AD_TITLE})

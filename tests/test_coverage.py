@@ -45,6 +45,15 @@ POSITIVE = [
     ("Casa tặng bé 1 tuần học thử miễn phí ạ.", ["trial"]),
     ("Mẹ cho bé học thử miễn phí trong một tuần nhé ạ.", ["trial"]),
     ("Mình tiện tuần này hay tuần sau ạ? [QUICK:trial_week]", ["trial"]),
+    # Lời mời mềm (người vận hành 2026-10-22): nút Đăng ký học thử / Tìm hiểu thêm là lời mời học thử 1 tuần
+    ("Ba/Mẹ có muốn cho bé thử không ạ? [QUICK:trial_invite]", ["trial"]),
+    (
+        "Ba/Mẹ cho bé học thử 1 tuần miễn phí để cảm nhận trực tiếp nhé, không biết Ba/Mẹ có muốn đăng ký luôn "
+        "không ạ? [QUICK:trial_invite]",
+        ["trial"],
+    ),
+    ("Ba/Mẹ cho bé học thử 1 tuần miễn phí để cảm nhận trực tiếp nhé, không biết Ba/Mẹ có muốn đăng ký luôn không ạ?",
+     ["trial"]),
     ("Cơ sở vật chất của Casa được đầu tư bài bản ạ.", ["facilities"]),
     ("Mỗi lớp rộng khoảng 80–90 m² ạ.", ["facilities"]),
     ("Lớp rộng 80 m2 ạ.", ["facilities"]),
@@ -66,6 +75,10 @@ POSITIVE = [
     ("Mời Ba/Mẹ đến tham quan không gian lớp học ạ.", ["visit_invite"]),
     ("Ba/Mẹ có thể tham quan lớp thực tế ạ.", ["visit_invite"]),
     ("Mình tiện buổi sáng hay buổi chiều ạ? [QUICK:visit_time]", ["visit_invite"]),
+    # Nút Đặt lịch tham quan / Tìm hiểu thêm là lời mời tham quan, kể cả khi câu không nói chữ "tham quan"
+    ("Nếu tiện, Ba/Mẹ đưa bé qua trường xem lớp một buổi nhé? [QUICK:visit_invite]", ["visit_invite"]),
+    ("Không biết Ba/Mẹ có muốn ghé tham quan trường không ạ? [QUICK:visit_invite]", ["visit_invite"]),
+    ("Không biết Ba/Mẹ có muốn ghé tham quan trường không ạ?", ["visit_invite"]),
     (
         "Dạ có ạ. Bé Bông 3 tuổi đúng độ tuổi học tiếng Anh theo Cambridge Early Years. "
         "Ba/Mẹ muốn đưa bé đến tham quan lớp thực tế vào buổi sáng hay buổi chiều ạ? [QUICK:visit_time]",

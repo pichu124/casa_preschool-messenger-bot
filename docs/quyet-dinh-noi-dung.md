@@ -92,6 +92,7 @@ Yêu cầu (nguyên văn ý): câu "Ba/Mẹ cho bé học thử 1 tuần miễn 
 
 - Nhận bé từ 15 tháng, đã đi vững.
 - Học phí: không nêu con số, không gửi bảng phí trên chat. Hỏi tuổi bé + cơ sở, kể giá trị trước, rồi xin SĐT/Zalo để tư vấn viên tư vấn/gửi bảng phí. Phụ huynh không cho số mà vẫn muốn biết → chuyển nhân viên trả lời trực tiếp (`[ESCALATE]`).
+- Chuyển tư vấn viên (`[ESCALATE]`, người vận hành 2026-10-22, sau khi khách cũ quay lại sau ~6 tháng hỏi "tôi muốn tìm hiểu thông tin về trường" bị chuyển): chỉ khi câu hỏi ngoài lề, hỏi một dữ kiện cụ thể không có trong Q&A (hoặc không chắc dữ kiện đó), hay phụ huynh không để lại số khi được xin (chưa từ chối rõ, vd hỏi lại "em cứ báo con số luôn đi") hoặc đã từ chối cho số mà vẫn cần học phí. Câu hỏi chung về trường (tìm hiểu trường, chương trình, cơ sở, giáo viên, độ tuổi…) luôn tự trả lời: giới thiệu ngắn rồi hỏi tuổi bé/cơ sở còn thiếu, kể cả khách cũ lâu ngày quay lại. Luật này không áp cho dữ kiện cụ thể: lịch học/thời gian biểu trong ngày không có trong Q&A nên vẫn `[ESCALATE]`, không bịa giờ (review 2026-10-22).
 - Kỳ đóng học phí (mục 2e; 2d, D3): học phí thu theo quý, 6 tháng hoặc 12 tháng; không thu theo tháng. Hỏi "đóng theo tháng được không" → không, nêu đủ 3 kỳ đóng. Chính sách hoàn phí (60/70/80%) và ưu đãi đóng theo kỳ dùng đúng 3 kỳ này.
 - Khoản đầu kỳ (mục 2d, D6): phí phát triển trường, phí học liệu và hoạt động ngoại khóa thu tròn năm vào tháng 7 hằng năm; bé nhập học giữa năm học thì thu tròn theo tháng, từ tháng bé nhập học tới hết tháng 6 của năm học. Học phí tháng đầu vẫn tính theo số ngày đi học thực tế. Không nêu số tiền.
 - Ưu đãi theo kỳ đóng và khuyến mãi: xin SĐT trước; không cho số → chỉ nói "ưu đãi hấp dẫn, tùy từng đợt/chương trình", không nêu %.
@@ -119,6 +120,7 @@ Yêu cầu (nguyên văn ý): câu "Ba/Mẹ cho bé học thử 1 tuần miễn 
   3. Còn lại (đã biết tuổi, chưa có SĐT, chưa tư vấn đủ) → mẫu 2 (xin SĐT/Zalo), kể cả khi phụ huynh đã từ chối để lại số — theo nhãn mẫu của trường (mục 2d).
   Nguyên văn 3 mẫu: mục 2d (thay bản ở mục 2b.c).
 - SĐT: nhận cả số thiếu số 0 đầu, viết tách lạ, số nước ngoài.
+- Thứ tự hỏi (người vận hành 2026-10-22): chưa biết tuổi bé thì hỏi tuổi trước thời điểm dự kiến nhập học, kể cả ngay sau khi phụ huynh gửi SĐT, vì học phí và chương trình theo tuổi. Không gọi bé là "lứa nhỏ" (nguồn là câu ví dụ "Lứa này…" trong prompt, đã đổi thành "Ở tuổi này…").
 - Thực đơn mẫu: gửi thẳng cho phụ huynh ảnh `static/thuc-don-mau.jpg` (trường `images` của cặp Q&A thực đơn chung; JPG chuyển từ ảnh trường gửi để Messenger nhận chắc chắn). Món ví dụ trong câu trả lời lấy đúng từ ảnh (thứ Hai), không thêm món ngoài ảnh; 5 bữa: sáng, nhẹ sáng, trưa, chiều, phụ chiều.
 - Không hỏi thẳng ngân sách; có thể hỏi gia đình cân nhắc hệ Quốc tế hay Song ngữ.
 - Tài liệu chưa có file (bảng phí, catalogue, hồ sơ giáo viên): không hứa gửi ngay trên chat; tư vấn viên gửi qua Zalo khi có SĐT, hoặc mời tham quan.

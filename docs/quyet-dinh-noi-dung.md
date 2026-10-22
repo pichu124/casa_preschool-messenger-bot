@@ -80,6 +80,14 @@ Mục D:
 * học phí thu theo quý, 6 tháng hoặc 12 tháng
 * 5 lĩnh vực Montessori: ngôn ngữ, toán, thực hành cuộc sống, giác quan, văn hoá
 
+## 2f. Quyết định của người vận hành, 2026-10-22 (lời mời học thử/tham quan)
+
+Yêu cầu (nguyên văn ý): câu "Ba/Mẹ cho bé học thử 1 tuần miễn phí để cảm nhận trực tiếp nhé, tuần này hay tuần sau ạ?" sửa thành kiểu "Ba/Mẹ cho bé học thử 1 tuần miễn phí để cảm nhận trực tiếp nhé, không biết Ba/Mẹ có muốn đăng ký luôn không ạ?" — đoạn "tuần này hay tuần sau ạ" cụt ngủn và cảm giác ép buộc; điều chỉnh cả giọng văn. Đã chốt:
+
+- (a) Áp dụng cho CẢ học thử và tham quan.
+- (b) Nút lúc mời đổi thành "Đăng ký học thử / Tìm hiểu thêm" và "Đặt lịch tham quan / Tìm hiểu thêm"; chỉ SAU KHI phụ huynh đồng ý mới hỏi thời gian với nút "Tuần này / Tuần sau" hoặc "Buổi sáng / Buổi chiều" như cũ.
+- Xưng hô giữ "Ba/Mẹ" (chỉ gọi "mẹ" khi phụ huynh tự xưng).
+
 ## 3. Cách bot áp dụng
 
 - Nhận bé từ 15 tháng, đã đi vững.
@@ -104,7 +112,7 @@ Mục D:
 - Bỏ toàn bộ nội dung workshop của cô Phan Thúy (sheet "Workshop" trong kịch bản). Câu trả lời về sự kiện chung của trường (Family Day, workshop, lễ hội…) vẫn giữ — chờ trường xác nhận (docs/dot-3-can-bo-sung.md, mục C6).
 - Xe bus: hiện Nhà trường chưa có tuyến xe bus; khi đủ phụ huynh đăng ký, Nhà trường sẽ mở tuyến. Bot mời để lại khu vực nhà + SĐT/Zalo để ghi nhận nhu cầu.
 - Khi phụ huynh chê đắt (CARE): không gợi ý hệ/cơ sở khác như phương án rẻ hơn; nêu giá trị khác biệt và mời học thử/tham quan.
-- Câu hỏi gợi ý, nút trả lời nhanh: theo mục 2b. Mẫu tin nhắc lại: nguyên văn mục 2d. Tin nhắc lại vẫn tắt.
+- Câu hỏi gợi ý, nút trả lời nhanh: theo mục 2b; nút mời học thử/tham quan theo mục 2f. Mẫu tin nhắc lại: nguyên văn mục 2d. Tin nhắc lại vẫn tắt.
 - Chọn mẫu tin nhắc lại (`app/followup.py`), theo thứ tự:
   1. Đã tư vấn tương đối đủ (mục 2c.3) → mẫu 3 (mời tham quan). Điều kiện 1 = bot đã biết tuổi bé **và** cơ sở phụ huynh quan tâm (chỉ biết khu vực nhà thì chưa đủ). Điều kiện 2–6 = câu bot đã gửi có nói tới: trường/cơ sở (địa chỉ), chương trình học, ngoại khóa, thực đơn/dinh dưỡng, học thử 1 tuần miễn phí, cơ sở vật chất/không gian lớp, và lời mời tham quan (`app/coverage.py` dò trên câu bot gửi, lưu ở `topics_covered`).
   2. Chưa biết tuổi bé → mẫu 1 (hỏi tuổi).
@@ -115,6 +123,7 @@ Mục D:
 - Không hỏi thẳng ngân sách; có thể hỏi gia đình cân nhắc hệ Quốc tế hay Song ngữ.
 - Tài liệu chưa có file (bảng phí, catalogue, hồ sơ giáo viên): không hứa gửi ngay trên chat; tư vấn viên gửi qua Zalo khi có SĐT, hoặc mời tham quan.
 - Lead (phụ huynh để lại SĐT, đổi SĐT, hẹn tham quan/học thử): gửi vào nhóm Telegram đang dùng và đẩy sang Google Sheet.
+  - Mỗi chi tiết hẹn mới là một lead: phụ huynh bấm "Đặt lịch tham quan"/"Đăng ký học thử" (đồng ý) rồi chọn buổi/tuần thì nhóm có thể nhận 2 tin cho cùng một lịch — tin đầu để tư vấn viên gọi sớm, tin sau thêm buổi/tuần để chốt giờ. Bấm lại cùng buổi/tuần không gửi nữa.
 
 - Giọng văn (người vận hành chốt 2026-10-22, sau khi xem hội thoại thật): nhắn như tư vấn viên thật, không như bot.
   - Xưng "em", gọi "Ba/Mẹ"; chỉ gọi "anh/chị/mẹ bé…" khi phụ huynh tự xưng như vậy. Không đoán giới tính từ tên Facebook (tên Facebook không đưa vào prompt chat).
@@ -123,6 +132,7 @@ Mục D:
   - Không nhắc lại thông tin phụ huynh đã đưa (SĐT, tuổi, cơ sở, buổi hẹn), không đọc lại số điện thoại; chỉ xác nhận ngắn 1 lần lúc vừa chốt lịch hẹn.
   - Thông tin đã biết vẫn dùng để tư vấn đúng hệ/cơ sở/nhóm tuổi (vd phụ huynh Kim Mã hỏi giáo viên nước ngoài thì trả lời theo hệ Song ngữ), chỉ không kể lại.
   - Mở đầu đa dạng, không khuôn "em ghi nhận…", emoji chỉ thỉnh thoảng.
+  - Mời học thử/tham quan (mục 2f): câu hỏi ý mềm ("không biết Ba/Mẹ có muốn … không ạ?", "nếu tiện…") kèm nút mời (`trial_invite`: Đăng ký học thử / Tìm hiểu thêm; `visit_invite`: Đặt lịch tham quan / Tìm hiểu thêm), không bắt chọn tuần/buổi ngay. Nút mời thay cho nút thời gian ở lần mời đầu; phụ huynh đồng ý (bấm nút hoặc nói muốn) thì mới hỏi tuần (`trial_week`: Tuần này / Tuần sau) hay buổi (`visit_time`: Buổi sáng / Buổi chiều). "Tìm hiểu thêm" → hỏi Ba/Mẹ muốn biết thêm điều gì, chưa mời lại. Xin SĐT cũng mềm ("Nếu tiện, Ba/Mẹ để lại SĐT/Zalo…"). Câu kết trọn ý, có từ đệm tự nhiên, không cụt, không thúc ép.
   - Không lặp lại câu vừa gửi, không chép câu ví dụ trong prompt (thử model thật 2026-10-22): phụ huynh đổi/chốt cụ thể hơn (vd "sáng mai được không") thì trả lời thẳng ý mới, không gửi lại câu xác nhận. Bot không tự hứa lịch trống ("sáng mai được ạ"): nhận yêu cầu, tư vấn viên gọi xác nhận giờ.
 
 ## 4. Dữ kiện cốt lõi
@@ -157,5 +167,5 @@ Mục D:
 3. Tổng chi phí thực tế do tư vấn viên tính và gửi, không tính trên chat.
 4. Dùng "học thử 1 tuần miễn phí" làm bước trung gian với khách còn phân vân.
 5. CARE khi chê đắt/so sánh trường khác: Connect → Acknowledge → Resolve → Evaluate.
-6. Luôn kết thúc bằng một bước tiếp theo cụ thể (xin SĐT, hẹn tham quan, hẹn học thử), trừ lúc vừa chốt lịch hẹn (chỉ xác nhận ngắn).
+6. Luôn kết thúc bằng một bước tiếp theo cụ thể (xin SĐT, hẹn tham quan, hẹn học thử), trừ lúc vừa chốt lịch hẹn (chỉ xác nhận ngắn). Từ 2026-10-22 (mục 2f): mời mềm trước, phụ huynh đồng ý rồi mới hỏi thời gian.
 7. Điều hướng xin SĐT để tư vấn qua Zalo hoặc gọi điện.

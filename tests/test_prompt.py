@@ -1010,3 +1010,29 @@ def test_eval_replays_the_returning_parent_asking_about_the_school_like_producti
     assert "phụ huynh CŨ quay lại sau khoảng 6 tháng" in recorder.user_message
     assert "[TRẠNG THÁI TƯ VẤN]" in recorder.user_message
     assert "[FIRST_MESSAGE]" not in recorder.user_message
+
+
+# Production 2026-10-22: phụ huynh vừa gửi SĐT khi bot chưa biết tuổi bé, bot hỏi "dự kiến nhập học khoảng thời gian
+# nào" rồi mới hỏi tuổi, vì mục 7 và câu ví dụ dạy hỏi thời điểm nhập học ngay sau SĐT. Học phí và chương trình theo
+# tuổi nên tuổi bé hỏi trước; "Còn thiếu" của trạng thái tư vấn cũng bắt đầu bằng tuổi bé.
+def test_age_is_asked_before_the_expected_start():
+    from app.customer_memory import missing_fields
+
+    rule = next(line for line in SYSTEM_PROMPT.splitlines() if "vừa gửi số" in line)
+    assert re.search(r"tuổi bé nếu chưa biết[^\n]*nhập học", rule), rule
+    for parent, reply in _examples():
+        if re.search(r"dự kiến|nhập học|đi học từ", reply):
+            assert "tuổi" in parent, (parent, reply)
+    after_phone = [reply for parent, reply in _examples() if "vừa gửi SĐT" in parent and "chưa biết tuổi" in parent]
+    assert len(after_phone) == 1 and after_phone[0].endswith("[QUICK:age]"), after_phone
+    assert missing_fields({})[0] == "tuổi bé"
+
+
+def test_eval_flags_asking_the_start_date_before_the_age_right_after_the_phone():
+    turn = eval_chat.SCENARIOS["gui_sdt_chon_tuoi"][1]
+    assert turn.message == eval_chat.TEST_PHONE and not turn.known.get("kid_age")
+    production = "Dạ tư vấn viên sẽ liên hệ Ba/Mẹ trong hôm nay ạ. Bé nhà mình dự kiến nhập học khoảng thời gian nào ạ?"
+    problems = eval_chat.check_turn(turn, False, False, production, [turn.message])
+    assert any("nhập học" in p for p in problems), problems
+    asks_age = "Em chuyển số cho tư vấn viên liên hệ Ba/Mẹ sớm ạ. Bé nhà mình được mấy tháng rồi ạ? [QUICK:age]"
+    assert eval_chat.check_turn(turn, False, False, asks_age, [turn.message]) == []

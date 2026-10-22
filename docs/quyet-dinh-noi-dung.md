@@ -120,6 +120,7 @@ Yêu cầu (nguyên văn ý): câu "Ba/Mẹ cho bé học thử 1 tuần miễn 
   3. Còn lại (đã biết tuổi, chưa có SĐT, chưa tư vấn đủ) → mẫu 2 (xin SĐT/Zalo), kể cả khi phụ huynh đã từ chối để lại số — theo nhãn mẫu của trường (mục 2d).
   Nguyên văn 3 mẫu: mục 2d (thay bản ở mục 2b.c).
 - SĐT: nhận cả số thiếu số 0 đầu, viết tách lạ, số nước ngoài.
+- Thứ tự hỏi (người vận hành 2026-10-22): chưa biết tuổi bé thì hỏi tuổi trước thời điểm dự kiến nhập học, kể cả ngay sau khi phụ huynh gửi SĐT, vì học phí và chương trình theo tuổi.
 - Thực đơn mẫu: gửi thẳng cho phụ huynh ảnh `static/thuc-don-mau.jpg` (trường `images` của cặp Q&A thực đơn chung; JPG chuyển từ ảnh trường gửi để Messenger nhận chắc chắn). Món ví dụ trong câu trả lời lấy đúng từ ảnh (thứ Hai), không thêm món ngoài ảnh; 5 bữa: sáng, nhẹ sáng, trưa, chiều, phụ chiều.
 - Không hỏi thẳng ngân sách; có thể hỏi gia đình cân nhắc hệ Quốc tế hay Song ngữ.
 - Tài liệu chưa có file (bảng phí, catalogue, hồ sơ giáo viên): không hứa gửi ngay trên chat; tư vấn viên gửi qua Zalo khi có SĐT, hoặc mời tham quan.

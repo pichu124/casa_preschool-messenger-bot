@@ -175,7 +175,13 @@ SCENARIOS: dict[str, list[Turn]] = {
     # Hội thoại production 2026-10-22: gửi SĐT, rồi bấm nút tuổi; bot từng đọc lại số và gọi "anh" theo tên Facebook.
     "gui_sdt_chon_tuoi": [
         Turn("cho mình hỏi học phí ạ", known=FB_NAME),
-        Turn(TEST_PHONE, known=FB_NAME, any_of=[("liên hệ", "gọi")]),
+        # Chưa biết tuổi bé: hỏi tuổi trước thời điểm nhập học (học phí, chương trình theo tuổi).
+        Turn(
+            TEST_PHONE,
+            known=FB_NAME,
+            any_of=[("liên hệ", "gọi"), ("tuổi", "mấy tháng", "bao nhiêu tháng", "[quick:age]")],
+            none_of=("nhập học",),
+        ),
         Turn("Dưới 2 tuổi", known={**FB_NAME, "phone": TEST_PHONE}),
     ],
     # Chọn cơ sở, hẹn tham quan: không kể lại cơ sở/buổi/SĐT ở mỗi tin, chỉ xác nhận ngắn lúc chốt.

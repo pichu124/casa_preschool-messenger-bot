@@ -13,7 +13,7 @@ import httpx
 import pytest
 
 import app.main as main
-from app import customer_memory, escalation
+from app import customer_memory, escalation, leads_sheet
 from app.ai_engine import AIProvider, AIResponse
 from app.config import settings
 from app.escalation import lead_events
@@ -500,6 +500,29 @@ def test_message_without_phone_while_every_model_fails_asks_for_it(models_down, 
     assert len(net.telegram) == len(net.leads(escalation.ESCALATION_HEADER)) == 1
     assert net.sheet == []
     assert "phone" not in customer_memory.get_profile(CUSTOMER_ID)
+
+
+# --- Giờ trong tin cho admin là giờ Việt Nam, bất kể TZ của server ---
+
+
+class RenderClock(datetime):
+    """Đồng hồ server Render, giờ máy là UTC: 01:30 UTC ngày 22/10/2026, tức 08:30 giờ Việt Nam."""
+
+    @classmethod
+    def now(cls, tz=None):
+        utc_now = datetime(2026, 10, 22, 1, 30, tzinfo=timezone.utc)
+        return utc_now.astimezone(tz) if tz else utc_now.replace(tzinfo=None)
+
+
+def test_escalation_and_lead_show_vietnam_time_on_a_utc_server(monkeypatch, chat, net):
+    monkeypatch.setattr(escalation, "datetime", RenderClock)
+    monkeypatch.setattr(leads_sheet, "datetime", RenderClock)
+
+    chat.say(f"{QUESTION} Số mình {PHONE}", extracted={"phone": PHONE}, reply="", escalate=True)
+
+    assert len(net.leads(escalation.ESCALATION_HEADER)) == len(net.leads()) == 1
+    assert [message for message in net.telegram if "🕐 22/10/2026 08:30\n" not in message] == []
+    assert [row["time"] for row in net.sheet] == ["2026-10-22 08:30:00"]
 
 
 # --- post_lead_row ---

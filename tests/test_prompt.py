@@ -328,6 +328,14 @@ def test_reminder_defers_next_step_to_consultation_state(monkeypatch):
     assert "không hẹn lại" in reminder
 
 
+def test_reminder_lets_booked_visit_without_phone_ask_for_phone_once(monkeypatch):
+    # "Đã hẹn" không cần bước tiếp theo, trừ chỉ dẫn xin SĐT mềm 1 lần mà dòng trạng thái thêm khi chưa có số.
+    for reminder in _reminders(monkeypatch):
+        booked = next(line for line in reminder.splitlines() if "'Đã hẹn'" in line)
+        assert "không cần bước tiếp theo" in booked, booked
+        assert re.search(r"chưa có SĐT[^\n]*xin SĐT/Zalo mềm 1 lần[^\n]*không xin lại", booked), booked
+
+
 def test_follow_up_message_is_not_marked_first(monkeypatch):
     _, user_message = model_input(
         monkeypatch,

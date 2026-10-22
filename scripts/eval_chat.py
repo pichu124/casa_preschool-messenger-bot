@@ -96,6 +96,7 @@ FB_NAME = {"parent_name": "Phụ Huynh Thử"}
 TEST_PHONE = "0912345678"
 VISIT = {**FB_NAME, "kid_age": "20 tháng", "interested_campus": "Chùa Láng"}
 BOOKED = {**VISIT, "phone": TEST_PHONE, "visit_request": "tham quan Chùa Láng buổi sáng"}
+VISIT_MD = {**FB_NAME, "kid_age": "3 tuổi", "interested_campus": "Mỹ Đình"}
 
 
 SCENARIOS: dict[str, list[Turn]] = {
@@ -160,6 +161,24 @@ SCENARIOS: dict[str, list[Turn]] = {
             "ok cảm ơn em",
             known={**BOOKED, "visit_request": "tham quan Chùa Láng sáng mai"},
             none_of=("sáng mai", "chùa láng"),
+            next_step=False,
+        ),
+    ],
+    # Luồng mời mềm 2026-10-22: bấm "Đặt lịch tham quan" rồi "Buổi sáng" mà chưa để số → xác nhận ngắn và xin số mềm
+    # 1 lần (đó không phải lời mời/hẹn lại), lượt sau không xin nữa.
+    "hen_chua_co_so": [
+        Turn("bé nhà mình 3 tuổi, mình quan tâm cơ sở Mỹ Đình", known=FB_NAME),
+        Turn("Em muốn đặt lịch tham quan trường ạ", known=VISIT_MD, any_of=[("buổi sáng", "buổi chiều")], agreed=True),
+        Turn(
+            "Em muốn hẹn tham quan buổi sáng ạ",
+            known={**VISIT_MD, "visit_request": "tham quan Mỹ Đình"},
+            any_of=[("liên hệ", "gọi"), ("sđt", "zalo", "số điện thoại"), ("[quick:phone]",)],
+            next_step=False,
+        ),
+        Turn(
+            "ok cảm ơn em",
+            known={**VISIT_MD, "visit_request": "tham quan Mỹ Đình buổi sáng"},
+            none_of=("sđt", "zalo", "số điện thoại", "[quick:phone]"),
             next_step=False,
         ),
     ],

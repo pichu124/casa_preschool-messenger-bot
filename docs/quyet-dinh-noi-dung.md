@@ -167,5 +167,5 @@ Yêu cầu (nguyên văn ý): câu "Ba/Mẹ cho bé học thử 1 tuần miễn 
 3. Tổng chi phí thực tế do tư vấn viên tính và gửi, không tính trên chat.
 4. Dùng "học thử 1 tuần miễn phí" làm bước trung gian với khách còn phân vân.
 5. CARE khi chê đắt/so sánh trường khác: Connect → Acknowledge → Resolve → Evaluate.
-6. Luôn kết thúc bằng một bước tiếp theo cụ thể (xin SĐT, hẹn tham quan, hẹn học thử), trừ lúc vừa chốt lịch hẹn (chỉ xác nhận ngắn). Từ 2026-10-22 (mục 2f): mời mềm trước, phụ huynh đồng ý rồi mới hỏi thời gian.
+6. Luôn kết thúc bằng một bước tiếp theo cụ thể (xin SĐT, hẹn tham quan, hẹn học thử), trừ lúc vừa chốt lịch hẹn (chỉ xác nhận ngắn; chưa có SĐT và phụ huynh chưa từ chối để số thì xin SĐT/Zalo mềm 1 lần để tư vấn viên gọi xác nhận giờ, đã xin rồi thì không xin lại). Từ 2026-10-22 (mục 2f): mời mềm trước, phụ huynh đồng ý rồi mới hỏi thời gian.
 7. Điều hướng xin SĐT để tư vấn qua Zalo hoặc gọi điện.

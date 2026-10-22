@@ -558,6 +558,55 @@ def test_first_phone_number_in_the_extracted_phone_is_saved_and_sent_as_lead(bot
     assert [m for m in logs if saved in m or last_9_digits in m] == []
 
 
+@pytest.mark.parametrize(
+    "extracted",
+    [{}, {"phone": "không có"}, {"phone_declined": True}, {"phone": "chưa có", "phone_declined": True}],
+    ids=["không trích được gì", "phone không có số", "phone_declined", "phone không có số và phone_declined"],
+)
+def test_phone_typed_in_message_is_saved_when_extraction_has_no_valid_phone(bot, extracted):
+    bot.say(f"số điện thoại tôi là {PHONE}", reply="", escalate=True, extracted=extracted)
+
+    profile = customer_memory.get_profile(SENDER)
+    assert profile["phone"] == PHONE and "phone_declined" not in profile
+    assert len(bot.leads()) == 1 and f"SĐT: {PHONE}\n" in bot.leads()[0]
+    assert bot.sent[0][1] == escalation.ESCALATION_MESSAGE_HAS_PHONE
+
+
+def test_valid_phone_from_the_model_wins_over_another_number_in_the_message(bot):
+    bot.say(f"Số cũ {PHONE} không dùng nữa, Zalo mình là 0987 654 321", extracted={"phone": "0987 654 321"})
+
+    assert customer_memory.get_profile(SENDER)["phone"] == "0987 654 321"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Bé nhà mình 3 tuổi ạ",
+        "Nhà mình ở 185 Huỳnh Thúc Kháng, có gần cơ sở nào không ạ?",
+        "Bé sinh ngày 15/03/2022, học phí 5.500.000 một tháng đúng không ạ?",
+        "Cho mình hỏi lớp 18 - 24 tháng còn chỗ không, mình ở tầng 12 tòa 3",
+    ],
+)
+def test_numbers_that_are_not_a_phone_are_not_saved_as_one(bot, text):
+    bot.say(text, reply="", escalate=True)
+
+    assert "phone" not in customer_memory.get_profile(SENDER)
+    assert bot.leads() == []
+    assert bot.sent[0][1] == escalation.ESCALATION_MESSAGE_ASK_PHONE
+
+
+def test_test_chat_saves_phone_typed_in_message_like_messenger(monkeypatch, bot):
+    monkeypatch.setattr(settings, "TELEGRAM_WEBHOOK_SECRET", WEBHOOK_SECRET)
+    bot.response = AIResponse(text="", should_escalate=True, model_used="none")
+
+    resp = client.post(
+        "/test-chat", params={"secret": WEBHOOK_SECRET}, json={"message": f"số điện thoại tôi là {PHONE}"}
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["profile"]["phone"] == PHONE
+
+
 def test_extraction_gets_the_bot_message_just_sent(bot):
     customer_memory._customers[SENDER] = {
         "conversation_history": [

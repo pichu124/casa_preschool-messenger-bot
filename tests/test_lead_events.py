@@ -14,7 +14,7 @@ import pytest
 
 import app.main as main
 from app import customer_memory, escalation
-from app.ai_engine import AIResponse
+from app.ai_engine import AIProvider, AIResponse
 from app.config import settings
 from app.escalation import lead_events
 from app.leads_sheet import post_lead_row
@@ -460,6 +460,46 @@ def test_escalation_after_phone_declined_does_not_ask_for_phone(chat, net, decli
     assert net.sheet == []
     assert customer_memory.get_profile(CUSTOMER_ID)["phone_declined"] is True
     assert customer_memory.get_conversation_history(CUSTOMER_ID)[-1] == {"role": "assistant", "content": chat.sent[0]}
+
+
+# --- Mọi model lỗi (vd tên model sai): SĐT phụ huynh gõ trong tin vẫn được nhận ---
+
+
+class ModelDown(AIProvider):
+    """Model lỗi ở mọi lời gọi, như khi tên model trong AI_MODEL_ORDER sai."""
+
+    async def generate(self, system_prompt, user_message, conversation_history):
+        raise RuntimeError("The model `gpt-ten-sai` does not exist")
+
+
+@pytest.fixture
+def models_down(monkeypatch, chat):
+    """get_response và extract_customer_info thật chạy hết chuỗi dự phòng, model nào cũng lỗi."""
+    monkeypatch.delattr(main.ai_engine, "get_response")
+    monkeypatch.delattr(main.ai_engine, "extract_customer_info")
+    monkeypatch.setattr(settings, "AI_MODEL_ORDER", ["openai", "groq"])
+    monkeypatch.setattr(main.ai_engine, "_providers", {"openai": ModelDown(), "groq": ModelDown()})
+    return chat
+
+
+def test_phone_typed_while_every_model_fails_is_saved_and_published(models_down, net):
+    asyncio.run(main.process_message(CUSTOMER_ID, f"số điện thoại tôi là {PHONE}"))
+
+    assert models_down.sent == [escalation.ESCALATION_MESSAGE_HAS_PHONE]
+    assert len(net.leads(escalation.ESCALATION_HEADER)) == 1
+    assert len(net.leads()) == 1 and f"SĐT: {PHONE}\n" in net.leads()[0]
+    assert [(row["event"], row["phone"]) for row in net.sheet] == [("new_phone", PHONE)]
+    assert customer_memory.get_profile(CUSTOMER_ID)["phone"] == PHONE
+
+
+@pytest.mark.parametrize("text", [QUESTION, "Bé nhà mình 3 tuổi, nhà ở 185 Huỳnh Thúc Kháng ạ"])
+def test_message_without_phone_while_every_model_fails_asks_for_it(models_down, net, text):
+    asyncio.run(main.process_message(CUSTOMER_ID, text))
+
+    assert models_down.sent == [escalation.ESCALATION_MESSAGE_ASK_PHONE]
+    assert len(net.telegram) == len(net.leads(escalation.ESCALATION_HEADER)) == 1
+    assert net.sheet == []
+    assert "phone" not in customer_memory.get_profile(CUSTOMER_ID)
 
 
 # --- post_lead_row ---

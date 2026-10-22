@@ -32,6 +32,7 @@ from app.escalation import (
     ESCALATION_MESSAGE_ASK_PHONE,
     ESCALATION_MESSAGE_HAS_PHONE,
     ESCALATION_MESSAGE_PHONE_DECLINED,
+    drop_pending_escalations,
     escalate_to_admin,
     get_pending_escalation,
     lead_events,
@@ -256,6 +257,18 @@ async def export_customers(_: None = Depends(require_secret)):
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@app.post("/customers/{customer_id}/reset")
+async def reset_customer(customer_id: str, _: None = Depends(require_secret)):
+    """Forget one parent (profile, history, pending escalations): their next message is a first message.
+    Requires ?secret=."""
+    existed = customer_memory.reset_customer(customer_id)
+    dropped = drop_pending_escalations(customer_id)
+    if existed:
+        await customer_memory.sync_to_github()
+    logger.info(f"Reset customer {customer_id}: existed={existed}, pending escalations dropped={dropped}")
+    return {"status": "reset", "existed": existed}
 
 
 @app.post("/analytics/reset")

@@ -295,6 +295,16 @@ def resolve_escalation(telegram_msg_id: int):
         _save_pending()
 
 
+def drop_pending_escalations(customer_id: str) -> int:
+    """Remove every pending escalation of one customer; returns how many."""
+    stale = [msg_id for msg_id, pending in _pending.items() if pending.get("customer_id") == customer_id]
+    for msg_id in stale:
+        del _pending[msg_id]
+    if stale:
+        _save_pending()
+    return len(stale)
+
+
 def _log_escalation(customer_id: str, customer_name: str, question: str):
     """Append escalation record to log file."""
     log_path = Path(ESCALATION_LOG_PATH)

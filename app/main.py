@@ -523,19 +523,21 @@ def _last_bot_message(history: list[dict]) -> str:
     return history[-1]["content"] if history and history[-1]["role"] == "assistant" else ""
 
 
-def _clean_extracted(extracted: dict, phone_from_qr: str | None) -> dict:
-    """The model's extraction made safe to store: the phone quick reply wins, otherwise phone is the first
-    phone number in what the model gave ("0912345678, 0987654321" keeps the first) and is dropped when
-    there is none (e.g. "không có"); phone_declined is kept only as JSON true (models also return "false");
-    topics_covered is only ever what the bot replied with (topics_in_reply)."""
+def _clean_extracted(extracted: dict, phone_from_qr: str | None, text: str) -> dict:
+    """The model's extraction of the parent's message `text` made safe to store: the phone quick reply wins,
+    otherwise phone is the first phone number in what the model gave ("0912345678, 0987654321" keeps the
+    first), else the first one in `text` itself, so a number the parent typed is kept even when every model
+    fails; it then also drops phone_declined. phone_declined is kept only as JSON true (models also return
+    "false"); topics_covered is only ever what the bot replied with (topics_in_reply)."""
     extracted = dict(extracted)
     extracted.pop("topics_covered", None)
-    if phone_from_qr:
-        extracted["phone"] = phone_from_qr
-    elif "phone" in extracted:
-        phone = _find_phone(extracted.pop("phone"))
+    phone = phone_from_qr or _find_phone(extracted.pop("phone", None))
+    if not phone:
+        phone = _find_phone(text)
         if phone:
-            extracted["phone"] = phone
+            extracted.pop("phone_declined", None)
+    if phone:
+        extracted["phone"] = phone
     if extracted.get("phone_declined") is not True:
         extracted.pop("phone_declined", None)
     return extracted
@@ -621,7 +623,7 @@ async def process_message(
             ),
             ai_engine.extract_customer_info(text, existing_profile, last_bot_message=last_bot_message),
         )
-        extracted = _clean_extracted(extracted, phone_from_qr)
+        extracted = _clean_extracted(extracted, phone_from_qr, text)
 
         logger.info(
             f"User {sender_id} ({user_name}): {len(text)} chars "
@@ -786,7 +788,7 @@ async def test_chat(body: TestMessage, _: None = Depends(require_secret)):
         extracted = await ai_engine.extract_customer_info(
             body.message, existing_profile, last_bot_message=_last_bot_message(history)
         )
-        extracted = _clean_extracted(extracted, None)
+        extracted = _clean_extracted(extracted, None, body.message)
         if response.text and not response.should_escalate:
             covered = topics_in_reply(response.text)
             if covered:

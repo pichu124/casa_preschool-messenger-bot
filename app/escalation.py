@@ -9,7 +9,7 @@ import httpx
 
 from app.config import settings
 from app.customer_memory import lead_stage
-from app.leads_sheet import post_lead_row
+from app.leads_sheet import VN_TZ, post_lead_row
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +108,7 @@ async def escalate_to_admin(
         f"🆔 ID: {customer_id}\n"
         f"📄 Trang: {page_name}\n\n"
         f"❓ Câu hỏi:\n{question}\n\n"
-        f"🕐 {datetime.now().strftime('%d/%m/%Y %H:%M')}\n\n"
+        f"🕐 {datetime.now(VN_TZ).strftime('%d/%m/%Y %H:%M')}\n\n"
         f"💬 Reply tin nhắn này để trả lời khách hàng."
     )
 
@@ -209,7 +209,7 @@ async def publish_lead_event(kind: str, customer_id: str, fb_name: str, profile:
             f"📊 Giai đoạn: {stage}\n"
             f"💭 Mối quan tâm: {_known(*concerns)}\n\n"
             f"💬 Tin nhắn gần nhất:\n{last_message}\n\n"
-            f"🕐 {datetime.now().strftime('%d/%m/%Y %H:%M')}\n\n"
+            f"🕐 {datetime.now(VN_TZ).strftime('%d/%m/%Y %H:%M')}\n\n"
             f"📲 Gọi hoặc nhắn Zalo cho phụ huynh. Reply tin này không gửi tới khách."
         )
         # Keys and column order: docs/google-sheet-leads.md

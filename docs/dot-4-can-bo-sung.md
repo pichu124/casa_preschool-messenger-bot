@@ -46,6 +46,7 @@ Bảo mật:
 
 ## E. Kỹ thuật
 
+- [ ] (Để sau, khi phát sinh vấn đề) **Chỉ gửi Q&A liên quan cho AI** thay vì cả 104 cặp: mỗi lần hỏi hiện ~18.500 token, vượt giới hạn gói miễn phí (Groq: 7.000 token/phút). Thu nhỏ giúp chạy được gói miễn phí, rẻ và nhanh hơn, nhưng có rủi ro chọn sót câu liên quan → phải chấm bằng `scripts/eval_chat.py` với key thật trước khi đưa lên. Hiện dùng gói trả phí (DeepSeek) nên chưa cần.
 - [x] ~~Model AI đã ngừng~~: đã thay model Groq `deepseek-r1-distill-llama-70b` và `llama-3.3-70b-versatile`, DeepSeek `deepseek-chat`, Gemini `gemini-2.0-flash`. Gemini chuyển sang thư viện `google-genai`. Tên model đặt được qua biến môi trường (README, mục "Model AI").
 - [ ] **Xác minh tên model mới bằng API key thật** (phiên agent không có key): `openai/gpt-oss-120b`, `qwen/qwen3.8-27b` (Groq), `deepseek-flash`, `gemini-3.5-flash` (khả năng sai cao nhất). Xem danh sách model ở trang console/`/models` của từng nhà cung cấp; tên sai thì đặt biến `*_MODEL` trên Render, không cần sửa code.
 - [ ] OpenAI `gpt-4o-mini` ngừng ngày **2027-01-14**: trước mốc này chọn model thay và đặt `OPENAI_MODEL` trên Render.

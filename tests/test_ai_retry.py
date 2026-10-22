@@ -226,7 +226,7 @@ def test_retry_logs_one_short_warning_per_retry(engine_with, wire, sleeps, caplo
     assert line == "MistralProvider lỗi tạm thời (SDKError 429), thử lại lần 1 sau 1.5s"
 
 
-# --- Lỗi máy chủ (5xx, 408, 409) hoặc mất kết nối/hết giờ: thử lại cùng model 1 lần sau 1s ---
+# --- Lỗi máy chủ (5xx, 408, 409) hoặc mất kết nối: thử lại cùng model 1 lần sau 1s ---
 
 
 @pytest.mark.parametrize("provider", PROVIDERS)
@@ -257,8 +257,8 @@ def test_server_error_twice_moves_on_after_one_retry(engine_with, wire, sleeps, 
 
 @pytest.mark.parametrize(
     "lost",
-    [httpx.ConnectError("Connection reset by peer"), httpx.ReadTimeout("timed out")],
-    ids=["connect-error", "read-timeout"],
+    [httpx.ConnectError("Connection reset by peer"), httpx.RemoteProtocolError("Server disconnected")],
+    ids=["connect-error", "server-disconnected"],
 )
 @pytest.mark.parametrize("provider", PROVIDERS)
 def test_connection_lost_once_then_answers_from_same_model(engine_with, wire, sleeps, provider, lost):
@@ -271,6 +271,24 @@ def test_connection_lost_once_then_answers_from_same_model(engine_with, wire, sl
     assert wire.hits(provider) == 2
     assert sleeps == [1.0]
     assert backup.calls == 0
+
+
+@pytest.mark.parametrize(
+    "timeout",
+    [httpx.ReadTimeout("timed out"), httpx.ConnectTimeout("timed out")],
+    ids=["read-timeout", "connect-timeout"],
+)
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_timeout_moves_on_to_next_model_without_retry(engine_with, wire, sleeps, provider, timeout):
+    # Model suy luận nghĩ lâu đã hết AI_TIMEOUT: thử lại thì phụ huynh chờ thêm chừng ấy nữa.
+    engine, backup = engine_with(provider)
+    wire.reply(provider, timeout, (200, ok_body(provider, REPLY)))
+
+    resp = ask(engine)
+
+    assert (resp.text, resp.model_used) == ("Dạ em là model dự phòng ạ.", "backup")
+    assert wire.hits(provider) == 1
+    assert sleeps == []
 
 
 def test_connection_lost_twice_moves_on(engine_with, wire, sleeps):

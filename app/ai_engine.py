@@ -146,23 +146,25 @@ TOKEN_BUDGET = dict.fromkeys(("chat", "json", "text", "admin_reply"), CHAT_MAX_T
 GROQ_TOKEN_BUDGET = {"chat": 700, "json": 300, "text": 600, "admin_reply": 900}
 
 # Mặc định SDK openai/groq chờ 600s, mistralai và google-genai không giới hạn: một lời gọi treo giữ phụ huynh
-# chờ mãi. Hết giờ thì thử lại 1 lần rồi sang model kế; model nghĩ lâu tới mức gần hết CHAT_MAX_TOKENS có thể
-# hết giờ trước khi chạm max_tokens.
+# chờ mãi. Hết giờ thì sang model kế ngay, không thử lại: model nghĩ lâu tới mức gần hết CHAT_MAX_TOKENS có thể
+# hết giờ trước khi chạm max_tokens, thử lại thì phụ huynh chờ thêm chừng ấy nữa.
 AI_TIMEOUT = 45.0
 
 # Provider báo quá tải tạm thời (429 do số request): chờ rồi thử lại cùng model, sau đó mới sang model kế.
 RETRY_DELAYS = (1.5, 3.0)
 MAX_RETRY_AFTER = 5.0
 MAX_RETRY_WAIT = 8.0
-# Lỗi máy chủ (5xx, 408, 409) hoặc mất kết nối/hết giờ: thử lại 1 lần.
+# Lỗi máy chủ (5xx, 408, 409) hoặc mất kết nối: thử lại 1 lần.
 TRANSIENT_RETRY_DELAY = 1.0
 
 
 def _is_connection_error(error: Exception) -> bool:
-    """Mất kết nối hoặc hết giờ: openai/groq gói lỗi httpx lại, mistralai và google-genai để nguyên."""
+    """Mất kết nối, trừ hết giờ: openai/groq gói lỗi httpx lại, mistralai và google-genai để nguyên."""
     import groq
     import openai
 
+    if isinstance(error, (openai.APITimeoutError, groq.APITimeoutError, httpx.TimeoutException)):
+        return False
     return isinstance(error, (openai.APIConnectionError, groq.APIConnectionError, httpx.TransportError))
 
 
@@ -176,8 +178,8 @@ def _retry_delay(error: Exception, attempt: int) -> float | None:
     """Số giây chờ trước lần thử lại `attempt + 1`, hoặc None nếu lỗi này không đáng thử lại.
 
     429 do số request qua đi sau vài giây: thử lại tối đa 2 lần. Lỗi máy chủ (5xx, 408, 409) và mất kết nối
-    thường chỉ thoáng qua: thử lại 1 lần. "Request too large" (Groq: vượt hạn mức token/phút), 413 và các
-    4xx khác (sai key, sai model) gửi lại y nguyên vẫn bị từ chối.
+    thường chỉ thoáng qua: thử lại 1 lần; hết giờ (AI_TIMEOUT) thì không. "Request too large" (Groq: vượt hạn mức
+    token/phút), 413 và các 4xx khác (sai key, sai model) gửi lại y nguyên vẫn bị từ chối.
     """
     status = _status(error)
     if _is_connection_error(error) or (status is not None and (status >= 500 or status in (408, 409))):

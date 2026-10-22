@@ -151,7 +151,7 @@ ADMIN_REPLY_MAX_TOKENS = 900
 # Mặc định SDK openai/groq chờ 600s, mistralai và google-genai không giới hạn: một lời gọi treo giữ phụ huynh
 # chờ mãi. Hết giờ thì thử lại 1 lần rồi sang model kế; model nghĩ lâu tới mức gần hết CHAT_MAX_TOKENS có thể
 # hết giờ trước khi chạm max_tokens.
-AI_TIMEOUT = 30.0
+AI_TIMEOUT = 45.0
 
 # Provider báo quá tải tạm thời (429 do số request): chờ rồi thử lại cùng model, sau đó mới sang model kế.
 RETRY_DELAYS = (1.5, 3.0)

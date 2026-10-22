@@ -8,7 +8,7 @@ from pathlib import Path
 import httpx
 
 from app.config import settings
-from app.customer_memory import lead_stage, set_fields
+from app.customer_memory import get_profile, lead_stage, set_fields
 from app.leads_sheet import VN_TZ, post_lead_row
 
 logger = logging.getLogger(__name__)
@@ -26,6 +26,8 @@ LEAD_HEADERS = {
 }
 # Profile field: Telegram message_id of the parent's lead card, which later lead updates reply to.
 LEAD_CARD_FIELD = "lead_card_msg_id"
+# customer_id -> lock held while sending that parent's lead card or a reply to it (_send_lead_telegram).
+_lead_locks: dict[str, asyncio.Lock] = {}
 
 # Sent to the parent on escalation; only invite a phone/Zalo number when we don't have one yet and the parent
 # has not declined to leave one (then the consultant's Telegram reply comes back here, in Messenger).
@@ -223,18 +225,21 @@ async def _send_lead_telegram(
     kinds: list[str], customer_id: str, fb_name: str, before: dict, profile: dict, last_message: str
 ) -> int | None:
     """One full card per parent, its message_id kept in the profile (LEAD_CARD_FIELD); later leads reply to it.
-    A reply Telegram refuses (card deleted: "message to be replied not found") gets a new card instead."""
-    card_id = profile.get(LEAD_CARD_FIELD)
-    if card_id:
-        update = _lead_update(kinds, customer_id, fb_name, before, profile)
-        msg_id = await _send_telegram(update, reply_to=card_id)
+    A reply Telegram refuses (card deleted: "message to be replied not found") gets a new card instead.
+    One parent at a time, card id read inside the lock: a second message while the card is being sent replies to it.
+    """
+    async with _lead_locks.setdefault(customer_id, asyncio.Lock()):
+        card_id = get_profile(customer_id).get(LEAD_CARD_FIELD)
+        if card_id:
+            update = _lead_update(kinds, customer_id, fb_name, before, profile)
+            msg_id = await _send_telegram(update, reply_to=card_id)
+            if msg_id is not None:
+                return msg_id
+            logger.warning(f"Lead card {card_id} of customer {customer_id} not replied to, sending a new card")
+        msg_id = await _send_telegram(_lead_card(kinds[0], customer_id, fb_name, profile, last_message))
         if msg_id is not None:
-            return msg_id
-        logger.warning(f"Lead card {card_id} of customer {customer_id} not replied to, sending a new card")
-    msg_id = await _send_telegram(_lead_card(kinds[0], customer_id, fb_name, profile, last_message))
-    if msg_id is not None:
-        set_fields(customer_id, {LEAD_CARD_FIELD: msg_id})
-    return msg_id
+            set_fields(customer_id, {LEAD_CARD_FIELD: msg_id})
+        return msg_id
 
 
 async def publish_lead_events(

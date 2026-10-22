@@ -138,6 +138,7 @@ class Network:
         self.telegram = []
         self.telegram_sent = []  # (message_id, body) of each message Telegram accepted
         self.deleted = set()  # message ids an admin deleted from the group
+        self.telegram_delay = 0.0  # seconds api.telegram.org takes to answer
         self.sheet = []
         self.sheet_response = lambda: httpx.Response(200, json={"ok": True})
         self.unexpected = []
@@ -145,6 +146,7 @@ class Network:
     async def handle(self, request: httpx.Request) -> httpx.Response:
         url = str(request.url)
         if request.method == "POST" and url == f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage":
+            await asyncio.sleep(self.telegram_delay)
             body = json.loads(request.content)
             if body.get("reply_parameters", {}).get("message_id") in self.deleted:
                 return httpx.Response(
@@ -532,6 +534,30 @@ def test_deleted_card_gets_a_new_full_card_that_later_changes_reply_to(chat, net
     assert replied_to(third) == new_card != old_card
     assert third["text"].startswith(f"🔄 {FB_NAME}: Hẹn: tham quan buổi sáng → tham quan sáng mai\n")
     assert saved_card_id() == new_card
+
+
+def test_two_close_messages_handled_concurrently_are_one_card_and_one_reply(monkeypatch, net):
+    """Tin thứ hai tới khi thẻ của tin đầu còn đang gửi (Telegram chậm): vẫn trả lời vào thẻ đó, không ra thẻ thứ hai."""
+    # Khoá đã phải chờ thì gắn với event loop của asyncio.run này: không để lại cho test sau.
+    monkeypatch.setattr(escalation, "_lead_locks", {})
+    net.telegram_delay = 0.05
+    with_phone = {"parent_name": FB_NAME, "phone": PHONE}
+    with_visit = {**with_phone, "visit_request": VISIT}
+
+    async def two_messages():
+        await asyncio.gather(
+            escalation.publish_lead_events(["new_phone"], CUSTOMER_ID, FB_NAME, {}, with_phone, f"Số mình {PHONE}"),
+            escalation.publish_lead_events(
+                ["visit_request"], CUSTOMER_ID, FB_NAME, with_phone, with_visit, f"Cho mình hẹn {VISIT}"
+            ),
+        )
+
+    asyncio.run(two_messages())
+
+    card_id, card, updates = card_and_updates(net)
+    assert card.startswith(escalation.LEAD_HEADER) and f"SĐT: {PHONE}\n" in card
+    assert update_lines(updates) == [(card_id, f"🔄 {FB_NAME}: Hẹn: {VISIT}")]
+    assert saved_card_id() == card_id
 
 
 def test_card_not_sent_is_not_saved_and_the_next_lead_sends_the_card(monkeypatch, chat, net):

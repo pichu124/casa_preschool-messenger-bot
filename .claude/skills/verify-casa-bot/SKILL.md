@@ -92,14 +92,16 @@ Webhook trả 200 ngay rồi xử lý nền, nên HTTP 200 **không** chứng mi
 |---|---|
 | `ASK_AGE` | câu hỏi tuổi + `[QUICK:age]` |
 | `ASK_PHONE` | xin SĐT + `[QUICK:phone]` |
-| `ASK_VISIT` | hỏi sáng/chiều + `[QUICK:visit_time]` |
+| `ASK_VISIT` | hỏi sáng/chiều + `[QUICK:visit_time]` (bước sau khi phụ huynh đồng ý tham quan) |
+| `INVITE_VISIT` | mời tham quan dạng hỏi ý + `[QUICK:visit_invite]` (Đặt lịch tham quan / Tìm hiểu thêm) |
+| `Em muốn đặt lịch tham quan trường` | (nghĩa của nút `QR:visit_invite:0` và `QR:topics:2`) hỏi sáng/chiều + `[QUICK:visit_time]`; extract `visit_request: tham quan trường` |
 | `SEND_MENU` | chữ + `[IMAGES:static/thuc-don-mau.jpg][QUICK:age]` |
 | `BAD_QUICK` | `[QUICK:khong_co_nut_nay]` (key không tồn tại) |
 | `HARD_QUESTION` | `[ESCALATE]` |
-| `TOUR_CAMPUS` | cơ sở Mỹ Đình (FLC, 36 Phạm Hùng), lớp 80–90 m², Cambridge + Montessori, mời tham quan + `[QUICK:visit_time]`; extract `interested_campus: Mỹ Đình` |
-| `TOUR_MENU` | thực đơn đủ nhóm chất, 1 tuần học thử miễn phí + `[QUICK:trial_week]` |
+| `TOUR_CAMPUS` | cơ sở Mỹ Đình (FLC, 36 Phạm Hùng), lớp 80–90 m², Cambridge + Montessori, mời tham quan + `[QUICK:visit_invite]`; extract `interested_campus: Mỹ Đình` |
+| `TOUR_MENU` | thực đơn đủ nhóm chất, mời học thử 1 tuần miễn phí + `[QUICK:trial_invite]` |
 | `TOUR_EXTRA` | ngoại khóa (Science, Cooking, Art, Music, dã ngoại). Ba câu `TOUR_*` cộng lại phủ đủ nhóm của `app/coverage.py` (tư vấn tương đối đủ) |
-| `Bé nhà em 2-3 tuổi` | nghĩa của nút `QR:age:1`: trả lời + `[QUICK:visit_time]`; extract `kid_age: 2-3 tuổi` (nhãn nút) |
+| `Bé nhà em 2-3 tuổi` | nghĩa của nút `QR:age:1`: trả lời + `[QUICK:visit_invite]`; extract `kid_age: 2-3 tuổi` (nhãn nút) |
 | `PHONE_A` / `PHONE_B` | extract `phone` 0912345678 / 0987654321 |
 | `VISIT_AM`, `Em muốn hẹn tham quan buổi sáng` | (nghĩa của nút `QR:visit_time:0`) extract `visit_request: tham quan buổi sáng` |
 | `DECLINE` | extract `phone_declined: true` |

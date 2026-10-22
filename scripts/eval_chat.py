@@ -95,6 +95,8 @@ class Turn:
     # False: lượt chốt hẹn và sau đó ("Đã hẹn" là ngoại lệ của nguyên tắc 6), lượt "Tìm hiểu thêm" (any_of kiểm riêng)
     next_step: bool = True
     agreed: bool = False  # phụ huynh đã đồng ý học thử/tham quan: bot mới được hỏi tuần/buổi
+    prior_history: list[dict] = field(default_factory=list)  # lịch sử cũ nạp từ hồ sơ; chỉ đọc ở lượt đầu kịch bản
+    gap_hours: float = 0.0  # số giờ từ lần nhắn trước (khách cũ quay lại)
 
 
 # Tên Facebook giả trong hồ sơ: bot không được suy ra "anh"/"chị" từ tên.
@@ -103,6 +105,17 @@ TEST_PHONE = "0912345678"
 VISIT = {**FB_NAME, "kid_age": "20 tháng", "interested_campus": "Chùa Láng"}
 BOOKED = {**VISIT, "phone": TEST_PHONE, "visit_request": "tham quan Chùa Láng buổi sáng"}
 VISIT_MD = {**FB_NAME, "kid_age": "3 tuổi", "interested_campus": "Mỹ Đình"}
+# Production 2026-10-22: máy chủ khởi động lại nạp hồ sơ cũ (GapHours 4609.8, lịch sử 3 tin); bot [ESCALATE] câu hỏi chung.
+OLD_HISTORY = [
+    {"role": "user", "content": "chào em"},
+    {"role": "user", "content": "cho mình hỏi học phí"},
+    {"role": "assistant", "content": "Học phí tùy độ tuổi của bé và cơ sở Ba/Mẹ chọn ạ. Ba/Mẹ cho em xin tuổi bé nhé?"},
+]
+SCHOOL_INFO = ("montessori", "cambridge", "giáo viên nước ngoài", "3 cơ sở", "huỳnh thúc kháng", "phạm hùng", "kim mã")
+ASKS_AGE_OR_CAMPUS = (
+    "tuổi bé", "mấy tuổi", "bao nhiêu tuổi", "mấy tháng", "bao nhiêu tháng", "cơ sở nào", "khu vực nào",
+    "[quick:age]", "[quick:campus]",
+)
 
 
 SCENARIOS: dict[str, list[Turn]] = {
@@ -146,6 +159,15 @@ SCENARIOS: dict[str, list[Turn]] = {
     ],
     "ngoai_le": [
         Turn("giá bitcoin hôm nay bao nhiêu vậy", expect_escalate=True),
+    ],
+    "khach_cu_tim_hieu_truong": [
+        Turn(
+            "tôi muốn tìm hiểu thông tin về trường",
+            known=FB_NAME,
+            prior_history=OLD_HISTORY,
+            gap_hours=4609.8,
+            any_of=[SCHOOL_INFO, ASKS_AGE_OR_CAMPUS],
+        ),
     ],
     "be_12_thang": [
         Turn("bé nhà mình mới 12 tháng thì có học được không", any_of=[("15 tháng",)]),
@@ -344,11 +366,13 @@ def check_turn(
 async def run_scenario(engine: AIEngine, name: str, turns: list[Turn]) -> tuple[int, bool]:
     """Trả về (số lượt vi phạm, có model trả lời không)."""
     print(f"\n===== {name} =====")
-    history: list[dict] = []
+    history: list[dict] = list(turns[0].prior_history)
     failures = 0
     for turn in turns:
         context = format_profile_for_prompt(turn.known)
-        resp = await engine.get_response(turn.message, conversation_history=history, customer_context=context)
+        resp = await engine.get_response(
+            turn.message, conversation_history=history, customer_context=context, gap_hours=turn.gap_hours
+        )
         if resp.model_used == "none":
             print(f"PH: {turn.message}\n  ! mọi model đều lỗi")
             return failures, False

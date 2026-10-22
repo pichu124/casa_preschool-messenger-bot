@@ -978,3 +978,35 @@ def test_eval_catches_phone_read_back_in_brackets_format():
     for parent_messages, known_phones in (([PHONE], set()), (["số mình (090) 000-0999"], set()), ([], {PHONE})):
         problems = eval_chat.style_problems(reply, parent_messages=parent_messages, known_phones=known_phones)
         assert any("đọc lại SĐT" in p for p in problems), (parent_messages, problems)
+
+
+class HistoryRecorder(RecordingProvider):
+    async def generate(self, system_prompt, user_message, conversation_history, max_tokens=1024) -> str:
+        self.history = list(conversation_history)
+        return await super().generate(system_prompt, user_message, conversation_history)
+
+
+SCHOOL_INTRO = (
+    "Casa có 3 cơ sở tại Hà Nội, học Cambridge Early Years kết hợp Montessori cùng giáo viên nước ngoài ạ. "
+    "Bé nhà mình năm nay mấy tuổi rồi ạ? [QUICK:age]"
+)
+
+
+@pytest.mark.parametrize(
+    ("reply", "failures"),
+    [(SCHOOL_INTRO, 0), ("[ESCALATE]", 1), ("Dạ vâng ạ, Ba/Mẹ cho em xin tuổi bé nhé? [QUICK:age]", 1)],
+    ids=["gioi-thieu-roi-hoi-tuoi", "escalate", "khong-noi-ve-truong"],
+)
+def test_eval_replays_the_returning_parent_asking_about_the_school_like_production(monkeypatch, reply, failures):
+    (turn,) = eval_chat.SCENARIOS["khach_cu_tim_hieu_truong"]
+    assert turn.message == GENERAL_QUESTION and turn.expect_escalate is False
+    recorder = HistoryRecorder(reply)
+    engine = make_engine(monkeypatch, fake=recorder)
+
+    result = asyncio.run(eval_chat.run_scenario(engine, "khach_cu_tim_hieu_truong", [turn]))
+
+    assert result == (failures, True)
+    assert len(recorder.history) == 3
+    assert "phụ huynh CŨ quay lại sau khoảng 6 tháng" in recorder.user_message
+    assert "[TRẠNG THÁI TƯ VẤN]" in recorder.user_message
+    assert "[FIRST_MESSAGE]" not in recorder.user_message

@@ -1,7 +1,9 @@
 """Prompt tư vấn và lọc khối suy luận <think>: chỉ dùng provider giả, không mạng, không API key."""
 import asyncio
+import importlib.util
 import json
 import re
+from pathlib import Path
 
 import pytest
 
@@ -334,3 +336,50 @@ def test_follow_up_message_is_not_marked_first(monkeypatch):
 
     assert "[FIRST_MESSAGE]" not in user_message
     assert "Dạ Casa chào Ba/Mẹ ạ" not in user_message
+
+
+# Phản hồi người dùng 2026-10-22: bot dài dòng, nhắc lại thông tin phụ huynh vừa gửi (SĐT, cơ sở, buổi hẹn) và
+# đoán "anh" từ tên Facebook. Quyết định: 1–3 câu ngắn; xưng "em" – "Ba/Mẹ", chỉ đổi khi phụ huynh tự xưng;
+# không đọc lại thông tin đã biết.
+_spec = importlib.util.spec_from_file_location("eval_chat", Path(__file__).resolve().parent.parent / "scripts" / "eval_chat.py")
+eval_chat = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(eval_chat)
+
+PHONE = "0900000999"
+PRODUCTION_LIKE = {
+    "doc-lai-sdt-doan-anh": (
+        f"Dạ em cảm ơn anh Minh đã để lại số ạ 🌿 Em đã ghi nhận SĐT {PHONE} và tư vấn viên sẽ liên hệ anh sớm ạ. "
+        "Anh cho em biết bé được bao nhiêu tháng tuổi nhé ạ?",
+        ["đọc lại SĐT", "gọi 'anh'"],
+    ),
+    "khuon-em-ghi-nhan-sdt-tach-so": (
+        "Dạ, em đã ghi nhận Ba/Mẹ muốn tham quan cơ sở Chùa Láng vào sáng mai ạ. "
+        f"Tư vấn viên sẽ liên hệ qua số {PHONE[:4]} {PHONE[4:7]} {PHONE[7:]} để xác nhận ạ.",
+        ["đọc lại SĐT", "em ghi nhận"],
+    ),
+    "nam-cau": (
+        "Dạ nhóm 15 tháng–3 tuổi học theo Montessori ạ. Con được chăm sóc sát sao. Con làm quen tiếng Anh. "
+        "Con tự lập hơn. Ba/Mẹ quan tâm cơ sở nào ạ?",
+        ["dài 5 câu"],
+    ),
+}
+
+
+@pytest.mark.parametrize(("reply", "expected"), PRODUCTION_LIKE.values(), ids=PRODUCTION_LIKE.keys())
+def test_eval_flags_bot_like_replies(reply, expected):
+    problems = eval_chat.style_problems(reply, parent_messages=[PHONE], known_phones={PHONE})
+
+    assert len(problems) == len(expected), problems
+    for problem, phrase in zip(problems, expected):
+        assert phrase in problem
+
+
+def test_eval_passes_short_human_replies():
+    good = (
+        "Cảm ơn Ba/Mẹ, tư vấn viên sẽ liên hệ sớm ạ. Bé học tiếng Anh cả ngày với cô nước ngoài. "
+        "Bé dự kiến nhập học khi nào ạ? [QUICK:age]"
+    )
+    assert eval_chat.style_problems(good, parent_messages=[PHONE], known_phones={PHONE}) == []
+    # Phụ huynh tự xưng "chị" thì bot gọi "chị" là đúng.
+    assert eval_chat.style_problems("Dạ chị cho em xin tuổi bé ạ?", parent_messages=["chị muốn hỏi học phí"], known_phones=set()) == []
+    assert eval_chat.sentence_count("Dạ Casa chào Ba/Mẹ ạ 🌿 Cảm ơn Ba/Mẹ. Bé mấy tháng rồi ạ? [QUICK:age]") == 2

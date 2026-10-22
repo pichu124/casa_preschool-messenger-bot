@@ -1,4 +1,4 @@
-"""Gói miễn phí của provider AI: thử lại khi quá tải tạm thời, chuyển model khi vượt hạn mức, lời gọi phụ xin ít token.
+"""Gói miễn phí của provider AI: thử lại khi quá tải tạm thời, chuyển model khi vượt hạn mức, max_tokens theo provider.
 
 SDK thật dựng request và đọc lỗi; chỉ transport httpx bị thay bằng fake cục bộ trả lời như API của từng hãng.
 asyncio.sleep bị thay để ghi lại thời gian chờ thay vì chờ thật.
@@ -226,7 +226,7 @@ def test_retry_logs_one_short_warning_per_retry(engine_with, wire, sleeps, caplo
     assert line == "MistralProvider lỗi tạm thời (SDKError 429), thử lại lần 1 sau 1.5s"
 
 
-# --- Lỗi máy chủ (5xx, 408, 409) hoặc mất kết nối/hết giờ: thử lại cùng model 1 lần sau 1s ---
+# --- Lỗi máy chủ (5xx, 408, 409) hoặc mất kết nối: thử lại cùng model 1 lần sau 1s ---
 
 
 @pytest.mark.parametrize("provider", PROVIDERS)
@@ -257,8 +257,8 @@ def test_server_error_twice_moves_on_after_one_retry(engine_with, wire, sleeps, 
 
 @pytest.mark.parametrize(
     "lost",
-    [httpx.ConnectError("Connection reset by peer"), httpx.ReadTimeout("timed out")],
-    ids=["connect-error", "read-timeout"],
+    [httpx.ConnectError("Connection reset by peer"), httpx.RemoteProtocolError("Server disconnected")],
+    ids=["connect-error", "server-disconnected"],
 )
 @pytest.mark.parametrize("provider", PROVIDERS)
 def test_connection_lost_once_then_answers_from_same_model(engine_with, wire, sleeps, provider, lost):
@@ -271,6 +271,24 @@ def test_connection_lost_once_then_answers_from_same_model(engine_with, wire, sl
     assert wire.hits(provider) == 2
     assert sleeps == [1.0]
     assert backup.calls == 0
+
+
+@pytest.mark.parametrize(
+    "timeout",
+    [httpx.ReadTimeout("timed out"), httpx.ConnectTimeout("timed out")],
+    ids=["read-timeout", "connect-timeout"],
+)
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_timeout_moves_on_to_next_model_without_retry(engine_with, wire, sleeps, provider, timeout):
+    # Model suy luận nghĩ lâu đã hết AI_TIMEOUT: thử lại thì phụ huynh chờ thêm chừng ấy nữa.
+    engine, backup = engine_with(provider)
+    wire.reply(provider, timeout, (200, ok_body(provider, REPLY)))
+
+    resp = ask(engine)
+
+    assert (resp.text, resp.model_used) == ("Dạ em là model dự phòng ạ.", "backup")
+    assert wire.hits(provider) == 1
+    assert sleeps == []
 
 
 def test_connection_lost_twice_moves_on(engine_with, wire, sleeps):
@@ -382,7 +400,7 @@ def test_total_wait_per_call_is_capped(engine_with, wire, sleeps):
     assert wire.hits("deepseek") == 2
 
 
-# --- Lời gọi phụ xin ít token; câu trả lời chính chừa chỗ cho phần suy luận ---
+# --- max_tokens theo provider: model suy luận cần chỗ nghĩ; Groq miễn phí bị chặn ở 1000 token đầu ra/phút ---
 
 
 def max_tokens_sent(provider: str, body: dict) -> int:
@@ -395,20 +413,47 @@ CALLS = {
     "summarize": lambda e: e.summarize_conversation([{"role": "user", "content": "học phí bao nhiêu"}]),
     "format": lambda e: e.format_admin_reply("thang 9 mo lop", "khi nào mở lớp"),
 }
-LIMITS = {"extract": (100, 300), "classify": (100, 300), "summarize": (200, 600), "format": (900, 999)}
+GROQ_LIMITS = {"extract": (100, 300), "classify": (100, 300), "summarize": (200, 600), "format": (900, 999)}
+# deepseek-flash (effort mặc định high) tính cả phần nghĩ vào max_tokens: với 300 nó nghĩ hết chỗ trước khi ra JSON,
+# lời gọi phụ bị cắt rồi sang Mistral miễn phí mỗi tin, tranh 1 request/giây với câu trả lời chính.
+REASONING_ROOM = 2048
 
 
 @pytest.mark.parametrize("call", list(CALLS))
-@pytest.mark.parametrize("provider", PROVIDERS)
-def test_max_tokens_per_call(engine_with, wire, provider, call):
-    engine, _ = engine_with(provider)
+@pytest.mark.parametrize("provider", ["mistral", "deepseek", "openai", "gemini"])
+def test_aux_calls_leave_room_for_reasoning(engine_with, wire, provider, call):
+    engine, backup = engine_with(provider)
     wire.reply(provider, (200, ok_body(provider, '{"kid_age": "3 tuổi"}')))
 
     asyncio.run(CALLS[call](engine))
 
     (body,) = wire.bodies[HOSTS[provider]]
-    low, high = LIMITS[call]
+    assert max_tokens_sent(provider, body) >= REASONING_ROOM
+    assert backup.calls == 0
+
+
+@pytest.mark.parametrize("call", list(CALLS))
+@pytest.mark.parametrize("provider", ["groq", "groq_llama"])
+def test_aux_calls_on_groq_stay_within_free_tier(engine_with, wire, provider, call):
+    engine, _ = engine_with(provider)
+    wire.reply(provider, (200, ok_body(provider, '{"kid_age": "3 tuổi"}')))
+
+    asyncio.run(CALLS[call](engine))
+
+    (body,) = wire.bodies[ALL_HOSTS[provider]]
+    low, high = GROQ_LIMITS[call]
     assert low <= max_tokens_sent(provider, body) <= high
+
+
+@pytest.mark.parametrize("provider", ["groq", "groq_llama"])
+def test_groq_reply_and_profile_extract_together_fit_output_tokens_per_minute(engine_with, wire, provider):
+    engine, _ = engine_with(provider)
+    wire.reply(provider, (200, ok_body(provider, '{"kid_age": "3 tuổi"}')))
+
+    ask(engine)
+    asyncio.run(CALLS["extract"](engine))
+
+    assert sum(body["max_tokens"] for body in wire.bodies[ALL_HOSTS[provider]]) <= 1000
 
 
 # DeepSeek thật 2026-10-22: deepseek-flash (model suy luận) nghĩ gần hết 1024 token, câu gửi phụ huynh cụt giữa chữ
@@ -451,6 +496,19 @@ def test_mistral_reply_cut_at_context_length_is_never_sent(engine_with, wire, sl
     wire.reply("mistral", (200, ok_body("mistral", CUT, "model_length")))
 
     assert ask(engine).model_used == "backup"
+    assert backup.calls == 1
+
+
+# Dừng dở dang vì phía máy chủ: DeepSeek hết tài nguyên suy luận, Mistral lỗi giữa chừng (enum FinishReason của SDK).
+@pytest.mark.parametrize(
+    ("provider", "finish_reason"), [("deepseek", "insufficient_system_resource"), ("mistral", "error")]
+)
+def test_reply_stopped_midway_by_provider_is_never_sent(engine_with, wire, sleeps, provider, finish_reason):
+    engine, backup = engine_with(provider)
+    wire.reply(provider, (200, ok_body(provider, CUT, finish_reason)), (200, ok_body(provider, REPLY)))
+
+    assert ask(engine).model_used == "backup"
+    assert wire.hits(provider) == 1
     assert backup.calls == 1
 
 

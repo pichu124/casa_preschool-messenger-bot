@@ -134,38 +134,37 @@ def strip_reasoning(text: str | None) -> str:
     return _THINK_RE.sub("", text or "").strip()
 
 
-# Câu trả lời chính. Model suy luận (deepseek-flash, Gemini, gpt-oss, qwen3) tính cả phần nghĩ vào max_tokens:
-# với 1024, deepseek-flash từng nghĩ gần hết chỗ và câu gửi phụ huynh cụt giữa chữ.
+# max_tokens theo loại lời gọi: "chat" câu trả lời chính, "json" trích hồ sơ/phân loại Q&A, "text" tóm tắt,
+# "admin_reply" viết lại câu admin. Model suy luận (deepseek-flash, Gemini, gpt-oss, qwen3) tính cả phần nghĩ vào
+# max_tokens, kể cả lời gọi phụ: với 1024, deepseek-flash từng nghĩ gần hết chỗ và câu gửi phụ huynh cụt giữa chữ;
+# với 300 nó nghĩ hết chỗ trước khi ra JSON. max_tokens chỉ là trần: tính tiền theo token thật dùng.
 CHAT_MAX_TOKENS = 4096
+TOKEN_BUDGET = dict.fromkeys(("chat", "json", "text", "admin_reply"), CHAT_MAX_TOKENS)
 # Groq miễn phí giới hạn 1000 token đầu ra/phút (OTPM) và tính cả max_tokens xin: xin hơn 1000 bị từ chối ngay.
-# Câu trả lời chạy cùng lúc với lời trích hồ sơ (JSON_MAX_TOKENS) nên hai lời gọi cộng lại vừa 1000.
-GROQ_CHAT_MAX_TOKENS = 700
-# JSON trích hồ sơ đủ cả 14 trường dài ~470 ký tự (~150–250 token tiếng Việt); JSON phân loại Q&A ngắn hơn.
-# Phải dưới hạn mức token đầu ra/phút của gói miễn phí (Groq: 1000), nếu không lời gọi bị từ chối ngay.
-JSON_MAX_TOKENS = 300
-# Tóm tắt 2–4 câu.
-TEXT_MAX_TOKENS = 600
-# Câu admin viết lại phải giữ đủ dữ kiện admin đưa; vẫn dưới OTPM 1000 của Groq miễn phí.
-ADMIN_REPLY_MAX_TOKENS = 900
+# Câu trả lời chạy cùng lúc với lời trích hồ sơ nên hai lời gọi cộng lại vừa 1000. JSON hồ sơ đủ cả 14 trường dài
+# ~470 ký tự (~150–250 token tiếng Việt); tóm tắt 2–4 câu; câu admin viết lại phải giữ đủ dữ kiện admin đưa.
+GROQ_TOKEN_BUDGET = {"chat": 700, "json": 300, "text": 600, "admin_reply": 900}
 
 # Mặc định SDK openai/groq chờ 600s, mistralai và google-genai không giới hạn: một lời gọi treo giữ phụ huynh
-# chờ mãi. Hết giờ thì thử lại 1 lần rồi sang model kế; model nghĩ lâu tới mức gần hết CHAT_MAX_TOKENS có thể
-# hết giờ trước khi chạm max_tokens.
+# chờ mãi. Hết giờ thì sang model kế ngay, không thử lại: model nghĩ lâu tới mức gần hết CHAT_MAX_TOKENS có thể
+# hết giờ trước khi chạm max_tokens, thử lại thì phụ huynh chờ thêm chừng ấy nữa.
 AI_TIMEOUT = 45.0
 
 # Provider báo quá tải tạm thời (429 do số request): chờ rồi thử lại cùng model, sau đó mới sang model kế.
 RETRY_DELAYS = (1.5, 3.0)
 MAX_RETRY_AFTER = 5.0
 MAX_RETRY_WAIT = 8.0
-# Lỗi máy chủ (5xx, 408, 409) hoặc mất kết nối/hết giờ: thử lại 1 lần.
+# Lỗi máy chủ (5xx, 408, 409) hoặc mất kết nối: thử lại 1 lần.
 TRANSIENT_RETRY_DELAY = 1.0
 
 
 def _is_connection_error(error: Exception) -> bool:
-    """Mất kết nối hoặc hết giờ: openai/groq gói lỗi httpx lại, mistralai và google-genai để nguyên."""
+    """Mất kết nối, trừ hết giờ: openai/groq gói lỗi httpx lại, mistralai và google-genai để nguyên."""
     import groq
     import openai
 
+    if isinstance(error, (openai.APITimeoutError, groq.APITimeoutError, httpx.TimeoutException)):
+        return False
     return isinstance(error, (openai.APIConnectionError, groq.APIConnectionError, httpx.TransportError))
 
 
@@ -179,8 +178,8 @@ def _retry_delay(error: Exception, attempt: int) -> float | None:
     """Số giây chờ trước lần thử lại `attempt + 1`, hoặc None nếu lỗi này không đáng thử lại.
 
     429 do số request qua đi sau vài giây: thử lại tối đa 2 lần. Lỗi máy chủ (5xx, 408, 409) và mất kết nối
-    thường chỉ thoáng qua: thử lại 1 lần. "Request too large" (Groq: vượt hạn mức token/phút), 413 và các
-    4xx khác (sai key, sai model) gửi lại y nguyên vẫn bị từ chối.
+    thường chỉ thoáng qua: thử lại 1 lần; hết giờ (AI_TIMEOUT) thì không. "Request too large" (Groq: vượt hạn mức
+    token/phút), 413 và các 4xx khác (sai key, sai model) gửi lại y nguyên vẫn bị từ chối.
     """
     status = _status(error)
     if _is_connection_error(error) or (status is not None and (status >= 500 or status in (408, 409))):
@@ -201,14 +200,14 @@ def _retry_delay(error: Exception, attempt: int) -> float | None:
 
 
 class TruncatedReply(Exception):
-    """Model dừng vì chạm max_tokens: câu trả lời cụt, không được gửi cho phụ huynh.
+    """Model dừng dở dang (chạm max_tokens hoặc máy chủ dừng giữa chừng): câu trả lời cụt, không được gửi cho phụ huynh.
 
     Áp cho mọi lời gọi: JSON cụt có thể đọc được mà mất trường cuối, tóm tắt cụt mất quyết định của phụ huynh.
     Không thử lại cùng model (gửi lại y nguyên, model lại nghĩ hết chỗ đó); chuỗi dự phòng sang model kế.
     """
 
     def __init__(self):
-        super().__init__("model chạm max_tokens, câu trả lời bị cắt")
+        super().__init__("model dừng dở dang, câu trả lời bị cắt")
 
 
 def _complete(text: str | None, truncated: bool) -> str | None:
@@ -225,7 +224,7 @@ class AIResponse:
 
 
 class AIProvider(ABC):
-    chat_max_tokens = CHAT_MAX_TOKENS
+    token_budget = TOKEN_BUDGET
 
     @abstractmethod
     async def generate(
@@ -259,7 +258,7 @@ class OpenAIProvider(AIProvider):
 
 
 class GroqProvider(AIProvider):
-    chat_max_tokens = GROQ_CHAT_MAX_TOKENS
+    token_budget = GROQ_TOKEN_BUDGET
 
     def __init__(self):
         from groq import AsyncGroq
@@ -285,7 +284,7 @@ class GroqProvider(AIProvider):
 class GroqSecondProvider(AIProvider):
     """Second Groq model (GROQ_SECOND_MODEL); key "groq_llama" kept for existing AI_MODEL_ORDER."""
 
-    chat_max_tokens = GROQ_CHAT_MAX_TOKENS
+    token_budget = GROQ_TOKEN_BUDGET
 
     def __init__(self):
         from groq import AsyncGroq
@@ -327,8 +326,8 @@ class MistralProvider(AIProvider):
             temperature=0.3,
         )
         choice = response.choices[0]
-        # model_length: chạm giới hạn ngữ cảnh của model, cũng bị cắt.
-        return _complete(choice.message.content, choice.finish_reason in ("length", "model_length"))
+        # model_length: chạm giới hạn ngữ cảnh của model; error: máy chủ dừng giữa chừng. Cả hai đều cụt.
+        return _complete(choice.message.content, choice.finish_reason in ("length", "model_length", "error"))
 
 
 class DeepSeekProvider(AIProvider):
@@ -357,7 +356,9 @@ class DeepSeekProvider(AIProvider):
             temperature=0.3,
         )
         choice = response.choices[0]
-        return _complete(choice.message.content, choice.finish_reason == "length")
+        # insufficient_system_resource: DeepSeek hết tài nguyên suy luận, dừng giữa chừng.
+        truncated = choice.finish_reason in ("length", "insufficient_system_resource")
+        return _complete(choice.message.content, truncated)
 
 
 class GeminiProvider(AIProvider):
@@ -583,7 +584,7 @@ class AIEngine:
             try:
                 logger.info(f"Trying model: {model_name}")
                 response_text = await self._generate(
-                    provider, self.system_prompt, wrapped_message, history, max_tokens=provider.chat_max_tokens
+                    provider, self.system_prompt, wrapped_message, history, max_tokens=provider.token_budget["chat"]
                 )
 
                 should_escalate = "[ESCALATE]" in response_text
@@ -655,7 +656,9 @@ class AIEngine:
             if not provider:
                 continue
             try:
-                result = await self._generate(provider, extract_prompt, user_msg, [], max_tokens=JSON_MAX_TOKENS)
+                result = await self._generate(
+                    provider, extract_prompt, user_msg, [], max_tokens=provider.token_budget["json"]
+                )
                 if result.startswith("```"):
                     result = result.split("\n", 1)[1].rsplit("```", 1)[0].strip()
                     if result.startswith("json"):
@@ -706,7 +709,9 @@ class AIEngine:
             if not provider:
                 continue
             try:
-                summary = await self._generate(provider, summarize_prompt, user_msg, [], max_tokens=TEXT_MAX_TOKENS)
+                summary = await self._generate(
+                    provider, summarize_prompt, user_msg, [], max_tokens=provider.token_budget["text"]
+                )
                 # Strip code blocks if any
                 if summary.startswith("```"):
                     summary = summary.split("\n", 1)[1].rsplit("```", 1)[0].strip()
@@ -740,7 +745,9 @@ class AIEngine:
             if not provider:
                 continue
             try:
-                return await self._generate(provider, format_prompt, user_msg, [], max_tokens=ADMIN_REPLY_MAX_TOKENS)
+                return await self._generate(
+                    provider, format_prompt, user_msg, [], max_tokens=provider.token_budget["admin_reply"]
+                )
             except Exception as e:
                 logger.warning(f"Format reply with {model_name} failed: {e}")
                 continue
@@ -766,7 +773,9 @@ class AIEngine:
             if not provider:
                 continue
             try:
-                result = await self._generate(provider, classify_prompt, user_msg, [], max_tokens=JSON_MAX_TOKENS)
+                result = await self._generate(
+                    provider, classify_prompt, user_msg, [], max_tokens=provider.token_budget["json"]
+                )
                 if result.startswith("```"):
                     result = result.split("\n", 1)[1].rsplit("```", 1)[0].strip()
                 return json.loads(result)

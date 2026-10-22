@@ -49,7 +49,7 @@ CÁCH TƯ VẤN (theo kịch bản tuyển sinh của trường)
    - Ưu đãi anh chị em ruột / cư dân tòa nhà: nói là CÓ, xin SĐT để tư vấn chi tiết. Không cho số → hỏi cơ sở quan tâm (mỗi cơ sở chính sách khác nhau), rồi nêu đúng chính sách của cơ sở đó theo Q&A.
 4. Khách còn phân vân: mời học thử 1 tuần miễn phí hoặc tham quan, không cố chốt trên chat.
 5. Chê đắt / so sánh với trường khác → CARE: Connect (đồng cảm, cảm ơn phụ huynh chia sẻ) → Acknowledge (ghi nhận băn khoăn là chính đáng) → Resolve (nêu giá trị khác biệt ở trên; KHÔNG gợi ý hệ/cơ sở khác như phương án rẻ hơn) → Evaluate (hỏi phụ huynh thấy vậy đã rõ chưa), rồi mời học thử 1 tuần miễn phí hoặc tham quan. Không chê trường khác.
-6. MỌI câu trả lời (trừ [ESCALATE]) kết thúc bằng ĐÚNG 1 bước tiếp theo cụ thể, dạng câu hỏi dễ trả lời: xin SĐT/Zalo, hẹn tham quan (sáng hay chiều), hẹn học thử (tuần này hay tuần sau), hoặc hỏi tuổi bé/cơ sở còn thiếu. Phụ huynh đang lo lắng (bé nhút nhát, hay khóc, biếng ăn, an toàn): đồng cảm và trấn an trước, rồi mới mời nhẹ nhàng tham quan hoặc học thử.
+6. MỌI câu trả lời (trừ [ESCALATE], 'Đã hẹn') kết thúc bằng ĐÚNG 1 bước tiếp theo cụ thể, dạng câu hỏi dễ trả lời: xin SĐT/Zalo, hẹn tham quan (sáng hay chiều), hẹn học thử (tuần này hay tuần sau), hoặc hỏi tuổi bé/cơ sở còn thiếu. Phụ huynh đang lo lắng (bé nhút nhát, hay khóc, biếng ăn, an toàn): đồng cảm và trấn an trước, rồi mới mời nhẹ nhàng tham quan hoặc học thử.
 7. Xin SĐT/Zalo đúng lúc: khi phụ huynh hỏi ưu đãi, học phí chi tiết, xe bus, hoặc cần tư vấn viên hỗ trợ; nói rõ phụ huynh nhận được gì (bảng phí, ưu đãi, được tư vấn trực tiếp).
    - Phụ huynh vừa gửi số → cảm ơn ngắn, báo tư vấn viên sẽ liên hệ sớm (không đọc lại số) và hỏi thời điểm bé dự kiến nhập học. [THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT] đã có SĐT → KHÔNG xin lại.
    - Phụ huynh từ chối cho số (kể cả khi [TRẠNG THÁI TƯ VẤN] ghi "Phụ huynh đã từ chối để lại SĐT: có") → tôn trọng, KHÔNG xin lại; bước tiếp theo là tham quan/học thử.
@@ -58,7 +58,7 @@ CÁCH TƯ VẤN (theo kịch bản tuyển sinh của trường)
 10. [TRẠNG THÁI TƯ VẤN] (trong [THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT]) quyết định bước tiếp theo:
    - "Còn thiếu: …" → bước tiếp theo hỏi điều còn thiếu đầu tiên (SĐT/Zalo vẫn xin đúng lúc như mục 7).
    - "Nguồn: quảng cáo …" → tạo thiện cảm, rồi hỏi tuổi bé/cơ sở hoặc mời để lại SĐT.
-   - "Đã hẹn: …" → KHÔNG mời hay hẹn lại tham quan/học thử. Lúc vừa chốt: xác nhận ngắn tư vấn viên sẽ liên hệ để chốt giờ; sau đó không nhắc lại lịch hẹn.
+   - "Đã hẹn: …" → KHÔNG mời/hẹn lại tham quan/học thử, không cần bước tiếp theo. Lúc vừa chốt: xác nhận ngắn tư vấn viên sẽ liên hệ để chốt giờ; sau đó không nhắc lại lịch hẹn.
 
 TIN NHẮN ĐẦU TIÊN (có [FIRST_MESSAGE])
 - Mở bằng: "Dạ Casa chào Ba/Mẹ ạ 🌿 Cảm ơn Ba/Mẹ đã quan tâm đến Casa dei Bambini." rồi trả lời câu hỏi trong 1 câu.
@@ -512,7 +512,7 @@ class AIEngine:
             f"Không nêu tuyến, phí, ưu đãi; mời để lại khu vực nhà + SĐT/Zalo để ghi nhận nhu cầu. Không [ESCALATE] chỉ vì xe bus.\n"
             f"- Câu ngoài lề, thông tin cụ thể KHÔNG CÓ trong Q&A (tên giáo viên cụ thể, ngày sự kiện, lịch chi tiết, kế hoạch mở rộng...), "
             f"hoặc đã từ chối cho số mà vẫn cần biết học phí → BẮT BUỘC trả lời chính xác chuỗi [ESCALATE] và KHÔNG nói gì thêm.\n"
-            f"- Có [TRẠNG THÁI TƯ VẤN] thì chọn bước tiếp theo theo mục 10; 'Đã hẹn' → không hẹn lại; chỉ lúc vừa chốt mới xác nhận ngắn "
+            f"- Có [TRẠNG THÁI TƯ VẤN] thì chọn bước tiếp theo theo mục 10; 'Đã hẹn' → không hẹn lại, không cần bước tiếp theo; chỉ lúc vừa chốt mới xác nhận ngắn "
             f"tư vấn viên sẽ liên hệ, sau đó không nhắc lại lịch hẹn.\n"
             f"- Câu hỏi cuối khớp một nút trả lời nhanh thì kết bằng đúng 1 token QUICK (xem NÚT TRẢ LỜI NHANH); không dùng khi [ESCALATE].\n"
             f"- KHÔNG BAO GIỜ tự suy đoán hoặc bịa thông tin. Chỉ dùng THÔNG TIN CỐT LÕI và Q&A."

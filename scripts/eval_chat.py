@@ -11,7 +11,7 @@ không đụng data/customers.json, không đẩy gì lên GitHub. Mỗi lượt
 
 Mỗi lượt in transcript và kiểm vài heuristic đơn giản: có dấu tiếng Việt; không gọi "bạn"/"quý khách",
 không xưng "tôi"; không nêu số tiền (vd 1.000.000đ); câu cuối có bước tiếp theo (SĐT/Zalo, tham quan,
-học thử, hỏi tuổi bé/cơ sở...); tối đa một token [QUICK:] hợp lệ ở cuối; cộng kiểm riêng của từng lượt
+học thử, hỏi tuổi bé/cơ sở...; trừ lượt chốt hẹn và sau đó, như mục 10 "Đã hẹn" của prompt); tối đa một token [QUICK:] hợp lệ ở cuối; cộng kiểm riêng của từng lượt
 (vd không có "%" ở lượt hỏi ưu đãi đầu tiên).
 Giọng văn (phản hồi 2026-10-22, xem style_problems): tối đa 3 câu; không đọc lại SĐT phụ huynh đã gửi;
 không gọi "anh"/"chị" khi phụ huynh chưa tự xưng như vậy; không mở đầu "Dạ em ghi nhận".
@@ -69,6 +69,7 @@ class Turn:
     any_of: list[tuple[str, ...]] = field(default_factory=list)  # mỗi nhóm phải có ít nhất 1 cụm
     none_of: tuple[str, ...] = ()
     known: dict = field(default_factory=dict)  # hồ sơ bot đã có trước lượt này (khối [THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT])
+    next_step: bool = True  # False: lượt chốt hẹn và sau đó ("Đã hẹn" là ngoại lệ của nguyên tắc 6)
 
 
 # Tên Facebook giả trong hồ sơ: bot không được suy ra "anh"/"chị" từ tên.
@@ -133,11 +134,12 @@ SCENARIOS: dict[str, list[Turn]] = {
         Turn("bé nhà mình 20 tháng, mình muốn đi xem trường", known=FB_NAME),
         Turn("cơ sở Chùa Láng", known={**FB_NAME, "kid_age": "20 tháng"}),
         Turn("buổi sáng", known=VISIT),
-        Turn(f"sáng mai nhé, số mình {TEST_PHONE}", known=VISIT, any_of=[("liên hệ", "gọi")]),
+        Turn(f"sáng mai nhé, số mình {TEST_PHONE}", known=VISIT, any_of=[("liên hệ", "gọi")], next_step=False),
         Turn(
             "ok cảm ơn em",
             known={**VISIT, "phone": TEST_PHONE, "visit_request": "tham quan Chùa Láng sáng mai"},
             none_of=("sáng mai", "chùa láng"),
+            next_step=False,
         ),
     ],
 }
@@ -190,7 +192,7 @@ def check_turn(turn: Turn, is_first: bool, escalated: bool, text: str, parent_me
         problems.append(f"xưng hô sai: {match.group(0)!r}")
     if match := MONEY.search(text):
         problems.append(f"nêu số tiền: {match.group(0)!r}")
-    if not (any(a in last for a in NEXT_ACTIONS) or ("?" in last and any(q in last for q in NEXT_QUESTIONS))):
+    if turn.next_step and not (any(a in last for a in NEXT_ACTIONS) or ("?" in last and any(q in last for q in NEXT_QUESTIONS))):
         problems.append(f"câu cuối không có bước tiếp theo: {last_sentence(text)!r}")
     keys = QUICK_TOKEN.findall(text)
     if len(keys) > 1 or (keys and not text.rstrip().endswith(f"[QUICK:{keys[0]}]")):

@@ -440,6 +440,23 @@ def test_short_examples_still_name_their_topics(parent_says, topics):
     assert topics <= set(topics_in_reply(replies[0])), replies[0]
 
 
+def test_booked_visit_is_the_one_exception_to_ending_with_a_next_step(monkeypatch):
+    # Ví dụ chốt hẹn ("…Hẹn gặp Ba/Mẹ và bé ở trường nhé!") không có bước tiếp theo: prompt và eval phải cùng nói vậy.
+    rule6 = next(line for line in SYSTEM_PROMPT.splitlines() if line.startswith("6. "))
+    booked = next(line for line in SYSTEM_PROMPT.splitlines() if '"Đã hẹn: …"' in line)
+    assert "'Đã hẹn'" in rule6.split("kết thúc bằng", 1)[0], rule6
+    assert "không cần bước tiếp theo" in booked, booked
+    assert all("không cần bước tiếp theo" in r for r in _reminders(monkeypatch))
+
+    parent, reply = _examples()[-1]
+    assert "sang mai nhe" in parent
+    turn = next(t for t in eval_chat.SCENARIOS["hen_tham_quan"] if "sáng mai nhé" in t.message)
+    assert eval_chat.check_turn(turn, False, False, reply, [turn.message]) == []
+    # Lượt bình thường vẫn bị bắt khi thiếu bước tiếp theo.
+    problems = eval_chat.check_turn(eval_chat.Turn("trường ở đâu"), False, False, reply, ["trường ở đâu"])
+    assert any("bước tiếp theo" in p for p in problems), problems
+
+
 def test_facebook_name_never_reaches_the_model(monkeypatch):
     from app.customer_memory import format_profile_for_prompt
 

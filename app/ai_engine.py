@@ -592,7 +592,9 @@ class AIEngine:
             '- "visit_request": phụ huynh ĐỒNG Ý đăng ký học thử hoặc đặt lịch tham quan, kể cả bấm nút đồng ý khi chưa '
             'chọn buổi/tuần (VD: "học thử 1 tuần", "tham quan trường"); chọn buổi/tuần sau đó thì ghi cụ thể hơn '
             '(VD: "tham quan buổi sáng", "học thử tuần sau"). KHÔNG ghi khi phụ huynh chỉ hỏi, còn cân nhắc hoặc muốn '
-            'tìm hiểu thêm (VD: "học thử thế nào ạ?", "để em suy nghĩ", "em muốn tìm hiểu thêm trước")\n'
+            'tìm hiểu thêm (VD: "học thử thế nào ạ?", "để em suy nghĩ", "em muốn tìm hiểu thêm trước"). '
+            'Thông tin đã biết đã có lịch cụ thể hơn (buổi/tuần) thì KHÔNG ghi lại bản chung chung hơn (VD: đã có '
+            '"tham quan buổi sáng", phụ huynh bấm lại "Đặt lịch tham quan" thì không ghi "tham quan trường")\n'
             '- "concerns": list các mối quan tâm (VD: ["học phí", "an toàn", "ăn uống"])\n'
             '- "kid_traits": list tính cách/đặc điểm bé (VD: ["nhút nhát", "hiếu động", "biếng ăn"])\n\n'
             "CHỈ trả về JSON object. Nếu tin nhắn không chứa thông tin mới nào, trả về {}. "

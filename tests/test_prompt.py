@@ -143,6 +143,20 @@ def test_extract_prompt_records_agreement_before_a_time_is_chosen(monkeypatch, a
     assert "tìm hiểu thêm" in refuse.lower()
 
 
+# Phụ huynh đã hẹn "tham quan buổi sáng" bấm lại "Đặt lịch tham quan": ghi "tham quan trường" thì hồ sơ/Sheet lùi
+# về bản chung chung và Telegram nhận một lead thừa.
+def test_extract_prompt_keeps_a_specific_booking_over_a_vaguer_one(monkeypatch):
+    recorder = RecordingProvider("{}")
+    engine = make_engine(monkeypatch, fake=recorder)
+    agree = QUICK_REPLIES["visit_invite"][0][1]
+
+    asyncio.run(engine.extract_customer_info(agree, {"visit_request": "tham quan buổi sáng"}))
+
+    assert "tham quan buổi sáng" in recorder.user_message
+    rule = next(line for line in recorder.system_prompt.splitlines() if '"visit_request"' in line)
+    assert re.search(r"Thông tin đã biết[^\n]*cụ thể hơn \(buổi/tuần\)[^\n]*KHÔNG ghi lại bản chung chung hơn", rule), rule
+
+
 def test_classify_qa_parses_json_after_reasoning(monkeypatch):
     payload = {"category": "Xe đưa đón", "keywords": ["xe bus"], "similar_questions": ["Có xe đón không?"]}
     engine = make_engine(monkeypatch, r1=FakeProvider(f"<think>Phân loại.</think>{json.dumps(payload, ensure_ascii=False)}"))

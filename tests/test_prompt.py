@@ -564,7 +564,7 @@ def test_eval_scenario_invites_first_and_asks_the_week_after_the_parent_agrees()
     assert ("tuần này", "tuần sau") in turns[i].any_of
 
 
-def test_phone_is_asked_softly(monkeypatch):
+def test_phone_is_asked_softly():
     rule7 = next(line for line in SYSTEM_PROMPT.splitlines() if line.startswith("7. "))
     assert "Nếu tiện" in rule7, rule7
     asks_phone = [reply for _, reply in _examples() if reply.endswith("[QUICK:phone]")]

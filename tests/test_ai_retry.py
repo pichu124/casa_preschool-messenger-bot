@@ -65,6 +65,16 @@ GROQ_ITPM_TOO_LARGE = {
 }
 
 
+# Thân lỗi máy chủ quá tải (5xx), đúng dạng mỗi hãng trả.
+OVERLOADED = {
+    "mistral": (503, {"object": "error", "message": "Service unavailable", "type": "service_unavailable", "code": "1000"}),
+    "groq_llama": (503, {"error": {"message": "Service Unavailable", "type": "internal_server_error"}}),
+    "deepseek": (503, {"error": {"message": "Server overloaded, please try again later.", "type": "server_error"}}),
+    "openai": (500, {"error": {"message": "The server had an error while processing your request.", "type": "server_error"}}),
+    "gemini": (503, {"error": {"code": 503, "message": "The model is overloaded.", "status": "UNAVAILABLE"}}),
+}
+
+
 def ok_body(provider: str, text: str) -> dict:
     if provider == "gemini":
         return {"candidates": [{"content": {"role": "model", "parts": [{"text": text}]}}]}
@@ -79,14 +89,20 @@ def ok_body(provider: str, text: str) -> dict:
 
 
 class Wire:
-    """API giả của các hãng: mỗi host trả lần lượt theo kịch bản, câu cuối lặp lại mãi; ghi body từng request."""
+    """API giả của các hãng: mỗi host trả lần lượt theo kịch bản, câu cuối lặp lại mãi; ghi body từng request.
+
+    Một bước là (status, body[, headers]) hoặc một lỗi httpx mà transport ném ra (mất kết nối, hết giờ).
+    """
 
     def __init__(self):
-        self.script: dict[str, list[tuple[int, dict, dict]]] = {}
+        self.script: dict[str, list] = {}
         self.bodies: dict[str, list[dict]] = {host: [] for host in HOSTS.values()}
+        self.timeouts: dict[str, list[dict]] = {host: [] for host in HOSTS.values()}
 
-    def reply(self, provider: str, *steps: tuple[int, dict, dict] | tuple[int, dict]):
-        self.script[HOSTS[provider]] = [(s[0], s[1], s[2] if len(s) > 2 else {}) for s in steps]
+    def reply(self, provider: str, *steps: tuple[int, dict, dict] | tuple[int, dict] | httpx.TransportError):
+        self.script[HOSTS[provider]] = [
+            s if isinstance(s, Exception) else (s[0], s[1], s[2] if len(s) > 2 else {}) for s in steps
+        ]
 
     def hits(self, provider: str) -> int:
         return len(self.bodies[HOSTS[provider]])
@@ -95,8 +111,12 @@ class Wire:
         await request.aread()
         host = request.url.host
         self.bodies[host].append(json.loads(request.content))
+        self.timeouts[host].append(request.extensions.get("timeout"))
         steps = self.script[host]
-        status, body, headers = steps.pop(0) if len(steps) > 1 else steps[0]
+        step = steps.pop(0) if len(steps) > 1 else steps[0]
+        if isinstance(step, Exception):
+            raise step
+        status, body, headers = step
         return httpx.Response(status, json=body, headers=headers, request=request)
 
 
@@ -194,7 +214,105 @@ def test_retry_logs_one_short_warning_per_retry(engine_with, wire, sleeps, caplo
     (record,) = [r for r in caplog.records if r.levelname == "WARNING"]
     line = record.getMessage()
     # Không chứa nội dung tin nhắn hay key.
-    assert line == "MistralProvider quá tải (SDKError 429), thử lại lần 1 sau 1.5s"
+    assert line == "MistralProvider lỗi tạm thời (SDKError 429), thử lại lần 1 sau 1.5s"
+
+
+# --- Lỗi máy chủ (5xx, 408, 409) hoặc mất kết nối/hết giờ: thử lại cùng model 1 lần sau 1s ---
+
+
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_server_error_once_then_answers_from_same_model(engine_with, wire, sleeps, provider):
+    engine, backup = engine_with(provider)
+    wire.reply(provider, OVERLOADED[provider], (200, ok_body(provider, REPLY)))
+
+    resp = ask(engine)
+
+    assert (resp.text, resp.model_used, resp.should_escalate) == (REPLY, provider, False)
+    assert wire.hits(provider) == 2
+    assert sleeps == [1.0]
+    assert backup.calls == 0
+
+
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_server_error_twice_moves_on_after_one_retry(engine_with, wire, sleeps, provider):
+    engine, backup = engine_with(provider)
+    wire.reply(provider, OVERLOADED[provider])
+
+    resp = ask(engine)
+
+    assert resp.model_used == "backup"
+    assert wire.hits(provider) == 2
+    assert sleeps == [1.0]
+    assert backup.calls == 1
+
+
+@pytest.mark.parametrize(
+    "lost",
+    [httpx.ConnectError("Connection reset by peer"), httpx.ReadTimeout("timed out")],
+    ids=["connect-error", "read-timeout"],
+)
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_connection_lost_once_then_answers_from_same_model(engine_with, wire, sleeps, provider, lost):
+    engine, backup = engine_with(provider)
+    wire.reply(provider, lost, (200, ok_body(provider, REPLY)))
+
+    resp = ask(engine)
+
+    assert (resp.text, resp.model_used) == (REPLY, provider)
+    assert wire.hits(provider) == 2
+    assert sleeps == [1.0]
+    assert backup.calls == 0
+
+
+def test_connection_lost_twice_moves_on(engine_with, wire, sleeps):
+    engine, backup = engine_with("deepseek")
+    wire.reply("deepseek", httpx.ConnectError("Connection reset by peer"))
+
+    assert ask(engine).model_used == "backup"
+    assert wire.hits("deepseek") == 2
+    assert sleeps == [1.0]
+
+
+@pytest.mark.parametrize("status", [408, 409])
+def test_request_timeout_and_conflict_status_are_retried(engine_with, wire, sleeps, status):
+    engine, _ = engine_with("deepseek")
+    wire.reply("deepseek", (status, {"error": {"message": "Please retry"}}), (200, ok_body("deepseek", REPLY)))
+
+    assert ask(engine).model_used == "deepseek"
+    assert sleeps == [1.0]
+
+
+@pytest.mark.parametrize(
+    ("step", "expected"),
+    [
+        (OVERLOADED["deepseek"], "DeepSeekProvider lỗi tạm thời (InternalServerError 503), thử lại lần 1 sau 1s"),
+        (httpx.ConnectError("reset"), "DeepSeekProvider lỗi tạm thời (APIConnectionError), thử lại lần 1 sau 1s"),
+    ],
+    ids=["503", "connect-error"],
+)
+def test_transient_retry_logs_one_short_warning(engine_with, wire, sleeps, caplog, step, expected):
+    engine, _ = engine_with("deepseek")
+    wire.reply("deepseek", step, (200, ok_body("deepseek", REPLY)))
+
+    with caplog.at_level("WARNING", logger="app.ai_engine"):
+        asyncio.run(engine.get_response("số em là 0912345678, bé tên Bông"))
+
+    assert [r.getMessage() for r in caplog.records if r.levelname == "WARNING"] == [expected]
+
+
+# --- Timeout: lời gọi treo không giữ phụ huynh chờ tới mặc định của SDK (openai: 600s, mistral/genai: không giới hạn) ---
+
+
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_requests_carry_a_short_timeout(engine_with, wire, provider):
+    engine, _ = engine_with(provider)
+    wire.reply(provider, (200, ok_body(provider, REPLY)))
+
+    ask(engine)
+
+    (timeout,) = wire.timeouts[HOSTS[provider]]
+    assert timeout["read"] == ai_engine.AI_TIMEOUT
+    assert 20 <= ai_engine.AI_TIMEOUT <= 45
 
 
 # --- Không thử lại: vượt hạn mức token/phút (gửi lại y nguyên vẫn bị từ chối) và các 4xx khác ---
@@ -269,7 +387,7 @@ CALLS = {
     "summarize": lambda e: e.summarize_conversation([{"role": "user", "content": "học phí bao nhiêu"}]),
     "format": lambda e: e.format_admin_reply("thang 9 mo lop", "khi nào mở lớp"),
 }
-LIMITS = {"chat": (1024, 1024), "extract": (100, 300), "classify": (100, 300), "summarize": (200, 600), "format": (300, 600)}
+LIMITS = {"chat": (1024, 1024), "extract": (100, 300), "classify": (100, 300), "summarize": (200, 600), "format": (900, 999)}
 
 
 @pytest.mark.parametrize("call", list(CALLS))

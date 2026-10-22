@@ -132,26 +132,48 @@ CHAT_MAX_TOKENS = 1024
 # JSON trích hồ sơ đủ cả 14 trường dài ~470 ký tự (~150–250 token tiếng Việt); JSON phân loại Q&A ngắn hơn.
 # Phải dưới hạn mức token đầu ra/phút của gói miễn phí (Groq: 1000), nếu không lời gọi bị từ chối ngay.
 JSON_MAX_TOKENS = 300
-# Tóm tắt 2–4 câu, hoặc câu admin trả lời viết lại cho phụ huynh.
+# Tóm tắt 2–4 câu.
 TEXT_MAX_TOKENS = 600
+# Câu admin viết lại phải giữ đủ dữ kiện admin đưa; vẫn dưới OTPM 1000 của Groq miễn phí.
+ADMIN_REPLY_MAX_TOKENS = 900
+
+# Mặc định SDK openai/groq chờ 600s, mistralai và google-genai không giới hạn: một lời gọi treo giữ phụ huynh
+# chờ mãi. 30s đủ cho câu trả lời chính 1024 token; hết giờ thì thử lại 1 lần rồi sang model kế.
+AI_TIMEOUT = 30.0
 
 # Provider báo quá tải tạm thời (429 do số request): chờ rồi thử lại cùng model, sau đó mới sang model kế.
 RETRY_DELAYS = (1.5, 3.0)
 MAX_RETRY_AFTER = 5.0
 MAX_RETRY_WAIT = 8.0
+# Lỗi máy chủ (5xx, 408, 409) hoặc mất kết nối/hết giờ: thử lại 1 lần.
+TRANSIENT_RETRY_DELAY = 1.0
+
+
+def _is_connection_error(error: Exception) -> bool:
+    """Mất kết nối hoặc hết giờ: openai/groq gói lỗi httpx lại, mistralai và google-genai để nguyên."""
+    import groq
+    import openai
+
+    return isinstance(error, (openai.APIConnectionError, groq.APIConnectionError, httpx.TransportError))
+
+
+def _status(error: Exception) -> int | None:
+    # openai, groq, mistralai: status_code; google-genai: code (openai/groq cũng có `code` nhưng là chuỗi)
+    status = getattr(error, "status_code", None) or getattr(error, "code", None)
+    return status if isinstance(status, int) else None
 
 
 def _retry_delay(error: Exception, attempt: int) -> float | None:
     """Số giây chờ trước lần thử lại `attempt + 1`, hoặc None nếu lỗi này không đáng thử lại.
 
-    Chỉ 429 do số request mới qua đi sau vài giây. "Request too large" (Groq: vượt hạn mức token/phút),
-    413 và các 4xx khác (sai key, sai model) gửi lại y nguyên vẫn bị từ chối.
+    429 do số request qua đi sau vài giây: thử lại tối đa 2 lần. Lỗi máy chủ (5xx, 408, 409) và mất kết nối
+    thường chỉ thoáng qua: thử lại 1 lần. "Request too large" (Groq: vượt hạn mức token/phút), 413 và các
+    4xx khác (sai key, sai model) gửi lại y nguyên vẫn bị từ chối.
     """
-    if attempt >= len(RETRY_DELAYS):
-        return None
-    # openai, groq, mistralai: status_code; google-genai: code
-    status = getattr(error, "status_code", None) or getattr(error, "code", None)
-    if status != 429:
+    status = _status(error)
+    if _is_connection_error(error) or (status is not None and (status >= 500 or status in (408, 409))):
+        return TRANSIENT_RETRY_DELAY if attempt == 0 else None
+    if status != 429 or attempt >= len(RETRY_DELAYS):
         return None
     detail = " ".join(str(getattr(error, name, "") or "") for name in ("body", "message", "details"))
     if "request too large" in detail.lower():
@@ -186,7 +208,7 @@ class OpenAIProvider(AIProvider):
         from openai import AsyncOpenAI
         # SDK openai/groq mặc định tự thử lại 2 lần mọi 429, kể cả "Request too large", chờ tới 60s;
         # tắt đi để chỉ còn chính sách thử lại của AIEngine._generate.
-        self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY, max_retries=0)
+        self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY, max_retries=0, timeout=AI_TIMEOUT)
 
     async def generate(
         self, system_prompt: str, user_message: str, conversation_history: list[dict], max_tokens: int = CHAT_MAX_TOKENS
@@ -207,7 +229,7 @@ class OpenAIProvider(AIProvider):
 class GroqProvider(AIProvider):
     def __init__(self):
         from groq import AsyncGroq
-        self.client = AsyncGroq(api_key=settings.GROQ_API_KEY, max_retries=0)
+        self.client = AsyncGroq(api_key=settings.GROQ_API_KEY, max_retries=0, timeout=AI_TIMEOUT)
 
     async def generate(
         self, system_prompt: str, user_message: str, conversation_history: list[dict], max_tokens: int = CHAT_MAX_TOKENS
@@ -230,7 +252,7 @@ class GroqSecondProvider(AIProvider):
 
     def __init__(self):
         from groq import AsyncGroq
-        self.client = AsyncGroq(api_key=settings.GROQ_API_KEY, max_retries=0)
+        self.client = AsyncGroq(api_key=settings.GROQ_API_KEY, max_retries=0, timeout=AI_TIMEOUT)
 
     async def generate(
         self, system_prompt: str, user_message: str, conversation_history: list[dict], max_tokens: int = CHAT_MAX_TOKENS
@@ -251,7 +273,7 @@ class GroqSecondProvider(AIProvider):
 class MistralProvider(AIProvider):
     def __init__(self):
         from mistralai import Mistral
-        self.client = Mistral(api_key=settings.MISTRAL_API_KEY)
+        self.client = Mistral(api_key=settings.MISTRAL_API_KEY, timeout_ms=int(AI_TIMEOUT * 1000))
 
     async def generate(
         self, system_prompt: str, user_message: str, conversation_history: list[dict], max_tokens: int = CHAT_MAX_TOKENS
@@ -278,6 +300,7 @@ class DeepSeekProvider(AIProvider):
             api_key=settings.DEEPSEEK_API_KEY,
             base_url="https://api.deepseek.com",
             max_retries=0,
+            timeout=AI_TIMEOUT,
         )
 
     async def generate(
@@ -299,7 +322,11 @@ class DeepSeekProvider(AIProvider):
 class GeminiProvider(AIProvider):
     def __init__(self):
         from google import genai
-        self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        from google.genai import types
+
+        self.client = genai.Client(
+            api_key=settings.GEMINI_API_KEY, http_options=types.HttpOptions(timeout=int(AI_TIMEOUT * 1000))
+        )
 
     async def generate(
         self, system_prompt: str, user_message: str, conversation_history: list[dict], max_tokens: int = CHAT_MAX_TOKENS
@@ -391,7 +418,7 @@ class AIEngine:
     ) -> str:
         """Điểm gọi model duy nhất: bỏ khối <think> để nó không tới phụ huynh hay bị đọc nhầm [ESCALATE].
 
-        Quá tải tạm thời thì chờ rồi thử lại cùng model (tối đa 2 lần, tổng chờ ≤ MAX_RETRY_WAIT); lỗi khác
+        Lỗi tạm thời thì chờ rồi thử lại cùng model (xem _retry_delay; tổng chờ ≤ MAX_RETRY_WAIT); lỗi khác
         ném ra ngay để chuỗi dự phòng thử model kế. Chỉ còn rỗng sau khi lọc (model nghĩ hết max_tokens)
         cũng coi như model lỗi.
         """
@@ -406,8 +433,10 @@ class AIEngine:
                 if delay is None or waited + delay > MAX_RETRY_WAIT:
                     raise
                 attempt += 1
+                status = _status(e)
+                cause = f"{type(e).__name__} {status}" if status else type(e).__name__
                 logger.warning(
-                    f"{type(provider).__name__} quá tải ({type(e).__name__} 429), thử lại lần {attempt} sau {delay:g}s"
+                    f"{type(provider).__name__} lỗi tạm thời ({cause}), thử lại lần {attempt} sau {delay:g}s"
                 )
                 await asyncio.sleep(delay)
                 waited += delay
@@ -647,7 +676,7 @@ class AIEngine:
             if not provider:
                 continue
             try:
-                return await self._generate(provider, format_prompt, user_msg, [], max_tokens=TEXT_MAX_TOKENS)
+                return await self._generate(provider, format_prompt, user_msg, [], max_tokens=ADMIN_REPLY_MAX_TOKENS)
             except Exception as e:
                 logger.warning(f"Format reply with {model_name} failed: {e}")
                 continue

@@ -721,3 +721,38 @@ def test_post_lead_row_succeeds_only_on_ok_true(net, caplog, sheet_response, ok)
     assert len(warnings) == int(not ok)
     assert leaked(caplog) == []
 
+
+# --- Apps Script trong docs: mỗi phụ huynh một hàng, cột khớp khóa bot gửi ---
+
+DOCS = Path(__file__).resolve().parent.parent / "docs" / "google-sheet-leads.md"
+# Cột của Sheet đã chạy trước khi có upsert: hàng cũ ghi theo đúng thứ tự này.
+FIRST_COLUMNS = [
+    "time", "event", "fb_name", "customer_id", "phone", "kid_name", "kid_age",
+    "campus", "area", "expected_start", "visit_request", "ad_title", "stage", "last_message",
+]
+
+
+def docs_columns() -> list[tuple[str, str]]:
+    (script,) = re.findall(r"```javascript\n(.*?)```", DOCS.read_text(encoding="utf-8"), re.S)
+    (block,) = re.findall(r"const COLUMNS = \[\n(.*?)\n\];", script, re.S)
+    return re.findall(r"\['(\w+)', '([^']*)'\]", block)
+
+
+def test_docs_script_columns_are_the_keys_the_bot_sends_then_first_contact_and_updated_at(chat, net):
+    chat.say(f"Số mình {PHONE}", extracted={"phone": PHONE})
+    (body,) = net.sheet
+
+    columns = docs_columns()
+
+    assert [key for key, _ in columns[: len(FIRST_COLUMNS)]] == FIRST_COLUMNS
+    assert columns[len(FIRST_COLUMNS):] == [("first_contact", "Lần đầu liên hệ"), ("updated_at", "Cập nhật lúc")]
+    assert set(body) - {"token"} == set(FIRST_COLUMNS)
+
+
+def test_docs_column_table_lists_every_script_column_in_order():
+    text = DOCS.read_text(encoding="utf-8")
+    table = text.split("| Khóa | Cột | Nội dung |", 1)[1].split("\n\n", 1)[0]
+
+    rows = re.findall(r"^\| `(\w+)` \| ([^|]+) \|", table, re.M)
+
+    assert [(key, title.strip()) for key, title in rows] == docs_columns()

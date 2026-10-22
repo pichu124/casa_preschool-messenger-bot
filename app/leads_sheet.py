@@ -1,4 +1,5 @@
-"""Lead rows to Google Sheet through an Apps Script web app (setup: docs/google-sheet-leads.md)."""
+"""Lead events to Google Sheet through an Apps Script web app, which keeps one row per parent (customer_id)
+and updates it on each event (setup: docs/google-sheet-leads.md)."""
 import logging
 from datetime import datetime, timedelta, timezone
 

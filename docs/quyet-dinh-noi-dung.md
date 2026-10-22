@@ -156,5 +156,5 @@ Mục D:
 3. Tổng chi phí thực tế do tư vấn viên tính và gửi, không tính trên chat.
 4. Dùng "học thử 1 tuần miễn phí" làm bước trung gian với khách còn phân vân.
 5. CARE khi chê đắt/so sánh trường khác: Connect → Acknowledge → Resolve → Evaluate.
-6. Luôn kết thúc bằng một bước tiếp theo cụ thể (xin SĐT, hẹn tham quan, hẹn học thử).
+6. Luôn kết thúc bằng một bước tiếp theo cụ thể (xin SĐT, hẹn tham quan, hẹn học thử), trừ lúc vừa chốt lịch hẹn (chỉ xác nhận ngắn).
 7. Điều hướng xin SĐT để tư vấn qua Zalo hoặc gọi điện.

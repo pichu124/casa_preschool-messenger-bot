@@ -17,7 +17,7 @@ class FakeProvider(AIProvider):
         self.reply = reply
         self.calls = 0
 
-    async def generate(self, system_prompt: str, user_message: str, conversation_history: list[dict]) -> str:
+    async def generate(self, system_prompt, user_message, conversation_history, max_tokens=1024) -> str:
         self.calls += 1
         return self.reply
 
@@ -144,7 +144,7 @@ def test_format_admin_reply_never_sends_reasoning_to_parent(monkeypatch):
 class RecordingProvider(FakeProvider):
     """Ghi lại đúng những gì AIEngine gửi cho model."""
 
-    async def generate(self, system_prompt: str, user_message: str, conversation_history: list[dict]) -> str:
+    async def generate(self, system_prompt, user_message, conversation_history, max_tokens=1024) -> str:
         self.system_prompt, self.user_message = system_prompt, user_message
         return await super().generate(system_prompt, user_message, conversation_history)
 

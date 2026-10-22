@@ -687,7 +687,7 @@ class RecordingProvider(AIProvider):
         self.reply = reply
         self.user_messages = []
 
-    async def generate(self, system_prompt, user_message, conversation_history):
+    async def generate(self, system_prompt, user_message, conversation_history, max_tokens=1024):
         self.user_messages.append(user_message)
         return self.reply
 

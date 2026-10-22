@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import re
@@ -127,6 +128,44 @@ def strip_reasoning(text: str | None) -> str:
     return _THINK_RE.sub("", text or "").strip()
 
 
+CHAT_MAX_TOKENS = 1024
+# JSON trích hồ sơ đủ cả 14 trường dài ~470 ký tự (~150–250 token tiếng Việt); JSON phân loại Q&A ngắn hơn.
+# Phải dưới hạn mức token đầu ra/phút của gói miễn phí (Groq: 1000), nếu không lời gọi bị từ chối ngay.
+JSON_MAX_TOKENS = 300
+# Tóm tắt 2–4 câu, hoặc câu admin trả lời viết lại cho phụ huynh.
+TEXT_MAX_TOKENS = 600
+
+# Provider báo quá tải tạm thời (429 do số request): chờ rồi thử lại cùng model, sau đó mới sang model kế.
+RETRY_DELAYS = (1.5, 3.0)
+MAX_RETRY_AFTER = 5.0
+MAX_RETRY_WAIT = 8.0
+
+
+def _retry_delay(error: Exception, attempt: int) -> float | None:
+    """Số giây chờ trước lần thử lại `attempt + 1`, hoặc None nếu lỗi này không đáng thử lại.
+
+    Chỉ 429 do số request mới qua đi sau vài giây. "Request too large" (Groq: vượt hạn mức token/phút),
+    413 và các 4xx khác (sai key, sai model) gửi lại y nguyên vẫn bị từ chối.
+    """
+    if attempt >= len(RETRY_DELAYS):
+        return None
+    # openai, groq, mistralai: status_code; google-genai: code
+    status = getattr(error, "status_code", None) or getattr(error, "code", None)
+    if status != 429:
+        return None
+    detail = " ".join(str(getattr(error, name, "") or "") for name in ("body", "message", "details"))
+    if "request too large" in detail.lower():
+        return None
+    # mistralai: raw_response; openai, groq, google-genai: response
+    response = getattr(error, "raw_response", None) or getattr(error, "response", None)
+    retry_after = getattr(response, "headers", {}).get("retry-after")
+    try:
+        seconds = float(retry_after)
+    except (TypeError, ValueError):
+        return RETRY_DELAYS[attempt]
+    return seconds if seconds <= MAX_RETRY_AFTER else None
+
+
 @dataclass
 class AIResponse:
     text: str
@@ -136,16 +175,22 @@ class AIResponse:
 
 class AIProvider(ABC):
     @abstractmethod
-    async def generate(self, system_prompt: str, user_message: str, conversation_history: list[dict]) -> str:
+    async def generate(
+        self, system_prompt: str, user_message: str, conversation_history: list[dict], max_tokens: int = CHAT_MAX_TOKENS
+    ) -> str:
         pass
 
 
 class OpenAIProvider(AIProvider):
     def __init__(self):
         from openai import AsyncOpenAI
-        self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        # SDK openai/groq mặc định tự thử lại 2 lần mọi 429, kể cả "Request too large", chờ tới 60s;
+        # tắt đi để chỉ còn chính sách thử lại của AIEngine._generate.
+        self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY, max_retries=0)
 
-    async def generate(self, system_prompt: str, user_message: str, conversation_history: list[dict]) -> str:
+    async def generate(
+        self, system_prompt: str, user_message: str, conversation_history: list[dict], max_tokens: int = CHAT_MAX_TOKENS
+    ) -> str:
         messages = [{"role": "system", "content": system_prompt}]
         messages.extend(conversation_history)
         messages.append({"role": "user", "content": user_message})
@@ -153,7 +198,7 @@ class OpenAIProvider(AIProvider):
         response = await self.client.chat.completions.create(
             model=settings.OPENAI_MODEL,
             messages=messages,
-            max_tokens=1024,
+            max_tokens=max_tokens,
             temperature=0.3,
         )
         return response.choices[0].message.content
@@ -162,9 +207,11 @@ class OpenAIProvider(AIProvider):
 class GroqProvider(AIProvider):
     def __init__(self):
         from groq import AsyncGroq
-        self.client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+        self.client = AsyncGroq(api_key=settings.GROQ_API_KEY, max_retries=0)
 
-    async def generate(self, system_prompt: str, user_message: str, conversation_history: list[dict]) -> str:
+    async def generate(
+        self, system_prompt: str, user_message: str, conversation_history: list[dict], max_tokens: int = CHAT_MAX_TOKENS
+    ) -> str:
         messages = [{"role": "system", "content": system_prompt}]
         messages.extend(conversation_history)
         messages.append({"role": "user", "content": user_message})
@@ -172,7 +219,7 @@ class GroqProvider(AIProvider):
         response = await self.client.chat.completions.create(
             model=settings.GROQ_MODEL,
             messages=messages,
-            max_tokens=1024,
+            max_tokens=max_tokens,
             temperature=0.3,
         )
         return response.choices[0].message.content
@@ -183,9 +230,11 @@ class GroqSecondProvider(AIProvider):
 
     def __init__(self):
         from groq import AsyncGroq
-        self.client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+        self.client = AsyncGroq(api_key=settings.GROQ_API_KEY, max_retries=0)
 
-    async def generate(self, system_prompt: str, user_message: str, conversation_history: list[dict]) -> str:
+    async def generate(
+        self, system_prompt: str, user_message: str, conversation_history: list[dict], max_tokens: int = CHAT_MAX_TOKENS
+    ) -> str:
         messages = [{"role": "system", "content": system_prompt}]
         messages.extend(conversation_history)
         messages.append({"role": "user", "content": user_message})
@@ -193,7 +242,7 @@ class GroqSecondProvider(AIProvider):
         response = await self.client.chat.completions.create(
             model=settings.GROQ_SECOND_MODEL,
             messages=messages,
-            max_tokens=1024,
+            max_tokens=max_tokens,
             temperature=0.3,
         )
         return response.choices[0].message.content
@@ -204,7 +253,9 @@ class MistralProvider(AIProvider):
         from mistralai import Mistral
         self.client = Mistral(api_key=settings.MISTRAL_API_KEY)
 
-    async def generate(self, system_prompt: str, user_message: str, conversation_history: list[dict]) -> str:
+    async def generate(
+        self, system_prompt: str, user_message: str, conversation_history: list[dict], max_tokens: int = CHAT_MAX_TOKENS
+    ) -> str:
         messages = [{"role": "system", "content": system_prompt}]
         messages.extend(conversation_history)
         messages.append({"role": "user", "content": user_message})
@@ -212,7 +263,7 @@ class MistralProvider(AIProvider):
         response = await self.client.chat.complete_async(
             model=settings.MISTRAL_MODEL,
             messages=messages,
-            max_tokens=1024,
+            max_tokens=max_tokens,
             temperature=0.3,
         )
         return response.choices[0].message.content
@@ -226,9 +277,12 @@ class DeepSeekProvider(AIProvider):
         self.client = AsyncOpenAI(
             api_key=settings.DEEPSEEK_API_KEY,
             base_url="https://api.deepseek.com",
+            max_retries=0,
         )
 
-    async def generate(self, system_prompt: str, user_message: str, conversation_history: list[dict]) -> str:
+    async def generate(
+        self, system_prompt: str, user_message: str, conversation_history: list[dict], max_tokens: int = CHAT_MAX_TOKENS
+    ) -> str:
         messages = [{"role": "system", "content": system_prompt}]
         messages.extend(conversation_history)
         messages.append({"role": "user", "content": user_message})
@@ -236,7 +290,7 @@ class DeepSeekProvider(AIProvider):
         response = await self.client.chat.completions.create(
             model=settings.DEEPSEEK_MODEL,
             messages=messages,
-            max_tokens=1024,
+            max_tokens=max_tokens,
             temperature=0.3,
         )
         return response.choices[0].message.content
@@ -247,7 +301,9 @@ class GeminiProvider(AIProvider):
         from google import genai
         self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
-    async def generate(self, system_prompt: str, user_message: str, conversation_history: list[dict]) -> str:
+    async def generate(
+        self, system_prompt: str, user_message: str, conversation_history: list[dict], max_tokens: int = CHAT_MAX_TOKENS
+    ) -> str:
         from google.genai import types
 
         contents = [
@@ -264,7 +320,7 @@ class GeminiProvider(AIProvider):
             contents=contents,
             config=types.GenerateContentConfig(
                 system_instruction=system_prompt,
-                max_output_tokens=1024,
+                max_output_tokens=max_tokens,
                 temperature=0.3,
             ),
         )
@@ -326,13 +382,36 @@ class AIEngine:
         return self._providers[name]
 
     async def _generate(
-        self, provider: AIProvider, system_prompt: str, user_message: str, history: list[dict]
+        self,
+        provider: AIProvider,
+        system_prompt: str,
+        user_message: str,
+        history: list[dict],
+        max_tokens: int = CHAT_MAX_TOKENS,
     ) -> str:
         """Điểm gọi model duy nhất: bỏ khối <think> để nó không tới phụ huynh hay bị đọc nhầm [ESCALATE].
 
-        Chỉ còn rỗng sau khi lọc (model nghĩ hết max_tokens) thì coi như model lỗi để chuỗi dự phòng thử model kế.
+        Quá tải tạm thời thì chờ rồi thử lại cùng model (tối đa 2 lần, tổng chờ ≤ MAX_RETRY_WAIT); lỗi khác
+        ném ra ngay để chuỗi dự phòng thử model kế. Chỉ còn rỗng sau khi lọc (model nghĩ hết max_tokens)
+        cũng coi như model lỗi.
         """
-        text = strip_reasoning(await provider.generate(system_prompt, user_message, history))
+        waited = 0.0
+        attempt = 0
+        while True:
+            try:
+                raw = await provider.generate(system_prompt, user_message, history, max_tokens=max_tokens)
+                break
+            except Exception as e:
+                delay = _retry_delay(e, attempt)
+                if delay is None or waited + delay > MAX_RETRY_WAIT:
+                    raise
+                attempt += 1
+                logger.warning(
+                    f"{type(provider).__name__} quá tải ({type(e).__name__} 429), thử lại lần {attempt} sau {delay:g}s"
+                )
+                await asyncio.sleep(delay)
+                waited += delay
+        text = strip_reasoning(raw)
         if not text:
             raise ValueError("model không trả câu trả lời nào ngoài khối suy luận")
         return text
@@ -485,7 +564,7 @@ class AIEngine:
             if not provider:
                 continue
             try:
-                result = await self._generate(provider, extract_prompt, user_msg, [])
+                result = await self._generate(provider, extract_prompt, user_msg, [], max_tokens=JSON_MAX_TOKENS)
                 if result.startswith("```"):
                     result = result.split("\n", 1)[1].rsplit("```", 1)[0].strip()
                     if result.startswith("json"):
@@ -536,7 +615,7 @@ class AIEngine:
             if not provider:
                 continue
             try:
-                summary = await self._generate(provider, summarize_prompt, user_msg, [])
+                summary = await self._generate(provider, summarize_prompt, user_msg, [], max_tokens=TEXT_MAX_TOKENS)
                 # Strip code blocks if any
                 if summary.startswith("```"):
                     summary = summary.split("\n", 1)[1].rsplit("```", 1)[0].strip()
@@ -568,7 +647,7 @@ class AIEngine:
             if not provider:
                 continue
             try:
-                return await self._generate(provider, format_prompt, user_msg, [])
+                return await self._generate(provider, format_prompt, user_msg, [], max_tokens=TEXT_MAX_TOKENS)
             except Exception as e:
                 logger.warning(f"Format reply with {model_name} failed: {e}")
                 continue
@@ -594,7 +673,7 @@ class AIEngine:
             if not provider:
                 continue
             try:
-                result = await self._generate(provider, classify_prompt, user_msg, [])
+                result = await self._generate(provider, classify_prompt, user_msg, [], max_tokens=JSON_MAX_TOKENS)
                 if result.startswith("```"):
                     result = result.split("\n", 1)[1].rsplit("```", 1)[0].strip()
                 return json.loads(result)

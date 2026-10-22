@@ -468,7 +468,7 @@ def test_escalation_after_phone_declined_does_not_ask_for_phone(chat, net, decli
 class ModelDown(AIProvider):
     """Model lỗi ở mọi lời gọi, như khi tên model trong AI_MODEL_ORDER sai."""
 
-    async def generate(self, system_prompt, user_message, conversation_history):
+    async def generate(self, system_prompt, user_message, conversation_history, max_tokens=1024):
         raise RuntimeError("The model `gpt-ten-sai` does not exist")
 
 

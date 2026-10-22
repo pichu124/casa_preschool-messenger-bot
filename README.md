@@ -205,11 +205,26 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 | GET | `/analytics/stats`, `/analytics/messages` | Du lieu analytics (JSON) | `?secret=` |
 | POST | `/analytics/reset` | Xoa du lieu analytics | `?secret=` |
 | GET | `/customers`, `/customers/export` | Ho so khach (JSON / Excel) | `?secret=` |
+| POST | `/customers/{customer_id}/reset` | Xoa ho so cua MOT khach (ho so, lich su, tom tat, the lead, escalation dang cho); tra `{"status":"reset","existed":true\|false}` | `?secret=` |
 | GET | `/qa-database`, `/qa-learned` | Xem Q&A (tat ca / hoc tu admin) | `?secret=` |
 | POST | `/reload-qa` | Tai lai Q&A database | `?secret=` |
 | POST | `/import-excel?file_path=path` | Nhap Q&A tu Excel | `?secret=` |
 | POST | `/test-chat` | Thu hoi thoai khong qua Facebook | `?secret=` |
 | POST | `/followup/run` | Gui tin nhac lai khach (muc 10); `dry_run=1` chi dem, `verbose=1` them danh sach | `?secret=` |
+
+### Thu lai nhu phu huynh moi
+
+Tai khoan Facebook da nhan thu voi bot thi bot nho ho so va lich su (khach cu). De thu lai tu dau voi cung tai khoan: lay PSID cua tai khoan (khoa trong `/customers?secret=`, hoac dong `🆔 ID` tren tin Telegram), goi reset, roi nhan lai tren Messenger; tin do duoc coi la tin dau tien. Moi lan chi xoa mot PSID; PSID khong co ho so thi tra `"existed":false`. Ban `data/customers.json` sau khi xoa duoc day len `CUSTOMERS_GITHUB_REPO` (muc 7) nhu moi lan ghi. Tin Telegram, dong Google Sheet va `analytics.jsonl` cu van giu nguyen. Goi khi tai khoan do khong dang nhan tin.
+
+```bash
+curl -X POST "https://casa-preschool-messenger-bot.onrender.com/customers/<PSID>/reset?secret=<TELEGRAM_WEBHOOK_SECRET>"
+```
+
+PowerShell (Windows):
+
+```powershell
+(Invoke-WebRequest -Method Post -UseBasicParsing -Uri "https://casa-preschool-messenger-bot.onrender.com/customers/<PSID>/reset?secret=<TELEGRAM_WEBHOOK_SECRET>").Content
+```
 
 ## Quan ly Q&A Database
 

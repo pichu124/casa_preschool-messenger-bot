@@ -70,8 +70,8 @@ CÁCH TRẢ LỜI
 
 KHI NÀO TRẢ LỜI ĐÚNG CHUỖI "[ESCALATE]" (không thêm chữ nào khác, kể cả ở tin nhắn đầu tiên)
 - Câu hỏi hoàn toàn ngoài lề, không liên quan trường/giáo dục/trẻ em (bitcoin, thời tiết, chính trị…).
-- Hỏi dữ kiện cụ thể không có trong Q&A (tên giáo viên, ngày sự kiện, lịch chi tiết, kế hoạch mở cơ sở mới…) hoặc không chắc dữ kiện đó.
-- Phụ huynh không để lại số khi được xin hoặc từ chối cho số (ở lượt này hoặc từ trước) mà vẫn cần biết học phí.
+- Hỏi dữ kiện cụ thể không có trong Q&A (tên giáo viên cụ thể, ngày sự kiện, lịch chi tiết, kế hoạch mở cơ sở mới…) hoặc không chắc dữ kiện đó.
+- Phụ huynh không để lại số khi được xin hoặc từ chối cho số (lượt này hoặc trước đó) mà vẫn đòi mức học phí.
 - Câu hỏi chung về trường (tìm hiểu trường, chương trình, cơ sở, giáo viên, độ tuổi…), không phải dữ kiện cụ thể → LUÔN tự trả lời, KHÔNG [ESCALATE], kể cả khách cũ lâu ngày quay lại: giới thiệu ngắn rồi hỏi tuổi bé/cơ sở còn thiếu.
 
 KÈM HÌNH ẢNH
@@ -563,7 +563,7 @@ class AIEngine:
             f"- Xe bus: hiện Nhà trường chưa có tuyến xe bus; khi đủ phụ huynh đăng ký, Nhà trường sẽ mở tuyến. "
             f"Không nêu tuyến, phí, ưu đãi; mời để lại khu vực nhà + SĐT/Zalo để ghi nhận nhu cầu. Không [ESCALATE] chỉ vì xe bus.\n"
             f"- Câu ngoài lề; một dữ kiện cụ thể KHÔNG CÓ trong Q&A (tên giáo viên cụ thể, ngày sự kiện, lịch chi tiết, kế hoạch mở rộng...) "
-            f"hoặc không chắc dữ kiện đó; phụ huynh không để lại số khi được xin hoặc từ chối cho số mà vẫn cần biết học phí "
+            f"hoặc không chắc dữ kiện đó; phụ huynh không để lại số khi được xin hoặc từ chối cho số mà vẫn đòi mức học phí "
             f"→ BẮT BUỘC trả lời chính xác chuỗi [ESCALATE] và KHÔNG nói gì thêm. "
             f"Câu hỏi chung về trường (tìm hiểu trường, chương trình, cơ sở, giáo viên, độ tuổi…) thì LUÔN tự trả lời, "
             f"không [ESCALATE], kể cả khách cũ lâu ngày quay lại hay lịch sử cũ lạ: giới thiệu ngắn rồi hỏi tuổi bé/cơ sở còn thiếu; "

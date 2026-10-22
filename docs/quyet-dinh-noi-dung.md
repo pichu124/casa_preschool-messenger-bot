@@ -123,6 +123,7 @@ Yêu cầu (nguyên văn ý): câu "Ba/Mẹ cho bé học thử 1 tuần miễn 
 - Không hỏi thẳng ngân sách; có thể hỏi gia đình cân nhắc hệ Quốc tế hay Song ngữ.
 - Tài liệu chưa có file (bảng phí, catalogue, hồ sơ giáo viên): không hứa gửi ngay trên chat; tư vấn viên gửi qua Zalo khi có SĐT, hoặc mời tham quan.
 - Lead (phụ huynh để lại SĐT, đổi SĐT, hẹn tham quan/học thử): gửi vào nhóm Telegram đang dùng và đẩy sang Google Sheet.
+  - Phụ huynh ĐỒNG Ý học thử/tham quan (bấm "Đăng ký học thử"/"Đặt lịch tham quan" hoặc tự nói muốn) là có lead ngay, dù chưa chọn tuần/buổi — để phụ huynh rời đi giữa chừng tư vấn viên vẫn gọi được. Chỉ hỏi ("học thử thế nào ạ?"), còn cân nhắc hay bấm "Tìm hiểu thêm" thì chưa phải lead.
   - Mỗi chi tiết hẹn mới là một lead: phụ huynh bấm "Đặt lịch tham quan"/"Đăng ký học thử" (đồng ý) rồi chọn buổi/tuần thì nhóm có thể nhận 2 tin cho cùng một lịch — tin đầu để tư vấn viên gọi sớm, tin sau thêm buổi/tuần để chốt giờ. Bấm lại cùng buổi/tuần không gửi nữa.
 
 - Giọng văn (người vận hành chốt 2026-10-22, sau khi xem hội thoại thật): nhắn như tư vấn viên thật, không như bot.

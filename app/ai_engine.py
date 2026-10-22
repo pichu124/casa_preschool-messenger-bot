@@ -589,8 +589,10 @@ class AIEngine:
             '- "interested_program": "song ngữ" / "quốc tế"\n'
             '- "interested_campus": "Chùa Láng" / "Mỹ Đình" / "Kim Mã"\n'
             '- "expected_start": thời điểm dự kiến cho bé nhập học (VD: "tháng 9", "sau Tết")\n'
-            '- "visit_request": lịch tham quan/học thử phụ huynh ĐÃ CHỐT (VD: "tham quan buổi sáng", "học thử tuần sau"); '
-            "KHÔNG ghi khi phụ huynh mới hỏi hoặc còn cân nhắc\n"
+            '- "visit_request": phụ huynh ĐỒNG Ý đăng ký học thử hoặc đặt lịch tham quan, kể cả bấm nút đồng ý khi chưa '
+            'chọn buổi/tuần (VD: "học thử 1 tuần", "tham quan trường"); chọn buổi/tuần sau đó thì ghi cụ thể hơn '
+            '(VD: "tham quan buổi sáng", "học thử tuần sau"). KHÔNG ghi khi phụ huynh chỉ hỏi, còn cân nhắc hoặc muốn '
+            'tìm hiểu thêm (VD: "học thử thế nào ạ?", "để em suy nghĩ", "em muốn tìm hiểu thêm trước")\n'
             '- "concerns": list các mối quan tâm (VD: ["học phí", "an toàn", "ăn uống"])\n'
             '- "kid_traits": list tính cách/đặc điểm bé (VD: ["nhút nhát", "hiếu động", "biếng ăn"])\n\n'
             "CHỈ trả về JSON object. Nếu tin nhắn không chứa thông tin mới nào, trả về {}. "

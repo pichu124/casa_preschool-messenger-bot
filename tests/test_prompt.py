@@ -115,6 +115,34 @@ def test_extract_prompt_asks_for_lead_fields_and_sends_only_profile_fields(monke
         assert leaked not in recorder.user_message
 
 
+# Lead khi phụ huynh đồng ý chỉ có nếu extract ghi visit_request. Prompt cũ chỉ cho ghi lịch "ĐÃ CHỐT" nên bấm
+# "Đăng ký học thử" rồi rời đi (chưa chọn tuần) thì Telegram/Sheet không nhận gì.
+AGREE_TO_BOOK = [
+    (QUICK_REPLIES["trial_invite"][0][1], "học thử 1 tuần"),
+    (QUICK_REPLIES["visit_invite"][0][1], "tham quan trường"),
+    (QUICK_REPLIES["topics"][2][1], "tham quan trường"),
+]
+
+
+@pytest.mark.parametrize(("agree", "value"), AGREE_TO_BOOK, ids=["trial_invite", "visit_invite", "topics"])
+def test_extract_prompt_records_agreement_before_a_time_is_chosen(monkeypatch, agree, value):
+    recorder = RecordingProvider("{}")
+    engine = make_engine(monkeypatch, fake=recorder)
+
+    asyncio.run(engine.extract_customer_info(agree, {}, last_bot_message="Không biết Ba/Mẹ có muốn cho bé thử không ạ?"))
+
+    assert agree in recorder.user_message
+    rule = next(line for line in recorder.system_prompt.splitlines() if '"visit_request"' in line)
+    assert "ĐÃ CHỐT" not in rule
+    assert re.search(r"ĐỒNG Ý[^\n]*chưa chọn buổi/tuần", rule), rule
+    assert value in agree and f'"{value}"' in rule
+    assert re.search(r"chọn buổi/tuần[^\n]*cụ thể hơn", rule), rule
+    # Chỉ hỏi, còn cân nhắc hay bấm "Tìm hiểu thêm" thì vẫn chưa phải lead.
+    refuse = rule.split("KHÔNG ghi", 1)[1]
+    assert "hỏi" in refuse and "cân nhắc" in refuse
+    assert "tìm hiểu thêm" in refuse.lower()
+
+
 def test_classify_qa_parses_json_after_reasoning(monkeypatch):
     payload = {"category": "Xe đưa đón", "keywords": ["xe bus"], "similar_questions": ["Có xe đón không?"]}
     engine = make_engine(monkeypatch, r1=FakeProvider(f"<think>Phân loại.</think>{json.dumps(payload, ensure_ascii=False)}"))

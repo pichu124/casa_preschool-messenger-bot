@@ -13,6 +13,8 @@ Mỗi lượt in transcript và kiểm vài heuristic đơn giản: có dấu ti
 không xưng "tôi"; không nêu số tiền (vd 1.000.000đ); câu cuối có bước tiếp theo (SĐT/Zalo, tham quan,
 học thử, hỏi tuổi bé/cơ sở...; trừ lượt chốt hẹn và sau đó, như mục 10 "Đã hẹn" của prompt); tối đa một token [QUICK:] hợp lệ ở cuối; cộng kiểm riêng của từng lượt
 (vd không có "%" ở lượt hỏi ưu đãi đầu tiên).
+Mời trước, hỏi thời gian sau (người vận hành 2026-10-22): khi phụ huynh chưa đồng ý học thử/tham quan
+(Turn.agreed), câu cuối không ép chọn "tuần này hay tuần sau"/"sáng hay chiều" và không kèm nút tuần/buổi.
 Giọng văn (phản hồi 2026-10-22, xem style_problems): tối đa 3 câu; không đọc lại SĐT phụ huynh đã gửi;
 không gọi "anh"/"chị" hay "mẹ"/"ba" một mình khi phụ huynh chưa tự xưng như vậy; không mở đầu "Dạ em ghi nhận".
 Không lặp lại câu của tin bot liền trước, không chép câu kể trong ví dụ "Em: …" của SYSTEM_PROMPT (thử DeepSeek
@@ -42,7 +44,7 @@ from app.qa_database import QADatabase
 
 ASKS_PHONE = ("sđt", "số điện thoại", "zalo")
 # Câu cuối đạt nếu có hành động cụ thể, hoặc là câu hỏi lấy thông tin còn thiếu để tư vấn tiếp.
-NEXT_ACTIONS = ASKS_PHONE + ("tham quan", "học thử", "liên hệ", "đặt lịch", "giữ lịch")
+NEXT_ACTIONS = ASKS_PHONE + ("tham quan", "học thử", "liên hệ", "đặt lịch", "giữ lịch", "đăng ký")
 NEXT_QUESTIONS = (
     "tuổi", "tháng", "ngày sinh", "cơ sở", "khu vực", "địa chỉ", "nhập học",
     "buổi sáng", "buổi chiều", "tuần này", "tuần sau",
@@ -70,6 +72,9 @@ LONE_BA_ME = re.compile(
     re.I,
 )
 PHONE_LIKE = re.compile(r"\+?\(?\d[\d ().-]{7,}\d")
+# Hỏi tuần/buổi là bước sau khi phụ huynh đã đồng ý học thử/tham quan; trước đó là ép chọn.
+FORCED_CHOICE = re.compile(r"tuần này hay tuần sau|sáng hay (?:buổi )?chiều", re.I)
+TIME_KEYS = {"trial_week", "visit_time"}
 ROBOTIC_OPENING = re.compile(r"^\W*(?:dạ\W*)?em (?:đã )?ghi nhận", re.I)
 MIN_COPY_WORDS = 6
 COPY_RATIO = 0.8
@@ -83,6 +88,7 @@ class Turn:
     none_of: tuple[str, ...] = ()
     known: dict = field(default_factory=dict)  # hồ sơ bot đã có trước lượt này (khối [THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT])
     next_step: bool = True  # False: lượt chốt hẹn và sau đó ("Đã hẹn" là ngoại lệ của nguyên tắc 6)
+    agreed: bool = False  # phụ huynh đã đồng ý học thử/tham quan: bot mới được hỏi tuần/buổi
 
 
 # Tên Facebook giả trong hồ sơ: bot không được suy ra "anh"/"chị" từ tên.
@@ -145,8 +151,8 @@ SCENARIOS: dict[str, list[Turn]] = {
     ],
     # Chọn cơ sở, hẹn tham quan: không kể lại cơ sở/buổi/SĐT ở mỗi tin, chỉ xác nhận ngắn lúc chốt.
     "hen_tham_quan": [
-        Turn("bé nhà mình 20 tháng, mình muốn đi xem trường", known=FB_NAME),
-        Turn("cơ sở Chùa Láng", known={**FB_NAME, "kid_age": "20 tháng"}),
+        Turn("bé nhà mình 20 tháng, mình muốn đi xem trường", known=FB_NAME, agreed=True),
+        Turn("cơ sở Chùa Láng", known={**FB_NAME, "kid_age": "20 tháng"}, agreed=True),
         Turn(f"mình muốn đi tham quan buổi sáng, số mình {TEST_PHONE}", known=VISIT, any_of=[("liên hệ", "gọi")], next_step=False),
         # Thử DeepSeek 2026-10-22: bot gửi lại gần nguyên câu xác nhận trước, chép cả câu ví dụ chốt hẹn của prompt.
         Turn("sáng mai được không", known=BOOKED, next_step=False),
@@ -155,6 +161,21 @@ SCENARIOS: dict[str, list[Turn]] = {
             known={**BOOKED, "visit_request": "tham quan Chùa Láng sáng mai"},
             none_of=("sáng mai", "chùa láng"),
             next_step=False,
+        ),
+    ],
+    # Người vận hành 2026-10-22: mời học thử bằng câu hỏi ý, phụ huynh đồng ý rồi bot mới hỏi tuần.
+    "moi_hoc_thu": [
+        Turn("bé nhà mình 3 tuổi, mình quan tâm cơ sở Mỹ Đình", known=FB_NAME),
+        Turn(
+            "trường có cho học thử không, con mình nhút nhát sợ không theo được các bạn",
+            known={**FB_NAME, "kid_age": "3 tuổi", "interested_campus": "Mỹ Đình"},
+            any_of=[("hiểu", "lo lắng", "nỗi lo", "yên tâm"), ("học thử",)],
+        ),
+        Turn(
+            "có, đăng ký luôn cho bé nhé",
+            known={**FB_NAME, "kid_age": "3 tuổi", "interested_campus": "Mỹ Đình"},
+            any_of=[("tuần này", "tuần sau")],
+            agreed=True,
         ),
     ],
 }
@@ -256,6 +277,8 @@ def check_turn(
     if turn.next_step and not (any(a in last for a in NEXT_ACTIONS) or ("?" in last and any(q in last for q in NEXT_QUESTIONS))):
         problems.append(f"câu cuối không có bước tiếp theo: {last_sentence(text)!r}")
     keys = QUICK_TOKEN.findall(text)
+    if not turn.agreed and (FORCED_CHOICE.search(last) or TIME_KEYS & set(keys)):
+        problems.append(f"hỏi tuần/buổi khi phụ huynh chưa đồng ý học thử/tham quan: {last_sentence(text)!r}")
     if len(keys) > 1 or (keys and not text.rstrip().endswith(f"[QUICK:{keys[0]}]")):
         problems.append(f"token [QUICK:] phải có tối đa 1 và ở cuối: {keys}")
     if unknown := [k for k in keys if k not in QUICK_KEYS]:

@@ -523,6 +523,47 @@ def test_examples_invite_softly_and_ask_the_time_only_after_the_parent_agrees():
     assert len({eval_chat.sentences(reply)[-1] for reply in invites}) == len(invites) >= 3
 
 
+FORCED_TRIAL = "Các cô đồng hành sát sao ạ. Ba/Mẹ cho bé học thử 1 tuần miễn phí nhé, tuần này hay tuần sau ạ?"
+SOFT_TRIAL = (
+    "Các cô đồng hành sát sao ạ. Ba/Mẹ cho bé học thử 1 tuần miễn phí để cảm nhận trực tiếp nhé, không biết Ba/Mẹ "
+    "có muốn đăng ký luôn không ạ? [QUICK:trial_invite]"
+)
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        FORCED_TRIAL,
+        FORCED_TRIAL + " [QUICK:trial_week]",
+        "Các cô đồng hành sát sao ạ. Ba/Mẹ muốn đưa bé qua tham quan sáng hay chiều ạ? [QUICK:visit_time]",
+        "Các cô đồng hành sát sao ạ. Ba/Mẹ ghé tham quan lớp nhé? [QUICK:visit_time]",
+    ],
+    ids=["tuan-nay-hay-tuan-sau", "kem-nut-tuan", "sang-hay-chieu", "nut-buoi"],
+)
+def test_eval_flags_asking_the_time_before_the_parent_agrees(reply):
+    turn = eval_chat.Turn("con mình nhút nhát lắm")
+
+    problems = eval_chat.check_turn(turn, False, False, reply, [turn.message])
+
+    assert len(problems) == 1 and "chưa đồng ý" in problems[0], problems
+
+
+def test_eval_accepts_soft_invitation_and_time_question_once_the_parent_agrees():
+    assert eval_chat.check_turn(eval_chat.Turn("con mình nhút nhát lắm"), False, False, SOFT_TRIAL, ["nhút nhát"]) == []
+    agreed = eval_chat.Turn("có, đăng ký luôn", agreed=True)
+    ask_week = "Vâng ạ. Ba/Mẹ tiện cho con bắt đầu tuần này hay tuần sau ạ? [QUICK:trial_week]"
+    assert eval_chat.check_turn(agreed, False, False, ask_week, [agreed.message]) == []
+
+
+def test_eval_scenario_invites_first_and_asks_the_week_after_the_parent_agrees():
+    turns = eval_chat.SCENARIOS["moi_hoc_thu"]
+    i = next(i for i, t in enumerate(turns) if t.agreed)
+    assert i > 0 and not turns[i - 1].agreed
+    assert ("học thử",) in turns[i - 1].any_of
+    assert "đăng ký" in turns[i].message
+    assert ("tuần này", "tuần sau") in turns[i].any_of
+
+
 def test_phone_is_asked_softly(monkeypatch):
     rule7 = next(line for line in SYSTEM_PROMPT.splitlines() if line.startswith("7. "))
     assert "Nếu tiện" in rule7, rule7
@@ -583,7 +624,7 @@ def test_eval_flags_reply_copied_from_prompt_examples():
 
     fresh_care = (
         "Dạ em hiểu ạ, đây là khoản lớn với gia đình. Bù lại con được cô nước ngoài kèm cả ngày. "
-        "Ba/Mẹ đưa bé qua tham quan lớp một buổi nhé, sáng hay chiều ạ?"
+        "Nếu tiện, Ba/Mẹ đưa bé qua tham quan lớp một buổi nhé?"
     )
     assert eval_chat.check_turn(turn, False, False, fresh_care, [turn.message]) == []
     # Câu chào bắt buộc ở tin đầu tiên giống hệt ví dụ nhưng không phải chép.

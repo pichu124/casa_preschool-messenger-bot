@@ -1041,3 +1041,38 @@ def test_eval_flags_asking_the_start_date_before_the_age_right_after_the_phone()
 # Production 2026-10-22: "Với lứa nhỏ như bé nhà mình…"; nguồn là câu ví dụ "Lứa này con học…" trong prompt.
 def test_prompt_never_teaches_lua_for_a_child():
     assert "lứa" not in SYSTEM_PROMPT.replace("{qa_context}", "").lower()
+
+
+# Review 2026-10-22: phụ huynh hỏi học phí, gửi tuổi + cơ sở, bot xin số; phụ huynh không gửi, không từ chối rõ mà hỏi
+# lại "em cứ báo con số luôn đi". Extract chỉ đặt phone_declined khi từ chối rõ, nên ca này không phải ca "từ chối cho
+# số": bot không được nêu số, không được xin lại ngay, nên phải [ESCALATE] (main gửi kèm lời xin SĐT/Zalo).
+NO_PHONE_FEES = re.compile(r"không để lại số khi được xin hoặc từ chối cho số[^\n]*học phí")
+
+
+def test_parent_without_a_phone_still_asking_the_fees_is_escalated(monkeypatch):
+    section = SYSTEM_PROMPT.split('KHI NÀO TRẢ LỜI ĐÚNG CHUỖI "[ESCALATE]"', 1)[1].split("KÈM HÌNH ẢNH", 1)[0]
+    assert NO_PHONE_FEES.search(section), section
+    for reminder in _reminders(monkeypatch):
+        line = next(line for line in reminder.splitlines() if "BẮT BUỘC trả lời chính xác chuỗi [ESCALATE]" in line)
+        assert NO_PHONE_FEES.search(line.split("BẮT BUỘC", 1)[0]), line
+
+
+# Review 2026-10-22: "lịch học" trong danh sách câu hỏi chung mâu thuẫn với ca "lịch chi tiết không có trong Q&A →
+# [ESCALATE]"; Q&A không có thời gian biểu trong ngày nên model có thể bịa giờ.
+def test_general_school_questions_do_not_cover_schedules_or_specific_facts(monkeypatch):
+    section = SYSTEM_PROMPT.split('KHI NÀO TRẢ LỜI ĐÚNG CHUỖI "[ESCALATE]"', 1)[1].split("KÈM HÌNH ẢNH", 1)[0]
+    reminders = [
+        line for r in _reminders(monkeypatch) for line in r.splitlines() if "BẮT BUỘC trả lời chính xác chuỗi [ESCALATE]" in line
+    ]
+    for text in [section] + reminders:
+        general = text.split("âu hỏi chung về trường", 1)[1]
+        assert "lịch học" not in general, general
+        assert "dữ kiện cụ thể" in general, general
+        specific = text.split("âu hỏi chung về trường", 1)[0]
+        assert "lịch chi tiết" in specific and "không chắc dữ kiện đó" in specific, specific
+
+
+def test_quick_reply_rule_says_the_token_is_hidden_from_the_parent():
+    rule = next(line for line in SYSTEM_PROMPT.splitlines() if "thêm ĐÚNG MỘT token" in line)
+    assert "ẩn token" in rule, rule
+

@@ -262,8 +262,7 @@ def format_profile_for_prompt(profile: dict) -> str:
     elif profile.get("kid_age"):
         parts.append(f"Bé: {profile['kid_age']} tuổi")
 
-    if profile.get("parent_name"):
-        parts.append(f"Phụ huynh: {profile['parent_name']}")
+    # parent_name (thường là tên Facebook) cố ý không đưa vào: model dễ đoán giới tính để xưng "anh/chị".
     if profile.get("interested_program"):
         parts.append(f"Quan tâm hệ: {profile['interested_program']}")
     if profile.get("interested_campus"):

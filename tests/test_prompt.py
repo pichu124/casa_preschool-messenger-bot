@@ -345,6 +345,120 @@ _spec = importlib.util.spec_from_file_location("eval_chat", Path(__file__).resol
 eval_chat = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(eval_chat)
 
+FOLLOW_UP = [{"role": "user", "content": "bé 3 tuổi"}, {"role": "assistant", "content": "Vâng ạ"}]
+# "mẹ" đứng riêng (gọi phụ huynh là mẹ), không tính "Ba/Mẹ", "ba mẹ".
+LONE_ME = re.compile(r"(?<!Ba/)(?<!ba )(?<!Ba )\b[Mm]ẹ\b")
+ANH_CHI = re.compile(r"(?<!tiếng )\b(?:anh|chị)\b")
+
+
+def _reminder(user_message: str) -> str:
+    return user_message.split("[NHẮC NHỞ QUAN TRỌNG]:", 1)[1]
+
+
+def _reminders(monkeypatch) -> list[str]:
+    """Khối nhắc nhở cho tin đầu tiên, tin tiếp theo và khách cũ quay lại."""
+    context = "[THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT]:\n- Bé: tên Bông, 3 tuổi"
+    cases = (
+        {},
+        {"conversation_history": FOLLOW_UP},
+        {"conversation_history": FOLLOW_UP, "customer_context": context, "gap_hours": 72},
+    )
+    return [_reminder(model_input(monkeypatch, "học phí bao nhiêu", **kwargs)[1]) for kwargs in cases]
+
+
+def _examples() -> list[tuple[str, str]]:
+    """(dòng phụ huynh, câu "Em: …" ngay sau) trong mục VÍ DỤ của prompt."""
+    lines = SYSTEM_PROMPT.split("\nVÍ DỤ", 1)[1].split("CƠ SỞ DỮ LIỆU Q&A", 1)[0].splitlines()
+    return [(lines[i - 1], m.group(1)) for i, line in enumerate(lines) if (m := re.fullmatch(r'Em: "(.*)"', line))]
+
+
+def test_replies_are_one_to_three_short_sentences(monkeypatch):
+    assert "1–3 câu" in SYSTEM_PROMPT
+    assert "2–5 câu" not in SYSTEM_PROMPT
+    for reminder in _reminders(monkeypatch):
+        assert "1–3 câu" in reminder
+        assert "2-5 câu" not in reminder
+
+
+def test_parent_is_ba_me_unless_they_name_themselves_never_from_facebook_name(monkeypatch):
+    for text in [SYSTEM_PROMPT] + _reminders(monkeypatch):
+        lowered = text.lower()
+        assert "ba/mẹ" in lowered
+        assert "tự xưng" in lowered
+        assert re.search(r"không (?:được )?đoán giới tính[^\n]*tên facebook", lowered), text
+        assert "(hoặc 'anh/chị')" not in text
+    # Câu mẫu trong khối nhắc nhở (vd chào khách cũ) không tự gọi "mẹ Bông".
+    samples = [s for r in _reminders(monkeypatch) for s in re.findall(r"VD: '([^']*)'", r)]
+    assert samples
+    for sample in samples:
+        assert not LONE_ME.search(sample) and not ANH_CHI.search(sample), sample
+
+
+def test_known_info_is_used_not_read_back(monkeypatch):
+    for text in [SYSTEM_PROMPT] + _reminders(monkeypatch)[1:]:
+        lowered = text.lower()
+        assert re.search(r"không nhắc lại[^\n]*(?:đã biết|vừa gửi)", lowered), text
+        assert re.search(r"không (?:bao giờ )?đọc lại (?:số điện thoại|sđt)", lowered), text
+    assert "nhắc tên/tuổi bé đã biết" not in SYSTEM_PROMPT
+    assert all("Tham chiếu thông tin bé đã biết" not in r for r in _reminders(monkeypatch))
+
+
+def test_prompt_examples_are_short_varied_and_never_guess_how_to_address_parent():
+    examples = [reply for _, reply in _examples()]
+    assert len(examples) >= 8
+
+    for reply in examples:
+        assert eval_chat.sentence_count(reply) <= 3, reply
+        assert not ANH_CHI.search(reply), reply
+        assert not LONE_ME.search(reply), reply
+        assert "ghi nhận" not in reply, reply
+        assert not re.search(r"\d{8,}", reply), reply
+    assert sum(reply.startswith("Dạ") for reply in examples) <= len(examples) // 2
+    assert sum(bool(re.search(r"[\U0001F300-\U0001FAFF]", reply)) for reply in examples) <= 2
+
+
+@pytest.mark.parametrize(
+    ("parent_says", "topics"),
+    [
+        ("tieng anh", {"program", "visit_invite"}),
+        ("nhat nhung", {"trial"}),
+        ("Dưới 2 tuổi", {"program"}),
+    ],
+)
+def test_short_examples_still_name_their_topics(parent_says, topics):
+    from app.coverage import topics_in_reply
+
+    replies = [reply for parent, reply in _examples() if parent_says in parent]
+    assert len(replies) == 1
+    assert topics <= set(topics_in_reply(replies[0])), replies[0]
+
+
+def test_facebook_name_never_reaches_the_model(monkeypatch):
+    from app.customer_memory import format_profile_for_prompt
+
+    context = format_profile_for_prompt({"parent_name": "Minh Thử", "kid_age": "20 tháng", "phone": "0900000999"})
+
+    assert "Minh Thử" not in context
+    _, user_message = model_input(monkeypatch, "sáng mai nhé", customer_context=context, conversation_history=FOLLOW_UP)
+    assert "Minh Thử" not in user_message
+    assert "20 tháng" in user_message
+
+
+def test_admin_reply_is_rewritten_in_the_same_short_voice(monkeypatch):
+    recorder = RecordingProvider("Dạ lớp mở vào tháng 9 ạ.")
+    engine = make_engine(monkeypatch, fake=recorder)
+
+    asyncio.run(engine.format_admin_reply("thang 9 mo lop", "khi nào mở lớp"))
+
+    # Harness của skill verify-casa-bot nhận diện lời gọi này qua câu mở đầu.
+    assert recorder.system_prompt.startswith("Bạn là nhân viên tư vấn trường mầm non Casa")
+    assert "1–3 câu" in recorder.system_prompt
+    assert "Ba/Mẹ" in recorder.system_prompt
+    assert "tự xưng" in recorder.system_prompt
+    assert "khi phù hợp" not in recorder.system_prompt
+    assert "không thêm thông tin" in recorder.system_prompt
+
+
 PHONE = "0900000999"
 PRODUCTION_LIKE = {
     "doc-lai-sdt-doan-anh": (

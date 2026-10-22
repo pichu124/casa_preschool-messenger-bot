@@ -72,9 +72,9 @@ def test_prompt_shows_known_info_then_state_then_summaries():
         "session_summaries": [{"date": "2026-10-01", "summary": "Hỏi học phí hệ song ngữ"}],
     }
 
+    # Không có parent_name (tên Facebook): model không được dựa vào tên để xưng hô (phản hồi 2026-10-22).
     assert format_profile_for_prompt(profile) == (
         "[THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT]:\n"
-        "- Phụ huynh: Lan Thử\n"
         "- Khu vực: Cầu Giấy\n"
         "- Dự kiến nhập học: tháng 9\n"
         "\n"

@@ -42,12 +42,18 @@ class Recorder:
 
 
 def chat_response(text: str) -> SimpleNamespace:
-    return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=text))])
+    return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=text), finish_reason="stop")])
+
+
+def gemini_response(text: str) -> SimpleNamespace:
+    from google.genai import types
+
+    return SimpleNamespace(text=text, candidates=[SimpleNamespace(finish_reason=types.FinishReason.STOP)])
 
 
 def fake_client(provider_name: str, text: str) -> tuple[SimpleNamespace, Recorder]:
     if provider_name == "gemini":
-        recorder = Recorder(SimpleNamespace(text=text))
+        recorder = Recorder(gemini_response(text))
         return SimpleNamespace(aio=SimpleNamespace(models=SimpleNamespace(generate_content=recorder))), recorder
     recorder = Recorder(chat_response(text))
     if provider_name == "mistral":
@@ -92,7 +98,7 @@ def test_gemini_puts_system_prompt_in_system_instruction_and_history_in_roles(mo
     (call,) = recorder.calls
     config = call["config"]
     assert config.system_instruction == "Em là tư vấn viên Casa."
-    assert (config.max_output_tokens, config.temperature) == (1024, 0.3)
+    assert (config.max_output_tokens, config.temperature) == (4096, 0.3)
     assert [(c.role, [p.text for p in c.parts]) for c in call["contents"]] == [
         ("user", ["trường ở đâu"]),
         ("model", ["Dạ Casa có 3 cơ sở tại Hà Nội ạ."]),
@@ -108,7 +114,8 @@ def test_gemini_request_on_the_wire_matches_rest_api(monkeypatch):
     async def fake_transport(self, request):
         await request.aread()
         sent.append(request)
-        body = {"candidates": [{"content": {"role": "model", "parts": [{"text": "Dạ Casa nhận bé từ 15 tháng ạ."}]}}]}
+        content = {"role": "model", "parts": [{"text": "Dạ Casa nhận bé từ 15 tháng ạ."}]}
+        body = {"candidates": [{"content": content, "finishReason": "STOP"}]}
         return httpx.Response(200, json=body, request=request)
 
     monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", fake_transport)
@@ -123,7 +130,7 @@ def test_gemini_request_on_the_wire_matches_rest_api(monkeypatch):
     assert body["systemInstruction"]["parts"] == [{"text": "Em là tư vấn viên Casa."}]
     assert [c["role"] for c in body["contents"]] == ["user", "model", "user"]
     assert body["contents"][-1]["parts"] == [{"text": "bé mấy tuổi thì nhận"}]
-    assert body["generationConfig"] == {"maxOutputTokens": 1024, "temperature": 0.3}
+    assert body["generationConfig"] == {"maxOutputTokens": 4096, "temperature": 0.3}
 
 
 def read_model_settings(env: dict[str, str]) -> dict[str, str]:

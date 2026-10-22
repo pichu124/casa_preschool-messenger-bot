@@ -134,7 +134,12 @@ def strip_reasoning(text: str | None) -> str:
     return _THINK_RE.sub("", text or "").strip()
 
 
-CHAT_MAX_TOKENS = 1024
+# Câu trả lời chính. Model suy luận (deepseek-flash, Gemini, gpt-oss, qwen3) tính cả phần nghĩ vào max_tokens:
+# với 1024, deepseek-flash từng nghĩ gần hết chỗ và câu gửi phụ huynh cụt giữa chữ.
+CHAT_MAX_TOKENS = 4096
+# Groq miễn phí giới hạn 1000 token đầu ra/phút (OTPM) và tính cả max_tokens xin: xin hơn 1000 bị từ chối ngay.
+# Câu trả lời chạy cùng lúc với lời trích hồ sơ (JSON_MAX_TOKENS) nên hai lời gọi cộng lại vừa 1000.
+GROQ_CHAT_MAX_TOKENS = 700
 # JSON trích hồ sơ đủ cả 14 trường dài ~470 ký tự (~150–250 token tiếng Việt); JSON phân loại Q&A ngắn hơn.
 # Phải dưới hạn mức token đầu ra/phút của gói miễn phí (Groq: 1000), nếu không lời gọi bị từ chối ngay.
 JSON_MAX_TOKENS = 300
@@ -144,8 +149,9 @@ TEXT_MAX_TOKENS = 600
 ADMIN_REPLY_MAX_TOKENS = 900
 
 # Mặc định SDK openai/groq chờ 600s, mistralai và google-genai không giới hạn: một lời gọi treo giữ phụ huynh
-# chờ mãi. 30s đủ cho câu trả lời chính 1024 token; hết giờ thì thử lại 1 lần rồi sang model kế.
-AI_TIMEOUT = 30.0
+# chờ mãi. Hết giờ thì thử lại 1 lần rồi sang model kế; model nghĩ lâu tới mức gần hết CHAT_MAX_TOKENS có thể
+# hết giờ trước khi chạm max_tokens.
+AI_TIMEOUT = 45.0
 
 # Provider báo quá tải tạm thời (429 do số request): chờ rồi thử lại cùng model, sau đó mới sang model kế.
 RETRY_DELAYS = (1.5, 3.0)
@@ -194,6 +200,23 @@ def _retry_delay(error: Exception, attempt: int) -> float | None:
     return seconds if seconds <= MAX_RETRY_AFTER else None
 
 
+class TruncatedReply(Exception):
+    """Model dừng vì chạm max_tokens: câu trả lời cụt, không được gửi cho phụ huynh.
+
+    Áp cho mọi lời gọi: JSON cụt có thể đọc được mà mất trường cuối, tóm tắt cụt mất quyết định của phụ huynh.
+    Không thử lại cùng model (gửi lại y nguyên, model lại nghĩ hết chỗ đó); chuỗi dự phòng sang model kế.
+    """
+
+    def __init__(self):
+        super().__init__("model chạm max_tokens, câu trả lời bị cắt")
+
+
+def _complete(text: str | None, truncated: bool) -> str | None:
+    if truncated:
+        raise TruncatedReply()
+    return text
+
+
 @dataclass
 class AIResponse:
     text: str
@@ -202,6 +225,8 @@ class AIResponse:
 
 
 class AIProvider(ABC):
+    chat_max_tokens = CHAT_MAX_TOKENS
+
     @abstractmethod
     async def generate(
         self, system_prompt: str, user_message: str, conversation_history: list[dict], max_tokens: int = CHAT_MAX_TOKENS
@@ -229,10 +254,13 @@ class OpenAIProvider(AIProvider):
             max_tokens=max_tokens,
             temperature=0.3,
         )
-        return response.choices[0].message.content
+        choice = response.choices[0]
+        return _complete(choice.message.content, choice.finish_reason == "length")
 
 
 class GroqProvider(AIProvider):
+    chat_max_tokens = GROQ_CHAT_MAX_TOKENS
+
     def __init__(self):
         from groq import AsyncGroq
         self.client = AsyncGroq(api_key=settings.GROQ_API_KEY, max_retries=0, timeout=AI_TIMEOUT)
@@ -250,11 +278,14 @@ class GroqProvider(AIProvider):
             max_tokens=max_tokens,
             temperature=0.3,
         )
-        return response.choices[0].message.content
+        choice = response.choices[0]
+        return _complete(choice.message.content, choice.finish_reason == "length")
 
 
 class GroqSecondProvider(AIProvider):
     """Second Groq model (GROQ_SECOND_MODEL); key "groq_llama" kept for existing AI_MODEL_ORDER."""
+
+    chat_max_tokens = GROQ_CHAT_MAX_TOKENS
 
     def __init__(self):
         from groq import AsyncGroq
@@ -273,7 +304,8 @@ class GroqSecondProvider(AIProvider):
             max_tokens=max_tokens,
             temperature=0.3,
         )
-        return response.choices[0].message.content
+        choice = response.choices[0]
+        return _complete(choice.message.content, choice.finish_reason == "length")
 
 
 class MistralProvider(AIProvider):
@@ -294,7 +326,9 @@ class MistralProvider(AIProvider):
             max_tokens=max_tokens,
             temperature=0.3,
         )
-        return response.choices[0].message.content
+        choice = response.choices[0]
+        # model_length: chạm giới hạn ngữ cảnh của model, cũng bị cắt.
+        return _complete(choice.message.content, choice.finish_reason in ("length", "model_length"))
 
 
 class DeepSeekProvider(AIProvider):
@@ -322,7 +356,8 @@ class DeepSeekProvider(AIProvider):
             max_tokens=max_tokens,
             temperature=0.3,
         )
-        return response.choices[0].message.content
+        choice = response.choices[0]
+        return _complete(choice.message.content, choice.finish_reason == "length")
 
 
 class GeminiProvider(AIProvider):
@@ -357,7 +392,9 @@ class GeminiProvider(AIProvider):
                 temperature=0.3,
             ),
         )
-        return response.text
+        candidates = response.candidates or []
+        truncated = bool(candidates) and candidates[0].finish_reason == types.FinishReason.MAX_TOKENS
+        return _complete(response.text, truncated)
 
 
 PROVIDER_MAP: dict[str, type[AIProvider]] = {
@@ -424,9 +461,9 @@ class AIEngine:
     ) -> str:
         """Điểm gọi model duy nhất: bỏ khối <think> để nó không tới phụ huynh hay bị đọc nhầm [ESCALATE].
 
-        Lỗi tạm thời thì chờ rồi thử lại cùng model (xem _retry_delay; tổng chờ ≤ MAX_RETRY_WAIT); lỗi khác
-        ném ra ngay để chuỗi dự phòng thử model kế. Chỉ còn rỗng sau khi lọc (model nghĩ hết max_tokens)
-        cũng coi như model lỗi.
+        Lỗi tạm thời thì chờ rồi thử lại cùng model (xem _retry_delay; tổng chờ ≤ MAX_RETRY_WAIT); lỗi khác,
+        kể cả TruncatedReply, ném ra ngay để chuỗi dự phòng thử model kế. Chỉ còn rỗng sau khi lọc cũng coi như
+        model lỗi.
         """
         waited = 0.0
         attempt = 0
@@ -516,12 +553,19 @@ class AIEngine:
             f"hoặc hỏi tuổi bé/cơ sở còn thiếu. Chưa bắt chọn tuần/buổi: phụ huynh đã đồng ý thì mới hỏi thời gian kèm "
             f"[QUICK:trial_week]/[QUICK:visit_time]. Phụ huynh muốn tìm hiểu thêm → hỏi muốn biết thêm điều gì, chưa mời lại. "
             f"Phụ huynh đang lo lắng: đồng cảm trước rồi mới mời nhẹ nhàng.\n"
+            f"- Phụ huynh vừa đồng ý học thử/tham quan mà chưa nói tuần/buổi ('Em muốn đăng ký cho bé học thử 1 tuần ạ', "
+            f"'Em muốn đặt lịch tham quan trường ạ', hoặc tự nói muốn đăng ký/đặt lịch) → lượt này chỉ hỏi thời gian kèm "
+            f"[QUICK:trial_week]/[QUICK:visit_time], CHƯA xin SĐT, kể cả khi [TRẠNG THÁI TƯ VẤN] ghi 'Còn thiếu: SĐT/Zalo' "
+            f"(hỏi thời gian trước); xin SĐT/Zalo mềm 1 lần ở lượt sau.\n"
             f"- Học phí/ưu đãi: chưa biết tuổi bé + cơ sở thì không nói con số; không bịa số, không gửi bảng phí trên chat; không nêu % ưu đãi theo đợt. "
-            f"[THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT] đã có SĐT, phụ huynh vừa gửi số, hoặc đã từ chối cho số → KHÔNG xin SĐT nữa.\n"
+            f"[THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT] đã có SĐT, phụ huynh vừa gửi số, hoặc đã từ chối cho số → KHÔNG xin SĐT nữa; "
+            f"em vừa xin SĐT ở tin trước mà phụ huynh chưa gửi → không xin lại ngay ở tin này.\n"
             f"- Xe bus: hiện Nhà trường chưa có tuyến xe bus; khi đủ phụ huynh đăng ký, Nhà trường sẽ mở tuyến. "
             f"Không nêu tuyến, phí, ưu đãi; mời để lại khu vực nhà + SĐT/Zalo để ghi nhận nhu cầu. Không [ESCALATE] chỉ vì xe bus.\n"
             f"- Câu ngoài lề, thông tin cụ thể KHÔNG CÓ trong Q&A (tên giáo viên cụ thể, ngày sự kiện, lịch chi tiết, kế hoạch mở rộng...), "
             f"hoặc đã từ chối cho số mà vẫn cần biết học phí → BẮT BUỘC trả lời chính xác chuỗi [ESCALATE] và KHÔNG nói gì thêm.\n"
+            f"- Phụ huynh chọn/đổi tuần, buổi hay ngày giờ: KHÔNG nói 'được ạ', 'sắp xếp được', 'còn chỗ' hay khẳng định "
+            f"lịch trống; chỉ nói em sẽ báo tư vấn viên xếp lịch và gọi xác nhận.\n"
             f"- Có [TRẠNG THÁI TƯ VẤN] thì chọn bước tiếp theo theo mục 10; 'Đã hẹn' → không hẹn lại, không cần bước tiếp theo "
             f"(dòng 'Đã hẹn' ghi chưa có SĐT thì xin SĐT/Zalo mềm 1 lần như dòng đó, đã xin rồi thì không xin lại); chỉ lúc vừa chốt mới xác nhận ngắn "
             f"tư vấn viên sẽ liên hệ; phụ huynh đổi/chốt cụ thể hơn thì trả lời thẳng ý mới thật ngắn, không lặp lại câu xác nhận trước, không tự hứa lịch trống (tư vấn viên sẽ gọi xác nhận giờ); "
@@ -538,7 +582,9 @@ class AIEngine:
 
             try:
                 logger.info(f"Trying model: {model_name}")
-                response_text = await self._generate(provider, self.system_prompt, wrapped_message, history)
+                response_text = await self._generate(
+                    provider, self.system_prompt, wrapped_message, history, max_tokens=provider.chat_max_tokens
+                )
 
                 should_escalate = "[ESCALATE]" in response_text
                 if should_escalate:

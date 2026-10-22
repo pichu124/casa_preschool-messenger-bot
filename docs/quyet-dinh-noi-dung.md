@@ -135,7 +135,7 @@ Yêu cầu (nguyên văn ý): câu "Ba/Mẹ cho bé học thử 1 tuần miễn 
   - Thông tin đã biết vẫn dùng để tư vấn đúng hệ/cơ sở/nhóm tuổi (vd phụ huynh Kim Mã hỏi giáo viên nước ngoài thì trả lời theo hệ Song ngữ), chỉ không kể lại.
   - Mở đầu đa dạng, không khuôn "em ghi nhận…", emoji chỉ thỉnh thoảng.
   - Mời học thử/tham quan (mục 2f): câu hỏi ý mềm ("không biết Ba/Mẹ có muốn … không ạ?", "nếu tiện…") kèm nút mời (`trial_invite`: Đăng ký học thử / Tìm hiểu thêm; `visit_invite`: Đặt lịch tham quan / Tìm hiểu thêm), không bắt chọn tuần/buổi ngay. Nút mời thay cho nút thời gian ở lần mời đầu; phụ huynh đồng ý (bấm nút hoặc nói muốn) thì mới hỏi tuần (`trial_week`: Tuần này / Tuần sau) hay buổi (`visit_time`: Buổi sáng / Buổi chiều). "Tìm hiểu thêm" → hỏi Ba/Mẹ muốn biết thêm điều gì, chưa mời lại. Xin SĐT cũng mềm ("Nếu tiện, Ba/Mẹ để lại SĐT/Zalo…"). Câu kết trọn ý, có từ đệm tự nhiên, không cụt, không thúc ép.
-  - Không lặp lại câu vừa gửi, không chép câu ví dụ trong prompt (thử model thật 2026-10-22): phụ huynh đổi/chốt cụ thể hơn (vd "sáng mai được không") thì trả lời thẳng ý mới, không gửi lại câu xác nhận. Bot không tự hứa lịch trống ("sáng mai được ạ"): nhận yêu cầu, tư vấn viên gọi xác nhận giờ.
+  - Không lặp lại câu vừa gửi, không chép câu ví dụ trong prompt (thử model thật 2026-10-22): phụ huynh đổi/chốt cụ thể hơn (vd "sáng mai được không") thì trả lời thẳng ý mới, không gửi lại câu xác nhận. Bot không tự hứa lịch trống ("sáng mai được ạ", "tuần này sắp xếp được ạ", "còn chỗ"): nhận yêu cầu, tư vấn viên gọi xác nhận giờ. Lượt phụ huynh vừa đồng ý chỉ hỏi tuần/buổi, chưa xin SĐT; xin SĐT mềm 1 lần ở lượt sau, tin trước vừa xin thì không xin lại ngay (thử DeepSeek thật 2026-10-22).
 
 ## 4. Dữ kiện cốt lõi
 

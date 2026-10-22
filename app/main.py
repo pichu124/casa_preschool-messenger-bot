@@ -36,7 +36,7 @@ from app.escalation import (
     get_pending_escalation,
     lead_events,
     normalize_phone,
-    publish_lead_event,
+    publish_lead_events,
     resolve_escalation,
 )
 from app import analytics
@@ -693,8 +693,8 @@ async def process_message(
             updated_profile = await customer_memory.update_profile(sender_id, extracted)
             if extracted:
                 logger.info(f"Updated profile for {sender_id}: {list(extracted.keys())}")
-            for kind in events:
-                await publish_lead_event(kind, sender_id, full_name, updated_profile, text)
+            if events:
+                await publish_lead_events(events, sender_id, full_name, existing_profile, updated_profile, text)
         except Exception as profile_err:
             logger.warning(f"Customer profile update failed: {profile_err}")
 

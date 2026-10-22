@@ -59,7 +59,7 @@ CÁCH TƯ VẤN (theo kịch bản tuyển sinh của trường)
 10. [TRẠNG THÁI TƯ VẤN] (trong [THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT]) quyết định bước tiếp theo:
    - "Còn thiếu: …" → bước tiếp theo hỏi điều còn thiếu đầu tiên (SĐT/Zalo vẫn xin đúng lúc như mục 7).
    - "Nguồn: quảng cáo …" → tạo thiện cảm, rồi hỏi tuổi bé/cơ sở hoặc mời để lại SĐT.
-   - "Đã hẹn: …" → KHÔNG mời/hẹn lại tham quan/học thử, không cần bước tiếp theo. Lúc vừa chốt: xác nhận ngắn tư vấn viên sẽ liên hệ để chốt giờ; phụ huynh đổi/chốt cụ thể hơn (vd sáng mai) → trả lời thẳng ý mới thật ngắn, không lặp lại câu xác nhận trước; sau đó không nhắc lại lịch hẹn.
+   - "Đã hẹn: …" → KHÔNG mời/hẹn lại tham quan/học thử, không cần bước tiếp theo. Lúc vừa chốt: xác nhận ngắn tư vấn viên sẽ liên hệ để chốt giờ; phụ huynh đổi/chốt cụ thể hơn → trả lời thẳng ý mới, không lặp lại câu xác nhận, không tự hứa lịch; sau đó không nhắc lại lịch hẹn.
 
 TIN NHẮN ĐẦU TIÊN (có [FIRST_MESSAGE])
 - Mở bằng: "Dạ Casa chào Ba/Mẹ ạ 🌿 Cảm ơn Ba/Mẹ đã quan tâm đến Casa dei Bambini." rồi trả lời câu hỏi trong 1 câu.
@@ -112,8 +112,8 @@ Em: "Không sao ạ, hiện Casa đang có ưu đãi hấp dẫn, tùy từng đ
 Phụ huynh: "truong co xe bus khong"
 Em: "Dạ hiện Nhà trường chưa có tuyến xe bus, khi đủ phụ huynh đăng ký sẽ mở tuyến ạ. Ba/Mẹ cho em xin khu vực nhà và SĐT/Zalo để Nhà trường nắm nhu cầu nhé? [QUICK:phone]"
 
-(Em vừa xác nhận tham quan buổi sáng) Phụ huynh: "sang mai duoc khong"
-Em: "Dạ được ạ, em báo tư vấn viên xếp sáng mai cho Ba/Mẹ."
+(Vừa xác nhận tham quan sáng) Phụ huynh: "sang mai duoc khong"
+Em: "Dạ em báo tư vấn viên xếp sáng mai, rồi gọi Ba/Mẹ xác nhận giờ ạ."
 
 CƠ SỞ DỮ LIỆU Q&A:
 {qa_context}
@@ -515,7 +515,7 @@ class AIEngine:
             f"- Câu ngoài lề, thông tin cụ thể KHÔNG CÓ trong Q&A (tên giáo viên cụ thể, ngày sự kiện, lịch chi tiết, kế hoạch mở rộng...), "
             f"hoặc đã từ chối cho số mà vẫn cần biết học phí → BẮT BUỘC trả lời chính xác chuỗi [ESCALATE] và KHÔNG nói gì thêm.\n"
             f"- Có [TRẠNG THÁI TƯ VẤN] thì chọn bước tiếp theo theo mục 10; 'Đã hẹn' → không hẹn lại, không cần bước tiếp theo; chỉ lúc vừa chốt mới xác nhận ngắn "
-            f"tư vấn viên sẽ liên hệ; phụ huynh đổi/chốt cụ thể hơn thì trả lời thẳng ý mới thật ngắn, không lặp lại câu xác nhận trước; "
+            f"tư vấn viên sẽ liên hệ; phụ huynh đổi/chốt cụ thể hơn thì trả lời thẳng ý mới thật ngắn, không lặp lại câu xác nhận trước, không tự hứa lịch trống (tư vấn viên sẽ gọi xác nhận giờ); "
             f"sau đó không nhắc lại lịch hẹn.\n"
             f"- Câu hỏi cuối khớp một nút trả lời nhanh thì kết bằng đúng 1 token QUICK (xem NÚT TRẢ LỜI NHANH); không dùng khi [ESCALATE].\n"
             f"- KHÔNG BAO GIỜ tự suy đoán hoặc bịa thông tin. Chỉ dùng THÔNG TIN CỐT LÕI và Q&A."

@@ -499,6 +499,19 @@ def test_mistral_reply_cut_at_context_length_is_never_sent(engine_with, wire, sl
     assert backup.calls == 1
 
 
+# Dừng dở dang vì phía máy chủ: DeepSeek hết tài nguyên suy luận, Mistral lỗi giữa chừng (enum FinishReason của SDK).
+@pytest.mark.parametrize(
+    ("provider", "finish_reason"), [("deepseek", "insufficient_system_resource"), ("mistral", "error")]
+)
+def test_reply_stopped_midway_by_provider_is_never_sent(engine_with, wire, sleeps, provider, finish_reason):
+    engine, backup = engine_with(provider)
+    wire.reply(provider, (200, ok_body(provider, CUT, finish_reason)), (200, ok_body(provider, REPLY)))
+
+    assert ask(engine).model_used == "backup"
+    assert wire.hits(provider) == 1
+    assert backup.calls == 1
+
+
 @pytest.mark.parametrize("provider", ["groq", "groq_llama"])
 def test_truncated_groq_reply_is_never_sent(engine_with, wire, sleeps, provider):
     engine, backup = engine_with(provider)

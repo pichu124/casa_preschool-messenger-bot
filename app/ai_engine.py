@@ -200,14 +200,14 @@ def _retry_delay(error: Exception, attempt: int) -> float | None:
 
 
 class TruncatedReply(Exception):
-    """Model dừng vì chạm max_tokens: câu trả lời cụt, không được gửi cho phụ huynh.
+    """Model dừng dở dang (chạm max_tokens hoặc máy chủ dừng giữa chừng): câu trả lời cụt, không được gửi cho phụ huynh.
 
     Áp cho mọi lời gọi: JSON cụt có thể đọc được mà mất trường cuối, tóm tắt cụt mất quyết định của phụ huynh.
     Không thử lại cùng model (gửi lại y nguyên, model lại nghĩ hết chỗ đó); chuỗi dự phòng sang model kế.
     """
 
     def __init__(self):
-        super().__init__("model chạm max_tokens, câu trả lời bị cắt")
+        super().__init__("model dừng dở dang, câu trả lời bị cắt")
 
 
 def _complete(text: str | None, truncated: bool) -> str | None:
@@ -326,8 +326,8 @@ class MistralProvider(AIProvider):
             temperature=0.3,
         )
         choice = response.choices[0]
-        # model_length: chạm giới hạn ngữ cảnh của model, cũng bị cắt.
-        return _complete(choice.message.content, choice.finish_reason in ("length", "model_length"))
+        # model_length: chạm giới hạn ngữ cảnh của model; error: máy chủ dừng giữa chừng. Cả hai đều cụt.
+        return _complete(choice.message.content, choice.finish_reason in ("length", "model_length", "error"))
 
 
 class DeepSeekProvider(AIProvider):
@@ -356,7 +356,9 @@ class DeepSeekProvider(AIProvider):
             temperature=0.3,
         )
         choice = response.choices[0]
-        return _complete(choice.message.content, choice.finish_reason == "length")
+        # insufficient_system_resource: DeepSeek hết tài nguyên suy luận, dừng giữa chừng.
+        truncated = choice.finish_reason in ("length", "insufficient_system_resource")
+        return _complete(choice.message.content, truncated)
 
 
 class GeminiProvider(AIProvider):

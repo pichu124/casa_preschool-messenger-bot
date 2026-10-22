@@ -388,6 +388,33 @@ def test_visit_request_publishes_once_per_new_request(chat, net):
     assert len(net.telegram) == 2
 
 
+def tap(payload: str) -> str:
+    """What process_message receives when the parent taps the quick reply button `payload`."""
+    event = {"sender": {"id": CUSTOMER_ID}, "message": {"mid": payload, "text": "nút", "quick_reply": {"payload": payload}}}
+    return main.parse_messaging_event(event).text
+
+
+# Người vận hành 2026-10-22: bot mời tham quan (nút Đặt lịch tham quan), phụ huynh đồng ý rồi mới chọn buổi. Quyết định:
+# hai tin Telegram cho cùng một lịch là chấp nhận được (tin đầu: phụ huynh đồng ý, tư vấn viên gọi được ngay; tin sau
+# thêm buổi để chốt giờ); bấm lại cùng buổi thì không gửi nữa.
+def test_agreeing_to_visit_then_choosing_the_time_publishes_each_new_detail_once(chat, net):
+    known_customer(kid_age="3 tuổi", interested_campus="Mỹ Đình")
+    agree, morning = tap("QR:visit_invite:0"), tap("QR:visit_time:0")
+    assert (agree, morning) == ("Em muốn đặt lịch tham quan trường ạ", "Em muốn hẹn tham quan buổi sáng ạ")
+
+    chat.say(agree, extracted={"visit_request": "tham quan trường"})
+    chat.say(morning, extracted={"visit_request": "tham quan buổi sáng"})
+    chat.say(morning, extracted={"visit_request": "tham quan buổi sáng"})
+
+    visits = net.leads("📅 KHÁCH HẸN THAM QUAN/HỌC THỬ")
+    assert len(net.telegram) == len(visits) == 2
+    assert "tham quan buổi sáng" in visits[1] and morning in visits[1]
+    assert [(row["event"], row["visit_request"], row["last_message"]) for row in net.sheet] == [
+        ("visit_request", "tham quan trường", agree),
+        ("visit_request", "tham quan buổi sáng", morning),
+    ]
+
+
 def test_no_sheet_url_sends_no_sheet_request(monkeypatch, chat, net):
     monkeypatch.setattr(settings, "LEADS_SHEET_WEBHOOK_URL", "")
 

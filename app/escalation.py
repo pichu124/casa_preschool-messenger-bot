@@ -63,6 +63,11 @@ ESCALATION_MESSAGE_UPSET = (
     "Em đã chuyển thông tin sang tư vấn viên phụ trách để hỗ trợ mình ngay tại đây. "
     "Bên em sẽ gửi thông tin đầy đủ để Ba/Mẹ tiện xem và trao đổi ạ."
 )
+# Instead of a second apology and a second Telegram card, when the parent is upset again right after a handover.
+ESCALATION_MESSAGE_UPSET_AGAIN = (
+    "Dạ tư vấn viên đang xem và sẽ phản hồi Ba/Mẹ ngay tại đây ạ. "
+    f"Nếu cần gấp, Ba/Mẹ gọi Hotline {HOTLINE} giúp em nhé ạ."
+)
 
 # In-memory mapping: telegram_message_id -> escalation info
 _pending: dict[int, dict] = {}

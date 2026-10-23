@@ -10,6 +10,7 @@ from app.escalation import (
     ESCALATION_MESSAGE_HAS_PHONE,
     ESCALATION_MESSAGE_PHONE_DECLINED,
     ESCALATION_MESSAGE_UPSET,
+    ESCALATION_MESSAGE_UPSET_AGAIN,
 )
 
 CID = "9000000000000701"
@@ -141,8 +142,9 @@ def test_greeting_with_topic_buttons_gives_nothing_even_if_it_names_topics():
         ESCALATION_MESSAGE_HAS_PHONE,
         ESCALATION_MESSAGE_PHONE_DECLINED,
         ESCALATION_MESSAGE_UPSET,
+        ESCALATION_MESSAGE_UPSET_AGAIN,
     ],
-    ids=["chưa có SĐT", "có SĐT", "từ chối SĐT", "phụ huynh khó chịu"],
+    ids=["chưa có SĐT", "có SĐT", "từ chối SĐT", "phụ huynh khó chịu", "phụ huynh bực tiếp"],
 )
 def test_handover_messages_give_nothing(message):
     assert topics_in_reply(message) == []

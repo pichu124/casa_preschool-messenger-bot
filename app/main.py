@@ -32,6 +32,7 @@ from app.escalation import (
     ESCALATION_MESSAGE_ASK_PHONE,
     ESCALATION_MESSAGE_HAS_PHONE,
     ESCALATION_MESSAGE_UPSET,
+    ESCALATION_MESSAGE_UPSET_AGAIN,
     drop_pending_escalations,
     escalate_to_admin,
     get_pending_escalation,
@@ -45,7 +46,7 @@ from app import customer_memory
 from app.coverage import topics_in_reply
 from app.leads_sheet import post_topic_row
 from app.topics import clean_topics
-from app.followup import run_followups
+from app.followup import HANDED_TO_CONSULTANT, run_followups
 
 logging.basicConfig(
     level=logging.INFO,
@@ -674,11 +675,16 @@ async def _answer_message(sender_id: str, text: str, attribution: dict | None, p
             f"HasProfile: {bool(existing_profile)}, GapHours: {gap_hours:.1f}, HistoryLen: {len(history)}"
         )
 
+        # Upset again right after a handover: a short line, not the same apology again nor a second card
+        upset_again = upset and last_bot_message in HANDED_TO_CONSULTANT
         # An upset parent goes to a consultant with an apology, whatever the model replied
-        escalated = response.should_escalate or not response.text or upset
+        escalated = not upset_again and (response.should_escalate or not response.text or upset)
         topics = clean_topics(topics_given, escalated=escalated)
         covered = []
-        if escalated:
+        if upset_again:
+            reply_text = ESCALATION_MESSAGE_UPSET_AGAIN
+            await send_message(sender_id, reply_text)
+        elif escalated:
             await escalate_to_admin(
                 customer_id=sender_id,
                 customer_name=full_name,

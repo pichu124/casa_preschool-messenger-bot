@@ -27,6 +27,7 @@ from app.escalation import (
     ESCALATION_MESSAGE_HAS_PHONE,
     ESCALATION_MESSAGE_PHONE_DECLINED,
     ESCALATION_MESSAGE_UPSET,
+    ESCALATION_MESSAGE_UPSET_AGAIN,
 )
 
 client = TestClient(main.app)
@@ -281,6 +282,17 @@ UPSET_CASES = [
         "ask_phone",
     ),
     ("câu xin lỗi không đọc được giờ", earlier(profile(**KID), ("assistant", ESCALATION_MESSAGE_UPSET, None)), None),
+    (
+        "chuyển tư vấn viên, bực tiếp nhận câu ngắn, rồi nhắn tiếp",
+        earlier(
+            profile(**KID),
+            ("assistant", ESCALATION_MESSAGE_ASK_PHONE, 4 * M),
+            ("user", UPSET_TEXT, 3 * M),
+            ("assistant", ESCALATION_MESSAGE_UPSET_AGAIN, 2 * M),
+        ),
+        None,
+    ),
+    ("tin cuối: câu ngắn cho phụ huynh bực tiếp", profile(**KID, bot_text=ESCALATION_MESSAGE_UPSET_AGAIN), None),
     (
         "chuyển tư vấn viên thường rồi nhắn tiếp: vẫn nhắc",
         earlier(profile(**KID), ("assistant", ESCALATION_MESSAGE_ASK_PHONE, 2 * M)),

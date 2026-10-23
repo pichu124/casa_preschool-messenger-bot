@@ -429,6 +429,52 @@ def test_upset_parent_gets_the_apology_and_a_consultant(bot, known_profile):
     assert last_analytics_record()["topics"] == ["Khác"]
 
 
+# Phụ huynh đã được chuyển tư vấn viên mà còn bực tiếp: không gửi lại nguyên câu xin lỗi, không thêm thẻ Telegram
+# (lead viết câu này, 2026-10-23).
+UPSET_AGAIN = (
+    "Dạ tư vấn viên đang xem và sẽ phản hồi Ba/Mẹ ngay tại đây ạ. Nếu cần gấp, Ba/Mẹ gọi Hotline 0989 059 838 giúp "
+    "em nhé ạ."
+)
+
+
+def test_upset_again_after_the_apology_gets_a_short_line_and_no_second_card(bot):
+    bot.say(UPSET_TEXT, reply=MODEL_TEXT, extracted={"upset": True, "phone_declined": True})
+    bot.say("vẫn chưa thấy ai, gửi qua đây đi", reply=MODEL_TEXT, extracted={"upset": True})
+    bot.say("hỏi mãi mà không ai trả lời", reply="", escalate=True, extracted={"upset": True})
+
+    assert bot.sent == [UPSET_APOLOGY, UPSET_AGAIN, UPSET_AGAIN]
+    assert len(bot.escalations()) == 1
+    assert list(escalation._pending) == [8001]
+    history = customer_memory.get_conversation_history(CUSTOMER_ID)
+    assert [m["content"] for m in history if m["role"] == "assistant"] == [UPSET_APOLOGY, UPSET_AGAIN, UPSET_AGAIN]
+    assert last_analytics_record()["escalated"] is False
+
+
+@pytest.mark.parametrize(
+    "handover",
+    [
+        escalation.ESCALATION_MESSAGE_ASK_PHONE,
+        escalation.ESCALATION_MESSAGE_HAS_PHONE,
+        # Câu chuyển tư vấn viên trước 9694fb8, còn là tin cuối của phụ huynh được chuyển trước khi deploy
+        "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, "
+        "nhân viên tư vấn sẽ trả lời Ba/Mẹ trực tiếp tại đây sớm nhất ạ.",
+    ],
+    ids=["chưa có SĐT", "có SĐT", "câu cũ"],
+)
+def test_upset_right_after_any_handover_gets_the_short_line_and_no_card(bot, handover):
+    customer_memory._customers[CUSTOMER_ID] = {
+        "conversation_history": [
+            {"role": "user", "content": QUESTION, "timestamp": "2026-10-23T03:00:00"},
+            {"role": "assistant", "content": handover, "timestamp": "2026-10-23T03:00:05"},
+        ]
+    }
+
+    bot.say(UPSET_TEXT, reply=MODEL_TEXT, extracted={"upset": True})
+
+    assert bot.sent == [UPSET_AGAIN]
+    assert bot.escalations() == []
+
+
 @pytest.mark.parametrize("upset", ["true", 1, False])
 def test_upset_flag_counts_only_as_json_true(bot, upset):
     bot.say(UPSET_TEXT, extracted={"upset": upset})

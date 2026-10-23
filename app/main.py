@@ -714,7 +714,8 @@ def _plan_images(
     has_phone = profile.get("phone") or extracted.get("phone") or _find_phone(text)
     asked_phone = any(word in last_bot_message.lower() for word in ASKS_PHONE)
     refused = not has_phone and (profile.get("phone_declined") or extracted.get("phone_declined") or asked_phone)
-    fee = media.fee_image(system, today) if system and wants_fee and (age or (refused and asked_fee)) else None
+    fee_ready = bool(system and (age or (refused and asked_fee)))
+    fee = media.fee_image(system, today) if wants_fee and fee_ready else None
     if fee:
         label = f"học phí hệ {media.SYSTEM_NAMES[system]} (cơ sở {campus})"
         offers.append(Offer("fee", fee_key, [fee.url], label, stale=fee if fee.stale else None))
@@ -740,10 +741,15 @@ def _plan_images(
 
     wants_facilities = bool(FACILITIES_TOPIC in topics or profile.get("facilities_asked"))
     facilities = media.facility_images(campus, FACILITY_IMAGES) if wants_facilities and campus else []
-    if facilities and f"facilities:{campus}" not in sent:
+    facilities_offered = bool(facilities) and f"facilities:{campus}" not in sent
+    if facilities_offered:
         offers.append(Offer("facilities", f"facilities:{campus}", facilities, f"cơ sở vật chất cơ sở {campus}"))
 
-    waiting = {"fee_asked": wants_fee, "facilities_asked": wants_facilities and (not campus or bool(facilities))}
+    # Waiting only for what is missing, or for an offer not delivered yet: never for an image already sent or absent
+    waiting = {
+        "fee_asked": wants_fee and (not fee_ready or bool(fee)),
+        "facilities_asked": wants_facilities and (not campus or facilities_offered),
+    }
     return qa_images, offers, waiting
 
 

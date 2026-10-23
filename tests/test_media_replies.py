@@ -253,6 +253,28 @@ def test_stale_fee_image_is_sent_and_the_school_is_reminded_once_a_day(parent, c
     assert len([t for t in parent.telegram if "HỌC PHÍ THÁNG 11" in t]) == 2
 
 
+def test_fee_asked_again_in_the_same_month_does_not_send_next_month_unasked(parent, catalog, today):
+    known(kid_age="3 tuổi", interested_campus="Kim Mã")
+    assert parent.images(parent.say("học phí bao nhiêu ạ", extracted={"topics": ["Học phí"]})) == [url("sn-fee-10")]
+
+    assert parent.images(parent.say("học phí như vậy là theo quý ạ?", extracted={"topics": ["Học phí"]})) == []
+    assert not customer_memory.get_profile(CUSTOMER_ID).get("fee_asked")
+
+    today[0] = date(2026, 11, 2)
+    assert parent.images(parent.say("dạ vâng")) == []
+
+
+def test_fee_asked_while_drive_has_no_fee_image_of_the_system_does_not_wait(parent, catalog):
+    known(kid_age="3 tuổi", interested_campus="Kim Mã")
+    fee = media._catalog["items"].pop("sn-fee-10")
+
+    assert parent.images(parent.say("học phí bao nhiêu ạ", extracted={"topics": ["Học phí"]})) == []
+    assert not customer_memory.get_profile(CUSTOMER_ID).get("fee_asked")
+
+    media._catalog["items"]["sn-fee-10"] = fee
+    assert parent.images(parent.say("dạ vâng")) == []
+
+
 # --- thời khoá biểu ---
 
 
@@ -296,6 +318,28 @@ def test_facilities_wait_for_the_campus_then_go_once_with_buttons_on_the_last_im
     assert "[HỆ THỐNG] Sau câu trả lời này hệ thống gửi ảnh cơ sở vật chất cơ sở Kim Mã" in parent.notes[-1]
 
     assert parent.images(parent.say("trường có sân chơi không ạ", extracted={"topics": ["Cơ sở vật chất"]})) == []
+
+
+# Review 2026-10-23: hỏi lại cơ sở vật chất khi ảnh cơ sở đó đã gửi bật lại cờ facilities_asked và để nó kẹt, nên
+# tin sau nhắc tới cơ sở khác (không hỏi ảnh) nhận 4 ảnh cơ sở đó.
+def test_facilities_asked_again_after_the_images_went_does_not_wait_for_another_campus(parent, catalog):
+    parent.say("trường có sân chơi không ạ", extracted={"topics": ["Cơ sở vật chất"]})
+    sent = parent.say("Em quan tâm cơ sở Kim Mã ạ", extracted={"interested_campus": "Kim Mã"})
+    assert parent.images(sent) == [url(f"km-csvc-{i}") for i in range(1, 5)]
+
+    assert parent.images(parent.say("phòng học rộng không ạ", extracted={"topics": ["Cơ sở vật chất"]})) == []
+    assert not customer_memory.get_profile(CUSTOMER_ID).get("facilities_asked")
+
+    assert parent.images(parent.say("Bên Mỹ Đình có xa không ạ")) == []
+
+
+def test_facilities_of_a_campus_without_images_do_not_wait(parent, catalog):
+    known(interested_campus="Chùa Láng")
+
+    assert parent.images(parent.say("trường có sân chơi không ạ", extracted={"topics": ["Cơ sở vật chất"]})) == []
+    assert not customer_memory.get_profile(CUSTOMER_ID).get("facilities_asked")
+
+    assert parent.images(parent.say("Bên Mỹ Đình có xa không ạ")) == []
 
 
 # --- thực đơn ---

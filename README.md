@@ -251,11 +251,17 @@ File Excel can co cac cot: `category | question | answer | keywords`
 curl -X POST "http://localhost:8000/import-excel?file_path=data/qa_database_sample.xlsx&secret=<TELEGRAM_WEBHOOK_SECRET>"
 ```
 
+### Bot hoc tu admin (Telegram)
+
+Tu van vien reply tin "CAN TRO GIUP" tren Telegram thi bot them cap Q&A moi vao `data/qa_database.json` va day len nhanh `main` voi commit `[skip deploy]` (Render khong deploy lai); xem cac cap da hoc o `/qa-learned`. Vi dia tren Render chi co ban cua lan deploy gan nhat, moi lan khoi dong (va moi lan `/reload-qa`) bot co `GITHUB_TOKEN` thi keo `data/qa_database.json` moi nhat tu `main` va ghi de ban tren dia, nen restart khong lam mat cac cap da hoc. Keo loi (mang, timeout, 404, 401/403, 5xx, JSON hong, `qa_pairs` thieu hoac rong) thi bot dung ban tren dia va KHONG day Q&A len GitHub cho toi lan nap thanh cong sau (log ERROR), de ban tren dia khong de mat cac cap da hoc tren `main`.
+
 ### Reload sau khi chinh sua
 
 ```bash
 curl -X POST "http://localhost:8000/reload-qa?secret=<TELEGRAM_WEBHOOK_SECRET>"
 ```
+
+Co `GITHUB_TOKEN` thi reload lay ban tren `main` chu khong lay file vua sua tren dia: sua Q&A bang commit len `main`.
 
 ## Cau truc du an
 

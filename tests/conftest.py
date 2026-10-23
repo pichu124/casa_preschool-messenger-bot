@@ -5,8 +5,13 @@ nên fixture autouse dưới đây vá lại từng test. Test nào cần một 
 monkeypatch bằng fake ghi lại lời gọi; tên được import trong app.main thì patch trên app.main.
 """
 
+import os
+
 import httpx
 import pytest
+
+# app.main nạp Q&A lúc import, và có GITHUB_TOKEN thì kéo từ GitHub thật; load_dotenv() không đè biến đã có.
+os.environ["GITHUB_TOKEN"] = ""
 
 import app.main as main
 from app import analytics, customer_memory, escalation, github_sync
@@ -47,6 +52,7 @@ def isolate(monkeypatch, tmp_path):
 
     monkeypatch.setattr(main.qa_db, "path", str(tmp_path / "qa_database.json"))
     monkeypatch.setattr(main.qa_db, "qa_pairs", list(main.qa_db.qa_pairs))
+    monkeypatch.setattr(main.qa_db, "_pull_failed", False)
     monkeypatch.setattr(main.ai_engine, "system_prompt", main.ai_engine.system_prompt)
     monkeypatch.setattr(main, "_processed_fb_mids", set())
     monkeypatch.setattr(main, "_processed_tg_mids", set())

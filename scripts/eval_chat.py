@@ -1,9 +1,10 @@
 """Chấm hội thoại tư vấn của bot với model AI thật, theo kịch bản bán hàng của trường.
 
 Cách chạy (từ thư mục gốc repo, cần ít nhất một API key AI trong .env hoặc biến môi trường):
-    .venv/bin/python scripts/eval_chat.py                 # chạy mọi kịch bản hội thoại và bộ chủ đề
+    .venv/bin/python scripts/eval_chat.py                 # chạy mọi kịch bản hội thoại, bộ chủ đề và bộ upset
     .venv/bin/python scripts/eval_chat.py che_dat xe_bus  # chỉ chạy các kịch bản được nêu tên
     .venv/bin/python scripts/eval_chat.py topics          # chỉ chạy bộ chủ đề (tên TOPIC_SUITE)
+    .venv/bin/python scripts/eval_chat.py upset           # chỉ chạy bộ upset (tên UPSET_SUITE)
 
 Mỗi kịch bản là vài lượt phụ huynh nhắn liên tiếp; lịch sử hội thoại chỉ giữ trong bộ nhớ. Script dùng
 AIEngine + data/qa_database.json như bot thật, nhưng KHÔNG đi qua app.main hay lưu hồ sơ khách (chỉ mượn hàm
@@ -31,7 +32,12 @@ gọi chat, nên không có ["Khác"] bot tự gán khi escalate: "Khác" phải
 thì tính như []. Mỗi câu in một dòng; cuối in tỷ lệ đúng hoàn toàn và đúng một phần. Bộ đạt khi tỷ lệ đúng hoàn
 toàn ≥ TOPIC_PASS_RATIO (80%).
 
-Exit: 0 = mọi heuristic đạt và bộ chủ đề (nếu chạy) đạt ngưỡng; 1 = có lượt vi phạm hoặc bộ chủ đề dưới ngưỡng;
+Bộ upset (UPSET_CASES) đo cờ "upset" của model trích xuất (mục 2g.2 của docs/quyet-dinh-noi-dung.md): cờ bật thì bot
+gửi câu xin lỗi thay mọi câu của model, nên chỉ được bật khi phụ huynh bực vì bị đòi số và muốn thông tin qua chat.
+Gọi extract như bộ chủ đề, mỗi câu 1 lượt; cờ chỉ tính khi là JSON true, như app.main. Bộ đạt khi không câu âm nào
+bị bật cờ (dương tính giả là ca CARE nhận câu xin lỗi) và bắt được ≥ UPSET_POSITIVE_RATIO (2/3) câu dương.
+
+Exit: 0 = mọi heuristic đạt và các bộ (nếu chạy) đạt ngưỡng; 1 = có lượt vi phạm hoặc một bộ dưới ngưỡng;
 2 = INCONCLUSIVE (chưa có API key, mọi model đều lỗi) hoặc sai tên kịch bản.
 """
 import asyncio
@@ -43,6 +49,7 @@ import unicodedata
 from collections import Counter
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
+from fractions import Fraction
 from pathlib import Path
 
 # Chạy thẳng file này thì sys.path[0] là scripts/, nên thêm gốc repo trước khi import app.
@@ -350,6 +357,30 @@ TOPIC_CASES: list[TopicCase] = [
 ]
 
 
+UPSET_SUITE = "upset"
+UPSET_POSITIVE_RATIO = Fraction(2, 3)
+
+
+@dataclass
+class UpsetCase:
+    message: str
+    upset: bool
+    last_bot_message: str = ""
+
+
+UPSET_CASES: list[UpsetCase] = [
+    UpsetCase("sao cứ đòi số thế", True, last_bot_message=ASK_PHONE_BOT),
+    UpsetCase("không cho số thì không tư vấn à, gửi qua đây đi", True, last_bot_message=ASK_PHONE_BOT),
+    UpsetCase("hỏi mãi, gửi bảng giá qua đây luôn", True, last_bot_message=ASK_PHONE_BOT),
+    # Ca CARE: bot phải đồng cảm và mời học thử, không xin lỗi rồi chuyển tư vấn viên.
+    UpsetCase("học phí đắt quá, trường gần nhà rẻ hơn", False),
+    UpsetCase("trường mình so với Vinschool thì thế nào ạ", False),
+    UpsetCase("con mình hay khóc khi xa mẹ, mình lo quá", False),
+    UpsetCase("em chưa muốn để số ạ", False, last_bot_message=ASK_PHONE_BOT),
+    UpsetCase("học phí cho bé 3 tuổi bao nhiêu ạ", False),
+]
+
+
 def sentences(text: str) -> list[str]:
     """Các câu của câu bot gửi, bỏ token [QUICK:]/[IMAGES:] và mẩu chỉ có emoji.
 
@@ -509,11 +540,17 @@ def grade_topics(expected: tuple[str, ...], got: list[str]) -> str:
     return PARTIAL if want & have else WRONG
 
 
+async def extract(engine: EvalEngine, message: str, last_bot_message: str) -> dict | None:
+    """Trích xuất như process_message; None khi mọi model lỗi."""
+    before = engine.answered
+    extracted = await engine.extract_customer_info(message, FB_NAME, last_bot_message=last_bot_message)
+    return extracted if engine.answered > before else None
+
+
 async def extract_topics(engine: EvalEngine, case: TopicCase) -> list[str] | None:
     """Chủ đề bot sẽ đếm cho tin này; None khi mọi model lỗi."""
-    before = engine.answered
-    extracted = await engine.extract_customer_info(case.message, FB_NAME, last_bot_message=case.last_bot_message)
-    return clean_topics(extracted.get("topics")) if engine.answered > before else None
+    extracted = await extract(engine, case.message, case.last_bot_message)
+    return None if extracted is None else clean_topics(extracted.get("topics"))
 
 
 async def run_topic_cases(engine: EvalEngine) -> bool | None:
@@ -537,10 +574,32 @@ async def run_topic_cases(engine: EvalEngine) -> bool | None:
     return grades[FULL] / total >= TOPIC_PASS_RATIO
 
 
+async def run_upset_cases(engine: EvalEngine) -> bool | None:
+    """True/False = bộ upset đạt/dưới ngưỡng; None = mọi model lỗi."""
+    print(f"\n===== {UPSET_SUITE} =====")
+    positives = sum(case.upset for case in UPSET_CASES)
+    caught = false_alarms = 0
+    label = {True: "upset", False: "không"}
+    for case in UPSET_CASES:
+        extracted = await extract(engine, case.message, case.last_bot_message)
+        if extracted is None:
+            print(f"PH: {case.message}\n  ! mọi model đều lỗi")
+            return None
+        got = extracted.get("upset") is True  # như app.main
+        caught += got and case.upset
+        false_alarms += got and not case.upset
+        print(f"{FULL if got == case.upset else WRONG} | {case.message!r} | kỳ vọng {label[case.upset]} | ra {label[got]}")
+    print(
+        f"\nUpset ({len(UPSET_CASES)} câu): câu dương bắt được {caught}/{positives} (cần ≥ {UPSET_POSITIVE_RATIO}), "
+        f"câu âm báo nhầm {false_alarms}/{len(UPSET_CASES) - positives} (cần 0)"
+    )
+    return false_alarms == 0 and caught >= UPSET_POSITIVE_RATIO * positives
+
+
 async def main(selected: list[str]) -> int:
-    unknown = [name for name in selected if name not in SCENARIOS and name != TOPIC_SUITE]
+    unknown = [name for name in selected if name not in SCENARIOS and name not in (TOPIC_SUITE, UPSET_SUITE)]
     if unknown:
-        print(f"Không có kịch bản: {', '.join(unknown)}. Có: {', '.join(SCENARIOS)}, {TOPIC_SUITE}")
+        print(f"Không có kịch bản: {', '.join(unknown)}. Có: {', '.join(SCENARIOS)}, {TOPIC_SUITE}, {UPSET_SUITE}")
         return 2
     if not any(API_KEY_MAP.get(name.strip()) for name in settings.AI_MODEL_ORDER):
         print("INCONCLUSIVE: chưa có API key AI")
@@ -566,7 +625,13 @@ async def main(selected: list[str]) -> int:
         if topics_passed is None:
             print(f"\n{ALL_MODELS_FAILED}")
             return 2
-    return 1 if failed_turns or not topics_passed else 0
+    upset_passed = True
+    if not selected or UPSET_SUITE in selected:
+        upset_passed = await run_upset_cases(engine)
+        if upset_passed is None:
+            print(f"\n{ALL_MODELS_FAILED}")
+            return 2
+    return 1 if failed_turns or not topics_passed or not upset_passed else 0
 
 
 if __name__ == "__main__":

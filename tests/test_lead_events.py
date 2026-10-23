@@ -940,9 +940,9 @@ FIRST_COLUMNS = [
 ]
 
 
-def docs_columns() -> list[tuple[str, str]]:
+def docs_columns(name="COLUMNS") -> list[tuple[str, str]]:
     (script,) = re.findall(r"```javascript\n(.*?)```", DOCS.read_text(encoding="utf-8"), re.S)
-    (block,) = re.findall(r"const COLUMNS = \[\n(.*?)\n\];", script, re.S)
+    (block,) = re.findall(rf"const {name} = \[\n(.*?)\n\];", script, re.S)
     return re.findall(r"\['(\w+)', '([^']*)'\]", block)
 
 
@@ -985,3 +985,123 @@ def test_merged_matches_update_profile(before, extracted):
     for key in ("first_seen", "last_seen", "message_count"):
         saved.pop(key, None)
     assert saved == escalation._merged(before, extracted)
+
+
+# --- Tab "Chủ đề": mỗi tin có chủ đề một dòng, chỉ khi TOPICS_SHEET_ENABLED ---
+
+TOPIC_TITLES = [
+    "Thời gian", "Customer ID", "Quảng cáo", "Cơ sở/hệ", "Tuổi bé", "Chủ đề", "Chuyển tư vấn viên", "Câu hỏi",
+]
+TOPIC_TEXT = "Học phí và xe đưa đón thế nào ạ?"
+
+
+@pytest.fixture
+def topics_on(monkeypatch):
+    monkeypatch.setattr(settings, "TOPICS_SHEET_ENABLED", True)
+
+
+def test_topics_sheet_off_posts_no_topic_row(chat, net):
+    chat.say(TOPIC_TEXT, extracted={"topics": ["Học phí"]})
+
+    assert chat.sent == [MODEL_TEXT]
+    assert net.sheet == []
+
+
+def test_message_with_topics_posts_one_topic_row_after_the_reply(chat, net, topics_on):
+    known_customer(
+        kid_age="3 tuổi", interested_campus="Kim Mã", interested_program="song ngữ", lead_source="ads", ad_title=AD_TITLE
+    )
+    sent_before_post = []
+
+    def answer():
+        sent_before_post.append(list(chat.sent))
+        return httpx.Response(200, json={"ok": True})
+
+    net.sheet_response = answer
+
+    chat.say(TOPIC_TEXT, extracted={"topics": ["học phí", "Xe đưa đón", "Giá vé máy bay"]})
+
+    assert chat.sent == [MODEL_TEXT]
+    assert sent_before_post == [[MODEL_TEXT]]
+    (row,) = net.sheet
+    assert_vietnam_now(row.pop("time"))
+    assert row == {
+        "type": "topic",
+        "token": SHEET_TOKEN,
+        "customer_id": CUSTOMER_ID,
+        "ad_title": AD_TITLE,
+        "campus": "Kim Mã, song ngữ",
+        "kid_age": "3 tuổi",
+        "topics": "Học phí, Xe đưa đón",
+        "escalated": "Không",
+        "question": TOPIC_TEXT,
+    }
+    assert FB_NAME not in json.dumps(row, ensure_ascii=False)
+
+
+def test_escalated_message_posts_other_with_this_message_info_and_without_phone(chat, net, topics_on):
+    text = f"Cô chủ nhiệm lớp Mầm tên gì ạ? Bé 4 tuổi, zalo {PHONE}"
+
+    chat.say(text, extracted={"phone": PHONE, "kid_age": "4 tuổi"}, reply="", escalate=True)
+
+    assert chat.sent == [escalation.ESCALATION_MESSAGE_HAS_PHONE]
+    lead, topic = net.sheet
+    assert (lead["event"], topic["type"]) == ("new_phone", "topic")
+    assert (topic["topics"], topic["escalated"], topic["kid_age"], topic["ad_title"], topic["campus"]) == (
+        "Khác", "Có", "4 tuổi", "", ""
+    )
+    assert topic["question"] == "Cô chủ nhiệm lớp Mầm tên gì ạ? Bé 4 tuổi, zalo [SĐT]"
+    assert PHONE not in json.dumps(topic)
+
+
+def test_topic_row_question_is_cut_to_300_characters(chat, net, topics_on):
+    chat.say(f"Zalo {PHONE}, học phí " + "rất " * 100 + "cao không ạ", extracted={"topics": ["Học phí"]})
+
+    (row,) = [row for row in net.sheet if row.get("type") == "topic"]
+    assert row["question"] == ("Zalo [SĐT], học phí " + "rất " * 100)[:300]
+
+
+@pytest.mark.parametrize(
+    "extracted",
+    [{"kid_age": "3 tuổi", "topics": []}, {"kid_age": "3 tuổi"}, {"topics": ["Giá vé máy bay"]}],
+    ids=["topics rỗng", "không có topics", "chỉ khoá lạ"],
+)
+def test_message_without_topics_posts_no_topic_row(chat, net, topics_on, extracted):
+    chat.say("Bé nhà mình 3 tuổi ạ", extracted=extracted)
+
+    assert chat.sent == [MODEL_TEXT]
+    assert net.sheet == []
+
+
+@pytest.mark.parametrize("sheet_response", SHEET_FAILURES, ids=SHEET_FAILURE_IDS)
+def test_topic_sheet_failure_does_not_break_the_reply(chat, net, caplog, topics_on, sheet_response):
+    net.sheet_response = sheet_response
+
+    with caplog.at_level(logging.DEBUG):
+        chat.say(TOPIC_TEXT, extracted={"topics": ["Học phí"]})
+
+    assert chat.sent == [MODEL_TEXT]
+    assert len(net.sheet) == 1
+    assert customer_memory.get_conversation_history(CUSTOMER_ID)[-1] == {"role": "assistant", "content": MODEL_TEXT}
+    assert [r for r in caplog.records if r.name == "app.leads_sheet" and r.levelno == logging.WARNING]
+    assert leaked(caplog) == []
+    assert [r.getMessage() for r in caplog.records if TOPIC_TEXT in r.getMessage()] == []
+
+
+def test_docs_topic_columns_are_the_keys_the_bot_sends(chat, net, topics_on):
+    chat.say(TOPIC_TEXT, extracted={"topics": ["Học phí"]})
+    (body,) = net.sheet
+
+    columns = docs_columns("TOPIC_COLUMNS")
+
+    assert [title for _, title in columns] == TOPIC_TITLES
+    assert set(body) - {"type", "token"} == {key for key, _ in columns}
+
+
+def test_docs_topic_column_table_lists_every_topic_column_in_order():
+    text = DOCS.read_text(encoding="utf-8")
+    table = text.split("| Khóa | Cột tab Chủ đề | Nội dung |", 1)[1].split("\n\n", 1)[0]
+
+    rows = re.findall(r"^\| `(\w+)` \| ([^|]+) \|", table, re.M)
+
+    assert [(key, title.strip()) for key, title in rows] == docs_columns("TOPIC_COLUMNS")

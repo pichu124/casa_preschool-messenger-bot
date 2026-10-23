@@ -30,6 +30,7 @@ def isolate(monkeypatch, tmp_path):
     ):
         monkeypatch.setattr(settings, name, "")
     monkeypatch.setattr(settings, "FOLLOWUP_ENABLED", False)
+    monkeypatch.setattr(settings, "TOPICS_SHEET_ENABLED", False)
     monkeypatch.setattr(settings, "AI_MODEL_ORDER", [])
     monkeypatch.setattr(settings, "ANALYTICS_LOG_PATH", str(tmp_path / "analytics.jsonl"))
 

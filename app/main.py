@@ -43,6 +43,7 @@ from app.escalation import (
 from app import analytics
 from app import customer_memory
 from app.coverage import topics_in_reply
+from app.leads_sheet import post_topic_row
 from app.topics import clean_topics
 from app.followup import run_followups
 
@@ -574,6 +575,32 @@ def _clean_extracted(extracted: dict, phone_from_qr: str | None, text: str) -> d
     return extracted
 
 
+TOPIC_QUESTION_MAX = 300
+
+
+async def publish_topics(customer_id: str, topics: list[str], escalated: bool, text: str) -> None:
+    """One "Chủ đề" Sheet row for the parent message `text` (post_topic_row: only when TOPICS_SHEET_ENABLED), with
+    the profile as it is after the message; no Facebook name, the question cut and without phone numbers.
+    Never raises; logs carry no message text."""
+    try:
+        profile = customer_memory.get_profile(customer_id)
+        await post_topic_row(
+            {
+                "customer_id": customer_id,
+                "ad_title": str(profile.get("ad_title") or ""),
+                "campus": ", ".join(
+                    str(v) for v in (profile.get("interested_campus"), profile.get("interested_program")) if v
+                ),
+                "kid_age": str(profile.get("kid_age") or ""),
+                "topics": ", ".join(topics),
+                "escalated": "Có" if escalated else "Không",
+                "question": mask_phones(text)[:TOPIC_QUESTION_MAX],
+            }
+        )
+    except Exception as e:
+        logger.warning(f"Topic row for customer {customer_id} not sent: {type(e).__name__}")
+
+
 async def process_message(
     sender_id: str, text: str, attribution: dict | None = None, phone_from_qr: str | None = None
 ):
@@ -694,6 +721,9 @@ async def process_message(
             await customer_memory.append_to_history(sender_id, "assistant", reply_text)
         except Exception as hist_err:
             logger.warning(f"Failed to persist conversation history: {hist_err}")
+
+        if topics:
+            await publish_topics(sender_id, topics, escalated, text)
 
         await customer_memory.sync_to_github()
 

@@ -19,6 +19,9 @@ class Settings:
     LEADS_SHEET_WEBHOOK_URL: str = os.getenv("LEADS_SHEET_WEBHOOK_URL", "")
     # Sent in the JSON body (Apps Script cannot read request headers); must equal the script's LEADS_TOKEN
     LEADS_SHEET_TOKEN: str = os.getenv("LEADS_SHEET_TOKEN", "")
+    # One "Chủ đề" Sheet row per message with topics, same web app; off unless set to "true", and set it only
+    # after the script with the "Chủ đề" tab is deployed (the older one writes any body into the Leads tab)
+    TOPICS_SHEET_ENABLED: bool = os.getenv("TOPICS_SHEET_ENABLED", "").strip().lower() == "true"
 
     # Follow-up message to parents who went quiet (app/followup.py); off unless set to "true"
     FOLLOWUP_ENABLED: bool = os.getenv("FOLLOWUP_ENABLED", "").strip().lower() == "true"

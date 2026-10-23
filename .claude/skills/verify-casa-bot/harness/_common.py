@@ -91,6 +91,8 @@ def summarize(rec: dict) -> str | None:
         return f"{seq} TG  {rec['path']} {json.dumps(body, ensure_ascii=False)}"
     if host == "script.google.com":
         keys = ("event", "customer_id", "phone", "visit_request", "stage", "token")
+        if (body or {}).get("type") == "topic":
+            keys = ("type", "customer_id", "topics", "escalated", "question", "token")
         return f"{seq} SHEET {json.dumps({k: (body or {}).get(k) for k in keys}, ensure_ascii=False)}"
     if host == "api.github.com":
         return f"{seq} GH  {method} {rec['path']}"

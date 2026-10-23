@@ -36,6 +36,7 @@ from app.escalation import (
     drop_pending_escalations,
     escalate_to_admin,
     get_pending_escalation,
+    has_pending_escalation,
     lead_events,
     normalize_phone,
     publish_lead_events,
@@ -675,8 +676,9 @@ async def _answer_message(sender_id: str, text: str, attribution: dict | None, p
             f"HasProfile: {bool(existing_profile)}, GapHours: {gap_hours:.1f}, HistoryLen: {len(history)}"
         )
 
-        # Upset again right after a handover: a short line, not the same apology again nor a second card
-        upset_again = upset and last_bot_message in HANDED_TO_CONSULTANT
+        # Upset again right after a handover a consultant has yet to answer: a short line, not the same apology
+        # again nor a second card. Answered (Telegram replies are not in the history) → apology and a new card.
+        upset_again = upset and last_bot_message in HANDED_TO_CONSULTANT and has_pending_escalation(sender_id)
         # An upset parent goes to a consultant with an apology, whatever the model replied
         escalated = not upset_again and (response.should_escalate or not response.text or upset)
         topics = clean_topics(topics_given, escalated=escalated)

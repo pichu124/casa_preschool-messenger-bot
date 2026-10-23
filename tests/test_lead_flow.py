@@ -468,6 +468,7 @@ def test_upset_right_after_any_handover_gets_the_short_line_and_no_card(bot, han
             {"role": "assistant", "content": handover, "timestamp": "2026-10-23T03:00:05"},
         ]
     }
+    escalation._pending[8000] = {"customer_id": CUSTOMER_ID, "customer_name": FB_NAME, "question": QUESTION}
 
     bot.say(UPSET_TEXT, reply=MODEL_TEXT, extracted={"upset": True})
 
@@ -582,3 +583,14 @@ def test_unexpected_error_sends_apology_with_diacritics(monkeypatch, bot):
 
     assert len(bot.sent) == 1
     assert "sự cố" in bot.sent[0]
+
+
+def test_upset_after_the_consultant_answered_gets_an_apology_and_a_new_card(bot):
+    # Admin trả lời qua Telegram không vào lịch sử: tin cuối của bot vẫn là câu chuyển. Không còn escalation chờ thì
+    # phụ huynh bực phải được xin lỗi và có thẻ mới, không phải câu "tư vấn viên đang xem".
+    bot.say(QUESTION, reply="", escalate=True)
+    assert len(bot.escalations()) == 1
+    escalation.resolve_escalation(8001)
+    bot.say("hỏi mãi, gửi bảng giá qua đây luôn", extracted={"upset": True})
+    assert bot.sent[-1] == escalation.ESCALATION_MESSAGE_UPSET
+    assert len(bot.escalations()) == 2

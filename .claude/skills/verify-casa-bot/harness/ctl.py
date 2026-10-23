@@ -29,6 +29,8 @@ from _common import HARNESS_DIR, MARKER, RUN_ROOT, http, load_state, outbox, run
 # Runtime files the app writes under data/: never copied in (real parents' data), always copied out on down.
 DATA_FILES = ("customers.json", "analytics.jsonl", "pending_escalations.json", "escalation_log.json")
 FORBIDDEN_ENV = ("GH_TOKEN", "GITHUB_PAT")
+# The app loads Q&A from GitHub main at start (app/github_sync.py): the fake serves the copy's file there, as main has it.
+QA_ON_GITHUB = "/repos/pichu124/casa_preschool-messenger-bot/contents/data/qa_database.json"
 
 
 def git(source: Path, *cmd) -> str:
@@ -251,9 +253,18 @@ def cmd_up(a):
 
     fake_cmd = ["/usr/bin/env", "-i", "PATH=/usr/bin:/bin", "LANG=C.UTF-8", f"CASA_VERIFY_RUN_ID={run_id}", py, str(HARNESS_DIR / "fake_server.py"),
                 "--port", str(fake_port), "--outbox", state["outbox"], "--scenario", state["scenario"],
-                "--github-dir", str(evidence / "github"), "--run-id", run_id]
+                "--github-dir", str(evidence / "github"), "--run-id", run_id,
+                "--github-file", f"{QA_ON_GITHUB}={copy / 'data' / 'qa_database.json'}"]
     with open(evidence / "fake.log", "ab") as log:
         state["fake_pid"] = subprocess.Popen(fake_cmd, stdout=log, stderr=log, start_new_session=True).pid
+    for _ in range(40):  # the app pulls Q&A from the fake GitHub while it imports: the fake must be listening first
+        try:
+            code, body = http("GET", f"http://127.0.0.1:{fake_port}/__fake/health", timeout=1)
+            if code == 200 and json.loads(body).get("run_id") == run_id:
+                break
+        except (OSError, ValueError):
+            pass
+        time.sleep(0.25)
     app_cmd = ["/usr/bin/env", "-i", *[f"{k}={v}" for k, v in env.items()], py, str(HARNESS_DIR / "launcher.py")]
     with open(evidence / "app.log", "ab") as log:
         proc = subprocess.Popen(app_cmd, cwd=copy, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)

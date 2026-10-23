@@ -37,6 +37,7 @@ Preconditions:
 ## Gotchas
 
 - **Repo thật:** `app/github_sync.py` ghi cứng `pichu124/casa_preschool-messenger-bot`, nhánh `main`. Ngoài harness, một admin reply với `GITHUB_TOKEN` thật là một commit lên `main` của repo public, tức một lần deploy. Trong harness nó tới GitHub giả; `ctl doctor` phải OK trước khi drive hành trình này.
+- Lúc khởi động (và mỗi `/reload-qa`) app kéo `data/qa_database.json` từ `main` (`GH GET …/qa_database.json` đầu outbox, log `Loaded <n> Q&A pairs from GitHub`); GitHub giả phục vụ bản `data/qa_database.json` của bản sao cho tới PUT đầu tiên. Harness chưa có lệnh restart: giả lập restart bằng cách ghi lại bản trong image (`git show HEAD:data/qa_database.json > $CASA_COPY/data/qa_database.json`) rồi `POST /reload-qa` → `qa_pairs` vẫn gồm cặp vừa học, `/qa-database` có cặp đó ở cuối.
 - `tg-reply` không có `--to` lấy `message_id` từ phản hồi của Telegram giả trong outbox; chưa có escalation thì lệnh dừng với lỗi.
 - Trạng thái dedup Telegram nằm trong RAM: `--message-id` mặc định sinh từ thời gian, nên hai lệnh liên tiếp không bị coi là trùng.
 - `/qa-learned` chỉ lọc `category == "Học từ admin"`, còn admin reply lấy `category` từ `classify_qa`: với kịch bản mặc định (`Khác`), cặp mới không hiện ở `/qa-learned`. Muốn thấy thì thêm rule `{"kind": "classify", "contains": "", "reply": {"category": "Học từ admin", "keywords": [], "similar_questions": []}}`. Nếu đó là hành vi cần có của sản phẩm thì báo lỗi, đừng sửa map.

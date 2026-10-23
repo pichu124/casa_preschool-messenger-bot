@@ -8,7 +8,7 @@ Admin (chủ Page, người vận hành) gọi các endpoint quản trị bằng
 - `secret-gate` mọi endpoint dưới đây trả 403 `{"detail":"Invalid secret"}` khi secret sai hoặc thiếu.
 - `customers` `GET /customers` → `{"total", "customers": {psid: profile}}`.
 - `customer-reset` `POST /customers/{psid}/reset` → `{"status":"reset","existed":true|false}`; xoá hồ sơ của đúng PSID đó (lịch sử, tóm tắt, `lead_card_msg_id`, `followup_sent_at`…) và escalation đang chờ của họ, lưu đĩa, PUT lên GitHub giả khi có hồ sơ. Tin tiếp theo của PSID đó là tin đầu tiên.
-- `qa` `GET /qa-database` (mọi cặp), `GET /qa-learned` (category `Học từ admin`), `POST /reload-qa` (đọc lại file, dựng lại context model), `POST /import-excel?file_path=…`.
+- `qa` `GET /qa-database` (mọi cặp), `GET /qa-learned` (category `Học từ admin`), `POST /reload-qa` (kéo lại `data/qa_database.json` từ GitHub giả, lỗi thì đọc lại file; dựng lại context model), `POST /import-excel?file_path=…`.
 - `test-chat` `POST /test-chat` `{"message", "user_id"}` → trả lời model không qua Facebook; ghi hồ sơ và lịch sử cho `user_id`.
 - `analytics` `GET /analytics/stats`, `GET /analytics/messages?limit=`, `POST /analytics/reset` (xoá `data/analytics.jsonl`) — xem [dashboard-export.md](dashboard-export.md).
 - `setup` `POST /setup-telegram-webhook`, `POST /setup-messenger-profile` — xem [static-messenger-profile.md](static-messenger-profile.md).

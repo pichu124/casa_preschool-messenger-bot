@@ -4,7 +4,7 @@ launcher.py rewrites https://<host>/<path> to http://127.0.0.1:<port>/<host>/<pa
 here is the real host. Every request is appended to the outbox (JSONL) with the response it got. Answers follow
 the scenario file, re-read on every request (edit it or run `ctl.py scenario` while the app runs).
 
-    python3 fake_server.py --port N --outbox FILE --scenario FILE --github-dir DIR --run-id ID
+    python3 fake_server.py --port N --outbox FILE --scenario FILE --github-dir DIR --run-id ID [--github-file PATH=FILE ...]
 """
 import argparse
 import base64
@@ -256,7 +256,12 @@ def main():
     p.add_argument("--scenario", required=True)
     p.add_argument("--github-dir", required=True)
     p.add_argument("--run-id", required=True)
+    p.add_argument("--github-file", action="append", default=[], metavar="PATH=FILE",
+                   help="serve FILE as GitHub contents PATH (/repos/<owner>/<repo>/contents/<path>) until a PUT replaces it")
     args = p.parse_args()
+    for spec in args.github_file:
+        path, _, file = spec.partition("=")
+        github_files[path] = Path(file).read_bytes()
     ThreadingHTTPServer(("127.0.0.1", args.port), Handler).serve_forever()
 
 

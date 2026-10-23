@@ -335,7 +335,8 @@ def cmd_doctor(a):
 def cmd_env(a):
     s = load_state(a.slug)
     for key, value in (("CASA_APP", s["app_url"]), ("CASA_SECRET", s["secret"]), ("CASA_VERIFY_TOKEN", s["verify_token"]),
-                       ("CASA_COPY", s["copy"]), ("CASA_EVIDENCE", s["evidence"]), ("CASA_OUTBOX", s["outbox"])):
+                       ("CASA_COPY", s["copy"]), ("CASA_EVIDENCE", s["evidence"]), ("CASA_OUTBOX", s["outbox"]),
+                       ("CASA_FAKE", f"http://127.0.0.1:{s['fake_port']}")):
         print(f"export {key}='{value}'")
 
 

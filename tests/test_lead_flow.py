@@ -594,3 +594,43 @@ def test_upset_after_the_consultant_answered_gets_an_apology_and_a_new_card(bot)
     bot.say("hỏi mãi, gửi bảng giá qua đây luôn", extracted={"upset": True})
     assert bot.sent[-1] == escalation.ESCALATION_MESSAGE_UPSET
     assert len(bot.escalations()) == 2
+
+
+def test_upset_after_the_consultant_answered_one_of_two_cards_gets_an_apology_and_a_new_card(bot, monkeypatch):
+    # Hai câu liền nhau đều được chuyển (thẻ 8001, 8002); tư vấn viên trả lời gộp vào thẻ 8002 qua /telegram-webhook.
+    # Thẻ 8001 không được còn "chờ": phụ huynh bực sau đó phải được xin lỗi và có thẻ mới.
+    monkeypatch.setattr(settings, "TELEGRAM_WEBHOOK_SECRET", WEBHOOK_SECRET)
+
+    async def fake_format_admin_reply(admin_text, question):
+        return admin_text
+
+    async def fake_classify_qa(question, answer):
+        return {}
+
+    async def fake_add_qa_pair(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(main.ai_engine, "format_admin_reply", fake_format_admin_reply)
+    monkeypatch.setattr(main.ai_engine, "classify_qa", fake_classify_qa)
+    monkeypatch.setattr(main.qa_db, "add_qa_pair", fake_add_qa_pair)
+
+    bot.say(QUESTION, reply="", escalate=True)
+    bot.say("Lớp có mấy cô ạ?", reply="", escalate=True)
+    assert sorted(escalation._pending) == [8001, 8002]
+
+    update = {
+        "update_id": 11,
+        "message": {
+            "message_id": 8200,
+            "chat": {"id": -1001, "type": "supergroup"},
+            "text": ADMIN_TEXT,
+            "reply_to_message": {"message_id": 8002, "text": bot.telegram[1]},
+        },
+    }
+    resp = client.post("/telegram-webhook", json=update, headers={"X-Telegram-Bot-Api-Secret-Token": WEBHOOK_SECRET})
+    assert resp.json() == {"status": "ok"}
+    assert escalation._pending == {}
+
+    bot.say("hỏi mãi, gửi bảng giá qua đây luôn", extracted={"upset": True})
+    assert bot.sent[-1] == escalation.ESCALATION_MESSAGE_UPSET
+    assert len(bot.escalations()) == 3

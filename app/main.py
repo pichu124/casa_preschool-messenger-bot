@@ -40,7 +40,6 @@ from app.escalation import (
     lead_events,
     normalize_phone,
     publish_lead_events,
-    resolve_escalation,
 )
 from app import analytics
 from app import customer_memory
@@ -958,6 +957,9 @@ async def handle_telegram_webhook(request: Request):
 
         # 2. Send to customer on Facebook Messenger
         await send_message(customer_id, formatted_reply)
+        # The parent got a consultant's answer: none of their cards is waiting any more (the answer often covers
+        # several; a later upset message must then reach a consultant again, see _answer_message).
+        drop_pending_escalations(customer_id)
 
         # 3. Classify Q&A with AI (category, keywords, similar questions)
         classification = await ai_engine.classify_qa(question, admin_text)
@@ -971,10 +973,6 @@ async def handle_telegram_webhook(request: Request):
 
         # 5. Rebuild AI context so it knows the new Q&A
         _rebuild_ai_context()
-
-        # 6. Mark escalation as resolved
-        if escalation:
-            resolve_escalation(original_msg_id)
 
         logger.info(f"Admin replied to escalation for {customer_name}: {admin_text[:100]}")
         return {"status": "ok"}

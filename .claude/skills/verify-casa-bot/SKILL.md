@@ -112,6 +112,8 @@ Webhook trả 200 ngay rồi xử lý nền, nên HTTP 200 **không** chứng mi
 | `DECLINE` | extract `phone_declined: true` |
 | `UPSET` | extract `upset: true, phone_declined: true` (phụ huynh khó chịu, đòi thông tin qua chat: bot gửi câu xin lỗi và chuyển tư vấn viên) |
 | `HOC_PHI` | extract `topics: ["Học phí"]` (chủ đề của tin: dashboard, tab "Chủ đề" của Sheet) |
+| `CHUONG_TRINH`, `CSVC`, `THUC_DON` | extract `topics` `["Chương trình/phương pháp"]`, `["Cơ sở vật chất"]`, `["Ăn uống/thực đơn"]` (chủ đề làm bot gửi ảnh Drive, [features/media.md](features/media.md)) |
+| `Em quan tâm cơ sở Kim Mã` | nghĩa của nút `QR:campus:2`: extract `interested_campus: Kim Mã` |
 | (khác) | `Dạ Casa chào Ba/Mẹ ạ, em hỗ trợ ngay ạ.`; extract `{}` |
 
 Chữ trên nút (`--text`), nghĩa của nút và câu ice breaker lấy từ `QUICK_REPLIES` và `ICE_BREAKERS` trong `app/messenger.py`; `tests/test_verify_skill.py` đỏ khi kịch bản, feature map hay ví dụ ở đây lệch khỏi đó.

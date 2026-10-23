@@ -24,7 +24,11 @@
     {"kind": "extract", "contains": "TOUR_CAMPUS", "reply": {"interested_campus": "Mỹ Đình"}},
     {"kind": "extract", "contains": "DECLINE", "reply": {"phone_declined": true}},
     {"kind": "extract", "contains": "UPSET", "reply": {"upset": true, "phone_declined": true}},
-    {"kind": "extract", "contains": "HOC_PHI", "reply": {"topics": ["Học phí"]}}
+    {"kind": "extract", "contains": "HOC_PHI", "reply": {"topics": ["Học phí"]}},
+    {"kind": "extract", "contains": "CHUONG_TRINH", "reply": {"topics": ["Chương trình/phương pháp"]}},
+    {"kind": "extract", "contains": "CSVC", "reply": {"topics": ["Cơ sở vật chất"]}},
+    {"kind": "extract", "contains": "THUC_DON", "reply": {"topics": ["Ăn uống/thực đơn"]}},
+    {"kind": "extract", "contains": "Em quan tâm cơ sở Kim Mã", "reply": {"interested_campus": "Kim Mã"}}
   ],
   "defaults": {
     "chat": "Dạ Casa chào Ba/Mẹ ạ, em hỗ trợ ngay ạ.",

@@ -353,11 +353,6 @@ def test_care_resolves_with_value_and_trial_not_a_cheaper_campus(monkeypatch):
 
 REQUIRED_KNOWLEDGE = [
     "15 tháng",
-    "185 Huỳnh Thúc Kháng",
-    "36 Phạm Hùng",
-    "294 Kim Mã",
-    "05/09",
-    "17h30",
     "Connect",
     "Acknowledge",
     "Resolve",

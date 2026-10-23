@@ -905,3 +905,15 @@ def test_setup_messenger_profile_endpoint_needs_secret(monkeypatch, graph, secre
 def test_static_files_are_served():
     assert client.get("/static/.gitkeep").status_code == 200
     assert client.get("/static/khong-co.jpg").status_code == 404
+
+
+def test_staff_echo_closes_the_parents_waiting_escalations(bot):
+    # Tư vấn viên trả lời trong hộp thư Page: thẻ Telegram của phụ huynh này không còn "chờ" (câu "tư vấn viên đang
+    # xem" chỉ dành cho thẻ chưa ai trả lời); thẻ của phụ huynh khác giữ nguyên.
+    customer_memory._customers[SENDER] = {"message_count": 1}
+    escalation._pending[7001] = {"customer_id": SENDER, "customer_name": "A", "question": "q"}
+    escalation._pending[7002] = {"customer_id": "9999999999999999", "customer_name": "B", "question": "q"}
+
+    post_webhook(echo_event())
+
+    assert list(escalation._pending) == [7002]

@@ -525,6 +525,8 @@ async def save_attribution(sender_id: str, attribution: dict):
 async def save_staff_reply(customer_id: str, replied_at: str):
     """Staff answered the parent by hand in the Page inbox: app/followup.py sends no follow-up after it. No reply."""
     customer_memory.set_fields(customer_id, {"staff_replied_at": replied_at})
+    # Answered outside Telegram: no card of this parent is waiting any more (see _answer_message, upset_again)
+    drop_pending_escalations(customer_id)
     logger.info(f"Staff replied by hand to {customer_id}")
     await customer_memory.sync_to_github()
 

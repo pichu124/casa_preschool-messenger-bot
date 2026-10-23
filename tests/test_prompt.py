@@ -379,24 +379,33 @@ def test_system_prompt_only_teaches_known_quick_reply_keys():
     assert set(re.findall(r"\[QUICK:([^\]]*)\]", SYSTEM_PROMPT)) == QUICK_KEYS
 
 
-def test_cambridge_subjects_are_taught_per_system():
-    # Phản hồi đợt 4 (G2): hệ Quốc tế học đủ 3 môn English, Mathematics, Let's Explore; Kim Mã chỉ môn English.
+def test_prompt_never_puts_kim_ma_with_the_full_cambridge_programme():
+    # Phản hồi đợt 4 (G2), 5 (D2), 6: hệ Quốc tế học đủ English, Mathematics, Let's Explore; Kim Mã học môn English,
+    # còn lại theo 5 lĩnh vực Montessori. Từ đợt 7 chi tiết theo hệ nằm ở Q&A (tests/test_knowledge.py); prompt vẫn
+    # không được ghép Kim Mã với môn của hệ Quốc tế hay nói Kim Mã chỉ học English.
     assert "Understanding the World" not in SYSTEM_PROMPT
-    assert re.search(r"Quốc tế[^.;\n]{0,80}English[^.;\n]{0,10}Mathematics[^.;\n]{0,10}Let's Explore", SYSTEM_PROMPT)
-    assert re.search(r"Kim Mã[^.;\n]{0,40}English", SYSTEM_PROMPT)
+    assert "Kim Mã chỉ học" not in SYSTEM_PROMPT and "toán…" not in SYSTEM_PROMPT
     for clause in re.split(r"[.;\n]", SYSTEM_PROMPT):
         if "Kim Mã" in clause or "Song ngữ" in clause:
             assert "Mathematics" not in clause and "Let's Explore" not in clause, clause
 
 
-def test_kim_ma_is_not_taught_as_english_only():
-    # Phản hồi đợt 5 (D2) và 6: ngoài Cambridge môn English, Kim Mã học theo 5 lĩnh vực Montessori. Không liệt kê
-    # dở ("còn toán… theo Montessori"): model sẽ tự đoán phần còn thiếu.
-    assert "Kim Mã chỉ học" not in SYSTEM_PROMPT
-    assert re.search(r"Kim Mã[^.;\n]{0,40}English[^.;\n]{0,10}còn lại theo 5 lĩnh vực Montessori", SYSTEM_PROMPT)
-    assert "toán…" not in SYSTEM_PROMPT
-    kim_ma = [c for c in re.split(r"[.;\n]", SYSTEM_PROMPT) if "Kim Mã học" in c]
-    assert kim_ma and all("…" not in c for c in kim_ma), kim_ma
+# Phản hồi của trường (đợt 7): câu nhóm 3–6 tuổi từng kể chi tiết từng hệ ("hệ Quốc tế học trọn English –
+# Mathematics – Let's Explore, còn Kim Mã học môn English") khi phụ huynh chưa nói cơ sở. Trường muốn câu chung, rồi
+# hỏi cơ sở; chi tiết theo hệ chỉ khi đã biết cơ sở.
+def test_3_to_6_programme_is_told_in_general_until_the_campus_is_known(monkeypatch):
+    (line,) = [line for line in SYSTEM_PROMPT.splitlines() if line.strip().startswith("- 3–6 tuổi")]
+    assert "Cambridge Early Years kết hợp Montessori" in line, line
+    assert "thời lượng Cambridge theo từng chương trình/cơ sở" in line, line
+    assert re.search(r"Chưa biết cơ sở[^\n]*nói chung[^\n]*hỏi cơ sở[^\n]*biết rồi mới nói chi tiết", line), line
+    for detail in ("Mathematics", "Let's Explore", "Kim Mã", "Quốc tế", "Song ngữ"):
+        assert detail not in line, line
+    for reminder in _reminders(monkeypatch):
+        (rule,) = [r for r in reminder.splitlines() if "khác biệt giữa các hệ/cơ sở" in r]
+        assert re.search(r"Chưa biết cơ sở[^\n]*không tự kể khác biệt[^\n]*nói chung rồi hỏi cơ sở", rule), rule
+    # Ví dụ trả lời theo hệ thì đã biết cơ sở.
+    (english,) = [(parent, reply) for parent, reply in _examples() if "tieng anh" in parent]
+    assert "Mỹ Đình" in english[0] and "Kim Mã" not in english[1], english
 
 
 def test_system_prompt_instructions_stay_compact():
@@ -1155,3 +1164,21 @@ def test_eval_age_question_after_the_phone_is_specific():
     assert any("mấy tháng" in p for p in eval_chat.check_turn(turn, False, False, no_age, [turn.message]))
     starts = "Tư vấn viên sẽ liên hệ Ba/Mẹ sớm ạ. Bé nhà mình mấy tuổi và dự kiến đi học từ khi nào ạ?"
     assert any("đi học từ" in p for p in eval_chat.check_turn(turn, False, False, starts, [turn.message]))
+
+
+# Phản hồi của trường (đợt 7): hỏi thời lượng Cambridge (hệ Quốc tế), bot trả lời giờ tiếng Anh chung mà không nhắc Cambridge.
+
+def test_eval_cambridge_hours_must_name_cambridge_for_the_international_system():
+    (turn,) = eval_chat.SCENARIOS["cambridge_thoi_luong"]
+    assert turn.known.get("interested_campus") in ("Mỹ Đình", "Chùa Láng")
+    english_only = (
+        "Ở hệ Quốc tế, buổi sáng con có khoảng 2,5 giờ tiếng Anh, buổi chiều thêm 1–1,5 giờ ạ. Không biết Ba/Mẹ có "
+        "muốn ghé tham quan lớp một buổi không ạ? [QUICK:visit_invite]"
+    )
+    problems = eval_chat.check_turn(turn, False, False, english_only, [turn.message])
+    assert any("cambridge" in p for p in problems), problems
+    cambridge = (
+        "Dạ bé học Cambridge Early Years mỗi ngày khoảng 1,5–2 giờ: sáng English 30–40 phút, chiều Mathematics hoặc "
+        "Let's Explore. Không biết Ba/Mẹ có muốn ghé tham quan lớp một buổi không ạ? [QUICK:visit_invite]"
+    )
+    assert eval_chat.check_turn(turn, False, False, cambridge, [turn.message]) == []

@@ -264,6 +264,14 @@ SCENARIOS: dict[str, list[Turn]] = {
             agreed=True,
         ),
     ],
+    # Phản hồi của trường (đợt 7): hỏi thời gian học từng môn, bot trả lời giờ tiếng Anh chung mà không nhắc Cambridge.
+    "cambridge_thoi_luong": [
+        Turn(
+            "Cambridge học mấy tiếng một ngày",
+            known=VISIT_MD,
+            any_of=[("cambridge",), ("1,5", "english", "mathematics", "let's explore")],
+        ),
+    ],
     # "Tìm hiểu thêm" (mục 2f): hỏi Ba/Mẹ muốn biết thêm gì, chưa mời lại, chưa hỏi tuần/buổi.
     "tim_hieu_them": [
         Turn("bé nhà mình 3 tuổi, mình quan tâm cơ sở Mỹ Đình", known=FB_NAME),

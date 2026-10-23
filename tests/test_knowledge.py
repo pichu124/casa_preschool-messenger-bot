@@ -477,3 +477,76 @@ def test_playground_answer_does_not_claim_kim_ma_garden_play():
 
     assert "biệt thự sân vườn" not in _norm(reply)
     assert "facilities" in topics_in_reply(reply)
+
+
+# --- Phản hồi của trường, đợt 7 (sau khi thử bot) ------------------------------
+
+# Nhóm 3–6 tuổi: câu chung, không tự kể khác biệt giữa các cơ sở khi phụ huynh chưa nói cơ sở. Dữ kiện theo hệ vẫn ở
+# Q&A cho lúc đã biết cơ sở, sau một dấu hiệu cho model biết khi nào được nêu.
+GENERAL_3_TO_6 = (
+    "nhóm 3-6 tuổi tại casa học cambridge early years kết hợp montessori. nội dung và thời lượng cambridge sẽ được "
+    "triển khai phù hợp theo từng chương trình/cơ sở."
+)
+ONLY_WHEN_CAMPUS_KNOWN = "chi tiết theo hệ (chỉ nêu khi phụ huynh đã cho biết cơ sở hoặc hỏi đúng hệ/cơ sở đó)"
+GENERAL_PROGRAMME_QUESTIONS = [
+    "Hiện Casa đang áp dụng chương trình học nào?",
+    "Con học những môn gì ở trường?",
+    "Cambridge Early Years là gì?",
+    "Cambridge tại Casa có gì khác biệt?",
+]
+PER_SYSTEM = ("mathematics", "let's explore", "kim mã", "song ngữ")
+
+
+@pytest.mark.parametrize("question", GENERAL_PROGRAMME_QUESTIONS)
+def test_general_programme_answer_gives_the_3_to_6_line_before_any_per_system_detail(question):
+    answer = _norm(_pair_with_question(question)["answer"])
+
+    assert GENERAL_3_TO_6 in answer, answer
+    first_detail = min((answer.index(w) for w in PER_SYSTEM if w in answer), default=None)
+    if first_detail is not None:
+        assert ONLY_WHEN_CAMPUS_KNOWN in answer[:first_detail], answer
+
+
+def test_school_introduction_does_not_list_differences_between_systems():
+    answer = _norm(_pair_with_question("Casa dei Bambini là trường như thế nào?")["answer"])
+
+    assert "theo từng chương trình/cơ sở" in answer, answer
+    assert "học trọn 3 môn" not in answer and "kim mã học" not in answer, answer
+
+
+# Giáo viên nước ngoài được đào tạo cả chương trình Cambridge, không chỉ Montessori.
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Giáo viên nước ngoài có bằng cấp sư phạm hay Montessori không?",
+        "Đội ngũ giáo viên của Casa có kinh nghiệm không ạ?",
+        "Trường có giáo viên nước ngoài thật không ạ hay chỉ quảng cáo?",
+    ],
+)
+def test_foreign_teachers_are_trained_in_cambridge_and_montessori(question):
+    answer = _norm(_pair_with_question(question)["answer"])
+
+    assert re.search(r"(giáo viên|thầy cô) nước ngoài[^.]*đào tạo[^.]*cambridge early years", answer), answer
+    assert re.search(r"đào tạo[^.]*montessori|montessori[^.]*đào tạo", answer), answer
+
+
+# Thời lượng Cambridge, nguyên văn của trường, áp cho hệ Quốc tế; Kim Mã học môn English, thời lượng chờ trường.
+CAMBRIDGE_HOURS = (
+    "các bé 3-6 tuổi học cambridge early years hằng ngày từ thứ hai đến thứ sáu, với tổng thời lượng khoảng "
+    "1,5-2 giờ/ngày. buổi sáng các con có english khoảng 30-40 phút, sau đó tiếp tục hoạt động theo nhóm nhỏ, hoặc "
+    "cá nhân. buổi chiều, từ khoảng 14:45-16:00, các con học luân phiên mathematics hoặc let's explore theo thời "
+    'khóa biểu. như vậy cambridge không chỉ là một "tiết học riêng", mà được bố trí đều trong ngày và kết nối với '
+    "các hoạt động montessori, trải nghiệm và học nhóm nhỏ của con."
+)
+
+
+@pytest.mark.parametrize(
+    "question", ["Học Cambridge mấy tiếng một ngày?", "Thời gian học từng môn như thế nào?", "Mỗi ngày con học Cambridge bao lâu?"]
+)
+def test_cambridge_hours_answer_is_the_schools_wording_for_the_international_system(question):
+    answer = _norm(_pair_with_question(question)["answer"])
+
+    assert CAMBRIDGE_HOURS in answer, answer
+    assert answer.index("quốc tế") < answer.index(CAMBRIDGE_HOURS), answer
+    kim_ma = [s for s in _full_sentences(answer) if "kim mã" in s]
+    assert kim_ma and all("english" in s and "tư vấn viên" in s and not re.search(r"\d+ ?(giờ|phút)", s) for s in kim_ma)

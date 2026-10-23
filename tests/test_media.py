@@ -356,18 +356,18 @@ def test_fee_image_is_this_month_or_the_latest_month_before_it(google, months, t
 
 
 # Thư mục "HỌC PHÍ THÁNG N" không ghi năm: trường quên đổi ảnh tháng 11/2026 thì tháng 11/2027 ảnh đó không được coi
-# là ảnh tháng này. Ảnh sửa lần cuối hơn 6 tháng trước là ảnh cũ (stale, bot nhắc trường).
+# là ảnh tháng này. Ảnh sửa lần cuối hơn 300 ngày trước là ảnh cũ (stale, bot nhắc trường); học phí giữ nguyên vài tháng thì không.
 @pytest.mark.parametrize(
     ("modified", "old_since"),
     [
         ("2026-11-01T02:00:00.000Z", date(2026, 11, 1)),
-        ("2027-04-20T02:00:00.000Z", date(2027, 4, 20)),
-        ("2027-05-10T02:00:00.000Z", None),
+        ("2027-01-01T02:00:00.000Z", date(2027, 1, 1)),
+        ("2027-04-20T02:00:00.000Z", None),
         ("2027-10-30T09:00:00.000Z", None),
         (None, None),
     ],
 )
-def test_fee_image_last_changed_over_6_months_ago_is_stale(google, modified, old_since):
+def test_fee_image_last_changed_over_300_days_ago_is_stale(google, modified, old_since):
     google.files = [drive_file("fee-11", "hp.png", SN, "HỌC PHÍ THÁNG 11", modified=modified)]
     sync()
 

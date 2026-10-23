@@ -41,7 +41,7 @@ MAX_SIDE = 1600
 JPEG_QUALITY = 85
 CATALOG_FILE = "catalog.json"
 # "HỌC PHÍ THÁNG N" has no year: a fee image last changed longer ago than this is taken for last year's.
-FEE_STALE_AFTER = timedelta(days=183)
+FEE_STALE_AFTER = timedelta(days=300)
 # Timetable sent when the kid's age is unknown: 3–5 years, else the group holding 48 months.
 DEFAULT_AGES = (36, 60)
 DEFAULT_AGE_MONTHS = 48

@@ -654,7 +654,7 @@ TOPICS_OF_IMAGE = {"fee": FEE_TOPICS, "timetable": (PROGRAMME_TOPIC,), "faciliti
 # A message naming the timetable or Cambridge (as media.fold writes it) asks for the timetable whatever its topics:
 # the extraction tags Cambridge as "Tiếng Anh/GV nước ngoài" and a timetable as "Giờ học/…". "lịch học thử" is the
 # trial week.
-TIMETABLE_WORDS = re.compile(r"\bcambridge\b|\bthoi khoa bieu\b|\btkb\b|\blich hoc\b(?! thu)")
+TIMETABLE_WORDS = re.compile(r"\bcambridge\b|\bthoi (?:khoa|gian) bieu\b|\btkb\b|\blich hoc\b(?! thu)")
 # Timetable sent while the campus is unknown: the campus of the system the parent wants, else Mỹ Đình.
 DEFAULT_TIMETABLE_CAMPUS = {"quoc_te": "Mỹ Đình", "song_ngu": "Kim Mã"}
 FACILITY_IMAGES = 4

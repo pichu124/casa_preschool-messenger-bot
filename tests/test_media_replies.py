@@ -338,6 +338,12 @@ def test_timetable_without_a_campus_follows_the_programme_the_parent_wants(paren
     assert f"thời khoá biểu cơ sở {campus}" in parent.notes[-1]
 
 
+def test_daily_schedule_question_gets_the_timetable(parent, catalog):
+    known(interested_campus="Kim Mã", kid_age="4 tuổi")
+
+    assert parent.images(parent.say("Thời gian biểu trong ngày của bé thế nào ạ?")) == [url("km-tkb-36-72")]
+
+
 def test_trial_week_schedule_is_not_a_timetable_question(parent, catalog):
     assert parent.images(parent.say("lịch học thử tuần sau thế nào ạ")) == []
 

@@ -1644,6 +1644,22 @@
         "hủy dã ngoại",
         "đổi lịch"
       ]
+    },
+    {
+      "category": "Cơ sở & tuyển sinh",
+      "questions": [
+        "Số hotline của trường là gì?",
+        "Cho mình xin số điện thoại của trường",
+        "Gọi trường qua số nào ạ?",
+        "Muốn được tư vấn ngay thì gọi số nào?"
+      ],
+      "answer": "Hotline của Casa là 0989 059 838. Ba/Mẹ cần được tư vấn ngay có thể gọi số này để Casa hỗ trợ nhanh hơn ạ.",
+      "keywords": [
+        "hotline",
+        "số điện thoại trường",
+        "gọi trường",
+        "liên hệ"
+      ]
     }
   ]
 }

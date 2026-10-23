@@ -573,3 +573,11 @@ def test_weekend_visit_answer_offers_weekdays_and_promises_nothing(question):
     assert "thứ 2 đến thứ 6" in answer and "giờ hành chính" in answer, answer
     assert re.search(r"tư vấn viên[^.]*sắp xếp[^.]*xác nhận", answer), answer
     assert "được ạ" not in answer
+
+
+def test_hotline_is_in_qa_and_matches_the_handover_message():
+    # Phụ huynh hỏi số hotline thì bot trả lời từ Q&A (không chuyển tư vấn viên), cùng số với câu chuyển tư vấn viên.
+    from app.escalation import HOTLINE
+
+    answers = [p["answer"] for p in PAIRS if any("hotline" in q.lower() for q in p["questions"])]
+    assert answers and all(HOTLINE in a for a in answers)

@@ -176,3 +176,34 @@ def test_dashboard_escapes_every_parent_supplied_field():
     html = (Path(__file__).resolve().parent.parent / "app" / "dashboard.html").read_text(encoding="utf-8")
     assert "${m.user_name" not in html
     assert "escapeHtml(m.user_name" in html
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "số em 0912345678 125 Trung Kính",
+        "sđt 0912345678 - 2019",
+        "0912,345,678",
+        "0912/345/678",
+        "0912–345–678",
+        "0084 912 345 678",
+        "+84 912 345 678",
+    ],
+)
+def test_mask_phones_masks_the_parents_known_number_however_written(text):
+    masked = main.mask_phones(text, ("0912345678",))
+    assert "[SĐT]" in masked
+    assert "912" not in masked.replace("[SĐT]", "")
+
+
+def test_mask_phones_keeps_money_and_ages_with_a_known_number():
+    assert main.mask_phones("học phí 4.500.000, bé 3 tuổi", ("0912345678",)) == "học phí 4.500.000, bé 3 tuổi"
+
+
+def test_extract_prompt_does_not_ask_for_an_empty_object_when_only_topics_are_present():
+    import inspect
+
+    from app import ai_engine
+
+    source = inspect.getsource(ai_engine)
+    assert "không có thông tin hồ sơ mới và không có chủ đề nào thì trả về {}" in source

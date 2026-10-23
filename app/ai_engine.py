@@ -652,7 +652,7 @@ class AIEngine:
             f"nguyên văn trong: {', '.join(json.dumps(t, ensure_ascii=False) for t in TOPICS)}. Hỏi điều không thuộc "
             'chủ đề nào thì ["Khác"]. Tin chỉ là thông tin hồ sơ (SĐT, tuổi bé trả lời câu bot hỏi, bấm chọn buổi '
             'hay cơ sở) hoặc chỉ chào hỏi, cảm ơn thì "topics": []\n\n'
-            "CHỈ trả về JSON object. Nếu tin nhắn không chứa thông tin mới nào, trả về {}. "
+            "CHỈ trả về JSON object. Tin nhắn không có thông tin hồ sơ mới và không có chủ đề nào thì trả về {}. "
             "KHÔNG giải thích, KHÔNG markdown code block."
         )
         bot_context = f"Câu bot vừa hỏi: {last_bot_message}\n" if last_bot_message else ""

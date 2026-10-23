@@ -443,16 +443,26 @@ def _find_phone(value) -> str | None:
 PHONE_MASK = "[SĐT]"
 
 
-def mask_phones(text: str) -> str:
+def mask_phones(text: str, known: tuple = ()) -> str:
     """`text` with each DIGIT_RUN holding a phone number (as _find_phone sees it, parentheses read as spaces)
-    replaced by PHONE_MASK, so a question can be stored without the parent's number."""
+    replaced by PHONE_MASK, so a question can be stored without the parent's number. `known`: the parent's
+    numbers, also masked however they are written ("0912,345,678", "0912345678 125 Trung Kính", "+84 912…")."""
     spaced = re.sub(r"[()]", " ", text)
     parts, end = [], 0
     for run in DIGIT_RUN.finditer(spaced):
         if _phone_in_run(run.group()):
             parts += [text[end : run.start()], PHONE_MASK]
             end = run.end()
-    return "".join(parts) + text[end:]
+    text = "".join(parts) + text[end:]
+    for phone in known:
+        digits = re.sub(r"\D", "", str(phone or ""))
+        if len(digits) < 8:
+            continue
+        local = digits[1:] if digits.startswith("0") else digits[2:] if digits.startswith("84") else digits
+        sep = r"[\s.,/\-–—()]*"
+        body = sep.join(local)
+        text = re.sub(rf"(?<!\d)(?:(?:\+|00)?84{sep}|0{sep})?{body}(?!\d)", PHONE_MASK, text)
+    return text
 
 
 def _staff_reply(echo: dict) -> StaffReply | None:
@@ -594,7 +604,7 @@ async def publish_topics(customer_id: str, topics: list[str], escalated: bool, t
                 "kid_age": str(profile.get("kid_age") or ""),
                 "topics": ", ".join(topics),
                 "escalated": "Có" if escalated else "Không",
-                "question": mask_phones(text)[:TOPIC_QUESTION_MAX],
+                "question": mask_phones(text, (profile.get("phone"),))[:TOPIC_QUESTION_MAX],
             }
         )
     except Exception as e:
@@ -691,7 +701,7 @@ async def process_message(
             analytics.log_message(
                 user_id=sender_id,
                 user_name=full_name or user_name,
-                question=mask_phones(text),
+                question=mask_phones(text, (existing_profile.get("phone"), extracted.get("phone"), phone_from_qr)),
                 model_used=response.model_used,
                 escalated=escalated,
                 topics=topics,
@@ -722,10 +732,11 @@ async def process_message(
         except Exception as hist_err:
             logger.warning(f"Failed to persist conversation history: {hist_err}")
 
+        # Profiles first: a slow Sheet must not hold back the copy that survives a restart.
+        await customer_memory.sync_to_github()
+
         if topics:
             await publish_topics(sender_id, topics, escalated, text)
-
-        await customer_memory.sync_to_github()
 
     except Exception as e:
         logger.error(f"Error processing message from {sender_id}: {e}", exc_info=True)

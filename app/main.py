@@ -31,21 +31,22 @@ from app.escalation import (
     ESCALATION_HEADER,
     ESCALATION_MESSAGE_ASK_PHONE,
     ESCALATION_MESSAGE_HAS_PHONE,
-    ESCALATION_MESSAGE_PHONE_DECLINED,
+    ESCALATION_MESSAGE_UPSET,
+    ESCALATION_MESSAGE_UPSET_AGAIN,
     drop_pending_escalations,
     escalate_to_admin,
     get_pending_escalation,
+    has_pending_escalation,
     lead_events,
     normalize_phone,
     publish_lead_events,
-    resolve_escalation,
 )
 from app import analytics
 from app import customer_memory
 from app.coverage import topics_in_reply
 from app.leads_sheet import post_topic_row
 from app.topics import clean_topics
-from app.followup import run_followups
+from app.followup import HANDED_TO_CONSULTANT, run_followups
 
 logging.basicConfig(
     level=logging.INFO,
@@ -524,6 +525,8 @@ async def save_attribution(sender_id: str, attribution: dict):
 async def save_staff_reply(customer_id: str, replied_at: str):
     """Staff answered the parent by hand in the Page inbox: app/followup.py sends no follow-up after it. No reply."""
     customer_memory.set_fields(customer_id, {"staff_replied_at": replied_at})
+    # Answered outside Telegram: no card of this parent is waiting any more (see _answer_message, upset_again)
+    drop_pending_escalations(customer_id)
     logger.info(f"Staff replied by hand to {customer_id}")
     await customer_memory.sync_to_github()
 
@@ -569,10 +572,11 @@ def _clean_extracted(extracted: dict, phone_from_qr: str | None, text: str) -> d
     first), else the first one in `text` itself, so a number the parent typed is kept even when every model
     fails; it then also drops phone_declined. phone_declined is kept only as JSON true (models also return
     "false"); topics_covered is only ever what the bot replied with (topics_in_reply); topics are statistics of
-    one message (app/topics.py), not profile data."""
+    one message (app/topics.py) and upset is about this message, neither is profile data."""
     extracted = dict(extracted)
     extracted.pop("topics_covered", None)
     extracted.pop("topics", None)
+    extracted.pop("upset", None)
     phone = phone_from_qr or _find_phone(extracted.pop("phone", None))
     if not phone:
         phone = _find_phone(text)
@@ -611,9 +615,21 @@ async def publish_topics(customer_id: str, topics: list[str], escalated: bool, t
         logger.warning(f"Topic row for customer {customer_id} not sent: {type(e).__name__}")
 
 
+# sender_id -> lock held while one message of that parent is answered. Parents often send two short messages in a
+# row and Facebook posts each to /webhook on its own; answered at the same time, both read the history from before
+# either, so both got the first-message greeting and the second did not know what the first said.
+_sender_locks: dict[str, asyncio.Lock] = {}
+
+
 async def process_message(
     sender_id: str, text: str, attribution: dict | None = None, phone_from_qr: str | None = None
 ):
+    """Answer one parent message; one parent's messages are answered one at a time, in the order they came."""
+    async with _sender_locks.setdefault(sender_id, asyncio.Lock()):
+        await _answer_message(sender_id, text, attribution, phone_from_qr)
+
+
+async def _answer_message(sender_id: str, text: str, attribution: dict | None, phone_from_qr: str | None):
     """Process an incoming message and respond.
 
     attribution: ad/link referral fields that came with the message. phone_from_qr: the number the parent sent
@@ -651,27 +667,36 @@ async def process_message(
             ai_engine.extract_customer_info(text, existing_profile, last_bot_message=last_bot_message),
         )
         topics_given = extracted.get("topics")
+        # Only JSON true, as phone_declined: models also return "true"/"false"
+        upset = extracted.get("upset") is True
         extracted = _clean_extracted(extracted, phone_from_qr, text)
 
         logger.info(
             f"User {sender_id} ({user_name}): {len(text)} chars "
-            f"-> Model: {response.model_used}, Escalate: {response.should_escalate}, "
+            f"-> Model: {response.model_used}, Escalate: {response.should_escalate}, Upset: {upset}, "
             f"HasProfile: {bool(existing_profile)}, GapHours: {gap_hours:.1f}, HistoryLen: {len(history)}"
         )
 
-        escalated = response.should_escalate or not response.text
+        # Upset again right after a handover a consultant has yet to answer: a short line, not the same apology
+        # again nor a second card. Answered (Telegram replies are not in the history) → apology and a new card.
+        upset_again = upset and last_bot_message in HANDED_TO_CONSULTANT and has_pending_escalation(sender_id)
+        # An upset parent goes to a consultant with an apology, whatever the model replied
+        escalated = not upset_again and (response.should_escalate or not response.text or upset)
         topics = clean_topics(topics_given, escalated=escalated)
         covered = []
-        if escalated:
+        if upset_again:
+            reply_text = ESCALATION_MESSAGE_UPSET_AGAIN
+            await send_message(sender_id, reply_text)
+        elif escalated:
             await escalate_to_admin(
                 customer_id=sender_id,
                 customer_name=full_name,
                 question=text,
             )
-            if had_phone or extracted.get("phone"):
+            if upset:
+                reply_text = ESCALATION_MESSAGE_UPSET
+            elif had_phone or extracted.get("phone"):
                 reply_text = ESCALATION_MESSAGE_HAS_PHONE
-            elif extracted.get("phone_declined") or existing_profile.get("phone_declined"):
-                reply_text = ESCALATION_MESSAGE_PHONE_DECLINED
             else:
                 reply_text = ESCALATION_MESSAGE_ASK_PHONE
             await send_message(sender_id, reply_text)
@@ -934,6 +959,9 @@ async def handle_telegram_webhook(request: Request):
 
         # 2. Send to customer on Facebook Messenger
         await send_message(customer_id, formatted_reply)
+        # The parent got a consultant's answer: none of their cards is waiting any more (the answer often covers
+        # several; a later upset message must then reach a consultant again, see _answer_message).
+        drop_pending_escalations(customer_id)
 
         # 3. Classify Q&A with AI (category, keywords, similar questions)
         classification = await ai_engine.classify_qa(question, admin_text)
@@ -947,10 +975,6 @@ async def handle_telegram_webhook(request: Request):
 
         # 5. Rebuild AI context so it knows the new Q&A
         _rebuild_ai_context()
-
-        # 6. Mark escalation as resolved
-        if escalation:
-            resolve_escalation(original_msg_id)
 
         logger.info(f"Admin replied to escalation for {customer_name}: {admin_text[:100]}")
         return {"status": "ok"}

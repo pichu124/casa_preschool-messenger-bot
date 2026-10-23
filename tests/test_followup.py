@@ -26,6 +26,8 @@ from app.escalation import (
     ESCALATION_MESSAGE_ASK_PHONE,
     ESCALATION_MESSAGE_HAS_PHONE,
     ESCALATION_MESSAGE_PHONE_DECLINED,
+    ESCALATION_MESSAGE_UPSET,
+    ESCALATION_MESSAGE_UPSET_AGAIN,
 )
 
 client = TestClient(main.app)
@@ -224,6 +226,7 @@ DUE_CASES = [
     ("tin cuối: chuyển tư vấn viên, xin SĐT", profile(bot_text=ESCALATION_MESSAGE_ASK_PHONE), NOW, None),
     ("tin cuối: chuyển tư vấn viên, có SĐT", profile(bot_text=ESCALATION_MESSAGE_HAS_PHONE), NOW, None),
     ("tin cuối: chuyển tư vấn viên, từ chối SĐT", profile(bot_text=ESCALATION_MESSAGE_PHONE_DECLINED), NOW, None),
+    ("tin cuối: xin lỗi, chuyển tư vấn viên", profile(bot_text=ESCALATION_MESSAGE_UPSET), NOW, None),
     ("tin cuối là của phụ huynh", profile(last="user"), NOW, None),
     ("có phone", profile(kid_age="3 tuổi", phone=PHONE), NOW, None),
     ("có visit_request", profile(kid_age="3 tuổi", visit_request="tham quan sáng thứ 7"), NOW, None),
@@ -244,6 +247,88 @@ DUE_CASES = [
     ),
     ("chỉ có referral, không history", {"lead_source": "ads", "ad_title": "Học thử 1 tuần"}, NOW, None),
 ]
+
+
+def earlier(customer: dict, *messages: tuple[str, str, timedelta | None]) -> dict:
+    """`customer` có thêm các tin (role, nội dung, cách tin cuối của phụ huynh bao lâu; None: giờ không đọc được)
+    trước history của nó."""
+    history = customer["conversation_history"]
+    parent_at = datetime.fromisoformat(history[0]["timestamp"])
+    before = [
+        {"role": role, "content": content, "timestamp": (parent_at - ago).isoformat() if ago else "không phải ngày"}
+        for role, content, ago in messages
+    ]
+    return {**customer, "conversation_history": before + history}
+
+
+UPSET_TEXT = "sao cứ đòi số thế"
+KID = {"kid_age": "3 tuổi"}
+# Phụ huynh bực vì bị đòi số, bot xin lỗi và chuyển tư vấn viên, phụ huynh nhắn tiếp ("ừ nhanh nhé"), model trả lời
+# thường rồi phụ huynh im: tin cuối của bot không còn là câu xin lỗi, nhưng không được nhắc (xin SĐT) người vừa bực.
+UPSET_CASES = [
+    (
+        "xin lỗi rồi phụ huynh nhắn tiếp",
+        earlier(profile(**KID), ("user", UPSET_TEXT, 3 * M), ("assistant", ESCALATION_MESSAGE_UPSET, 2 * M)),
+        None,
+    ),
+    (
+        "xin lỗi 23 giờ trước tin cuối",
+        earlier(profile(**KID), ("user", UPSET_TEXT, 23 * H), ("assistant", ESCALATION_MESSAGE_UPSET, 23 * H)),
+        None,
+    ),
+    (
+        "xin lỗi hơn 24 giờ trước tin cuối: cuộc trò chuyện khác",
+        earlier(profile(**KID), ("user", UPSET_TEXT, 25 * H), ("assistant", ESCALATION_MESSAGE_UPSET, 25 * H)),
+        "ask_phone",
+    ),
+    ("câu xin lỗi không đọc được giờ", earlier(profile(**KID), ("assistant", ESCALATION_MESSAGE_UPSET, None)), None),
+    (
+        "chuyển tư vấn viên, bực tiếp nhận câu ngắn, rồi nhắn tiếp",
+        earlier(
+            profile(**KID),
+            ("assistant", ESCALATION_MESSAGE_ASK_PHONE, 4 * M),
+            ("user", UPSET_TEXT, 3 * M),
+            ("assistant", ESCALATION_MESSAGE_UPSET_AGAIN, 2 * M),
+        ),
+        None,
+    ),
+    ("tin cuối: câu ngắn cho phụ huynh bực tiếp", profile(**KID, bot_text=ESCALATION_MESSAGE_UPSET_AGAIN), None),
+    (
+        "chuyển tư vấn viên thường rồi nhắn tiếp: vẫn nhắc",
+        earlier(profile(**KID), ("assistant", ESCALATION_MESSAGE_ASK_PHONE, 2 * M)),
+        "ask_phone",
+    ),
+]
+
+
+# Câu chuyển tư vấn viên trước 9694fb8 (chưa có hotline), nguyên văn: phụ huynh được chuyển trước khi deploy bản mới
+# vẫn có câu này là tin cuối của bot.
+OLD_HANDOVERS = {
+    "có SĐT": (
+        "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, "
+        "tư vấn viên sẽ liên hệ và trả lời Ba/Mẹ trong thời gian sớm nhất ạ."
+    ),
+    "xin SĐT": (
+        "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, bộ phận sẽ phản "
+        "hồi Ba/Mẹ sớm nhất ạ. Nếu tiện, Ba/Mẹ để lại SĐT hoặc Zalo để tư vấn viên hỗ trợ Ba/Mẹ nhanh hơn nhé ạ."
+    ),
+    "từ chối SĐT": (
+        "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, "
+        "nhân viên tư vấn sẽ trả lời Ba/Mẹ trực tiếp tại đây sớm nhất ạ."
+    ),
+}
+
+
+@pytest.mark.parametrize("text", OLD_HANDOVERS.values(), ids=OLD_HANDOVERS.keys())
+def test_parent_handed_over_before_the_hotline_wording_gets_no_followup(text):
+    assert followup.due_followups({CID: profile(kid_age="3 tuổi", bot_text=text)}, NOW) == []
+
+
+@pytest.mark.parametrize(("customer", "template_key"), [c[1:] for c in UPSET_CASES], ids=[c[0] for c in UPSET_CASES])
+def test_parent_upset_in_this_conversation_gets_no_followup(customer, template_key):
+    expected = [(CID, template_key)] if template_key else []
+
+    assert followup.due_followups({CID: customer}, NOW) == expected
 
 
 @pytest.mark.parametrize(("customer", "now", "template_key"), [c[1:] for c in DUE_CASES], ids=[c[0] for c in DUE_CASES])

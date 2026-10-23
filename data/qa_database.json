@@ -8,7 +8,7 @@
         "Giới thiệu giúp em về Casa",
         "Trường mình dạy những độ tuổi nào?"
       ],
-      "answer": "Casa dei Bambini là hệ thống trường mầm non tại Hà Nội với 3 cơ sở: hệ Quốc tế tại Chùa Láng và Mỹ Đình, hệ Song ngữ tại Kim Mã. Trường nhận các con từ 15 tháng (đã đi vững) đến 6 tuổi, lộ trình khác nhau theo độ tuổi: từ 3–6 tuổi, các con học Cambridge Early Years (hệ Quốc tế học trọn 3 môn, Kim Mã học môn English) kết hợp phương pháp và giáo cụ Montessori; với bé dưới 3 tuổi, nhà trường tập trung xây dựng nền tảng ngôn ngữ, vận động, giác quan, tự lập và cảm xúc – xã hội.",
+      "answer": "Casa dei Bambini là hệ thống trường mầm non tại Hà Nội với 3 cơ sở: hệ Quốc tế tại Chùa Láng và Mỹ Đình, hệ Song ngữ tại Kim Mã. Trường nhận các con từ 15 tháng (đã đi vững) đến 6 tuổi, lộ trình khác nhau theo độ tuổi: nhóm 3–6 tuổi học Cambridge Early Years kết hợp phương pháp và giáo cụ Montessori, nội dung và thời lượng Cambridge triển khai phù hợp theo từng chương trình/cơ sở; với bé dưới 3 tuổi, nhà trường tập trung xây dựng nền tảng ngôn ngữ, vận động, giác quan, tự lập và cảm xúc – xã hội.",
       "keywords": [
         "giới thiệu",
         "Casa dei Bambini",
@@ -106,6 +106,22 @@
     {
       "category": "Cơ sở & tuyển sinh",
       "questions": [
+        "Thứ 7, Chủ nhật có tham quan trường được không?",
+        "Cuối tuần em qua xem trường được không?",
+        "Thứ 7 cho bé qua học thử được không?"
+      ],
+      "answer": "Casa làm việc từ thứ 2 đến thứ 6, nên Nhà trường mời Ba/Mẹ đưa bé qua tham quan hoặc học thử trong giờ hành chính các ngày này, khi các con đang học và sinh hoạt ở lớp. Cuối tuần cần sắp xếp riêng người đón tiếp nên không hẹn trước được; nếu Ba/Mẹ không sắp xếp được ngày trong tuần, em sẽ báo tư vấn viên sắp xếp và liên hệ xác nhận lại với Ba/Mẹ.",
+      "keywords": [
+        "tham quan",
+        "thứ 7",
+        "chủ nhật",
+        "cuối tuần",
+        "giờ hành chính"
+      ]
+    },
+    {
+      "category": "Cơ sở & tuyển sinh",
+      "questions": [
         "Có xem được đánh giá/feedback từ phụ huynh khác không ạ?",
         "Phụ huynh khác đánh giá trường thế nào?",
         "Trường có uy tín không?",
@@ -129,7 +145,7 @@
         "Kim Mã có học Cambridge không?",
         "Hệ Song ngữ có học Cambridge không?"
       ],
-      "answer": "Với trẻ 3–6 tuổi, Casa triển khai Cambridge Early Years là khung chương trình chính, đồng thời dùng phương pháp và giáo cụ Montessori để bổ trợ, tăng trải nghiệm thực hành và hỗ trợ trẻ theo nhịp độ riêng. Mức học Cambridge khác nhau theo hệ: hệ Quốc tế (Chùa Láng, Mỹ Đình) học trọn chương trình với 3 môn English, Mathematics, Let's Explore (khám phá khoa học và thế giới xung quanh), bao phủ đủ 6 lĩnh vực phát triển của Cambridge Early Years; hệ Song ngữ Kim Mã học Cambridge Early Years 1 môn English. Bên cạnh môn English, các con tiếp tục học theo phương pháp Montessori, phát triển theo 5 lĩnh vực của phương pháp, gồm ngôn ngữ, toán, thực hành cuộc sống, giác quan và văn hóa. Với trẻ 15 tháng–3 tuổi, các con chưa học Cambridge mà được xây nền tảng qua Montessori và các hoạt động phát triển ngôn ngữ, giác quan, vận động, tự lập, xã hội – cảm xúc.",
+      "answer": "Nhóm 3–6 tuổi tại Casa học Cambridge Early Years kết hợp Montessori. Nội dung và thời lượng Cambridge sẽ được triển khai phù hợp theo từng chương trình/cơ sở. Casa triển khai Cambridge Early Years là khung chương trình chính, đồng thời dùng phương pháp và giáo cụ Montessori để bổ trợ, tăng trải nghiệm thực hành và hỗ trợ trẻ theo nhịp độ riêng. Với trẻ 15 tháng–3 tuổi, các con chưa học Cambridge mà được xây nền tảng qua Montessori và các hoạt động phát triển ngôn ngữ, giác quan, vận động, tự lập, xã hội – cảm xúc. Chi tiết theo hệ (chỉ nêu khi phụ huynh đã cho biết cơ sở hoặc hỏi đúng hệ/cơ sở đó): hệ Quốc tế (Chùa Láng, Mỹ Đình) học trọn chương trình với 3 môn English, Mathematics, Let's Explore (khám phá khoa học và thế giới xung quanh), bao phủ đủ 6 lĩnh vực phát triển của Cambridge Early Years; hệ Song ngữ Kim Mã học Cambridge Early Years 1 môn English. Bên cạnh môn English, các con tiếp tục học theo phương pháp Montessori, phát triển theo 5 lĩnh vực của phương pháp, gồm ngôn ngữ, toán, thực hành cuộc sống, giác quan và văn hóa.",
       "keywords": [
         "chương trình học",
         "Cambridge Early Years",
@@ -184,7 +200,7 @@
         "Cambridge Early Years là gì?",
         "Chương trình Cambridge có tốt không?"
       ],
-      "answer": "Cambridge Early Years là chương trình dành cho trẻ 3–6 tuổi, hướng tới phát triển toàn diện thay vì chỉ tập trung vào kiến thức học thuật. Trẻ phát triển đồng thời ngôn ngữ và giao tiếp, tư duy toán học, khả năng khám phá thế giới, sáng tạo, thể chất và cá nhân – xã hội – cảm xúc. Trẻ học qua vui chơi, khám phá, trải nghiệm, giao tiếp và tương tác, phù hợp với cách trẻ mầm non học và phát triển. Tại Casa, hệ Quốc tế (Chùa Láng, Mỹ Đình) học trọn 3 môn English, Mathematics, Let's Explore; hệ Song ngữ Kim Mã học môn English.",
+      "answer": "Cambridge Early Years là chương trình dành cho trẻ 3–6 tuổi, hướng tới phát triển toàn diện thay vì chỉ tập trung vào kiến thức học thuật. Trẻ phát triển đồng thời ngôn ngữ và giao tiếp, tư duy toán học, khả năng khám phá thế giới, sáng tạo, thể chất và cá nhân – xã hội – cảm xúc. Trẻ học qua vui chơi, khám phá, trải nghiệm, giao tiếp và tương tác, phù hợp với cách trẻ mầm non học và phát triển. Nhóm 3–6 tuổi tại Casa học Cambridge Early Years kết hợp Montessori. Nội dung và thời lượng Cambridge sẽ được triển khai phù hợp theo từng chương trình/cơ sở. Chi tiết theo hệ (chỉ nêu khi phụ huynh đã cho biết cơ sở hoặc hỏi đúng hệ/cơ sở đó): hệ Quốc tế (Chùa Láng, Mỹ Đình) học trọn 3 môn English, Mathematics, Let's Explore; hệ Song ngữ Kim Mã học môn English.",
       "keywords": [
         "Cambridge Early Years",
         "chương trình",
@@ -199,7 +215,7 @@
         "Casa có những lĩnh vực học tập nào?",
         "Con học những môn gì ở trường?"
       ],
-      "answer": "Môn học Cambridge (dành cho trẻ 3–6 tuổi) khác nhau theo hệ. Hệ Quốc tế (Chùa Láng, Mỹ Đình) học trọn 3 môn English, Mathematics và Let's Explore: English gồm nghe, nói, giao tiếp, phonics và nền tảng đọc viết; Mathematics gồm số lượng, hình dạng, không gian, đo lường, dữ liệu và tư duy toán học; Let's Explore là khám phá khoa học, công nghệ, con người, thời gian và môi trường xung quanh. Qua các hoạt động trong ngày, trẻ hệ Quốc tế đồng thời phát triển đủ 6 lĩnh vực của Cambridge Early Years, gồm cả Creative Expression, Physical Development và Personal, Social & Emotional Development. Hệ Song ngữ Kim Mã học Cambridge môn English. Bên cạnh đó, các con tiếp tục học theo phương pháp Montessori, phát triển theo 5 lĩnh vực của phương pháp, gồm ngôn ngữ, toán, thực hành cuộc sống, giác quan và văn hóa. Trẻ 15 tháng–3 tuổi chưa học Cambridge mà được xây nền tảng qua Montessori.",
+      "answer": "Nhóm 3–6 tuổi tại Casa học Cambridge Early Years kết hợp Montessori. Nội dung và thời lượng Cambridge sẽ được triển khai phù hợp theo từng chương trình/cơ sở. Chi tiết theo hệ (chỉ nêu khi phụ huynh đã cho biết cơ sở hoặc hỏi đúng hệ/cơ sở đó): hệ Quốc tế (Chùa Láng, Mỹ Đình) học trọn 3 môn English, Mathematics và Let's Explore: English gồm nghe, nói, giao tiếp, phonics và nền tảng đọc viết; Mathematics gồm số lượng, hình dạng, không gian, đo lường, dữ liệu và tư duy toán học; Let's Explore là khám phá khoa học, công nghệ, con người, thời gian và môi trường xung quanh. Qua các hoạt động trong ngày, trẻ hệ Quốc tế đồng thời phát triển đủ 6 lĩnh vực của Cambridge Early Years, gồm cả Creative Expression, Physical Development và Personal, Social & Emotional Development. Hệ Song ngữ Kim Mã học Cambridge môn English. Bên cạnh đó, các con tiếp tục học theo phương pháp Montessori, phát triển theo 5 lĩnh vực của phương pháp, gồm ngôn ngữ, toán, thực hành cuộc sống, giác quan và văn hóa. Trẻ 15 tháng–3 tuổi chưa học Cambridge mà được xây nền tảng qua Montessori.",
       "keywords": [
         "English",
         "Mathematics",
@@ -212,12 +228,32 @@
     {
       "category": "Chương trình học",
       "questions": [
+        "Học Cambridge mấy tiếng một ngày?",
+        "Mỗi ngày con học Cambridge bao lâu?",
+        "Thời gian học từng môn như thế nào?",
+        "Thời lượng English, Mathematics, Let's Explore mỗi ngày là bao nhiêu?",
+        "Cambridge học vào những buổi nào trong ngày?"
+      ],
+      "answer": "Ở hệ Quốc tế (Chùa Láng, Mỹ Đình), các bé 3–6 tuổi học Cambridge Early Years hằng ngày từ thứ Hai đến thứ Sáu, với tổng thời lượng khoảng 1,5–2 giờ/ngày. Buổi sáng các con có English khoảng 30–40 phút, sau đó tiếp tục hoạt động theo nhóm nhỏ, hoặc cá nhân. Buổi chiều, từ khoảng 14:45–16:00, các con học luân phiên Mathematics hoặc Let's Explore theo thời khóa biểu. Như vậy Cambridge không chỉ là một \"tiết học riêng\", mà được bố trí đều trong ngày và kết nối với các hoạt động Montessori, trải nghiệm và học nhóm nhỏ của con. Ở hệ Song ngữ Kim Mã, các bé 3–6 tuổi học Cambridge Early Years môn English; thời lượng cụ thể tư vấn viên sẽ báo Ba/Mẹ.",
+      "keywords": [
+        "thời lượng",
+        "Cambridge",
+        "mấy tiếng",
+        "từng môn",
+        "English",
+        "Mathematics",
+        "Let's Explore"
+      ]
+    },
+    {
+      "category": "Chương trình học",
+      "questions": [
         "Cambridge tại Casa có gì khác biệt?",
         "Điểm khác biệt của chương trình Casa là gì?",
         "Điểm khác biệt của chương trình tiếng Anh Casa là gì?",
         "Sao nên chọn Casa?"
       ],
-      "answer": "Casa tập trung 3 điểm: (1) Cambridge Early Years cho trẻ 3–6 tuổi: hệ Quốc tế học trọn chương trình 3 môn English, Mathematics, Let's Explore; hệ Song ngữ Kim Mã học Cambridge môn English. (2) Môi trường tiếng Anh thường xuyên: ở hệ Quốc tế, giáo viên nước ngoài toàn thời gian giúp tiếng Anh hiện diện tự nhiên trong nhiều hoạt động trong ngày. (3) Cá nhân hóa trên nền tảng Montessori: bên cạnh giờ học chung, trẻ có thời gian làm việc cá nhân và nhóm nhỏ để giáo viên quan sát, hỗ trợ theo khả năng và nhịp độ của từng trẻ.",
+      "answer": "Casa tập trung 3 điểm: (1) Cambridge Early Years: Nhóm 3–6 tuổi tại Casa học Cambridge Early Years kết hợp Montessori. Nội dung và thời lượng Cambridge sẽ được triển khai phù hợp theo từng chương trình/cơ sở. (2) Môi trường tiếng Anh thường xuyên: ở hệ Quốc tế, giáo viên nước ngoài toàn thời gian giúp tiếng Anh hiện diện tự nhiên trong nhiều hoạt động trong ngày. (3) Cá nhân hóa trên nền tảng Montessori: bên cạnh giờ học chung, trẻ có thời gian làm việc cá nhân và nhóm nhỏ để giáo viên quan sát, hỗ trợ theo khả năng và nhịp độ của từng trẻ. Chi tiết theo hệ (chỉ nêu khi phụ huynh đã cho biết cơ sở hoặc hỏi đúng hệ/cơ sở đó): hệ Quốc tế học trọn chương trình 3 môn English, Mathematics, Let's Explore; hệ Song ngữ Kim Mã học Cambridge môn English.",
       "keywords": [
         "khác biệt",
         "Cambridge",
@@ -566,7 +602,7 @@
         "Điểm mạnh của đội ngũ giáo viên Casa là gì?",
         "Ai phụ trách chuyên môn của trường?"
       ],
-      "answer": "Đội ngũ chuyên môn của Casa có kinh nghiệm lâu năm: cô Lê Thị Yến (Giám đốc chuyên môn) có 19 năm kinh nghiệm giáo dục mầm non; cô Phùng Thị Thanh Vân có hơn 25 năm kinh nghiệm, trong đó 10 năm chuyên sâu Montessori. Giáo viên nước ngoài có chứng chỉ quốc tế (TESOL, TEFL, TYLEC) và kinh nghiệm tại nhiều trường quốc tế. Nhà trường coi trọng lòng yêu trẻ, sự kiên nhẫn, tinh thần trách nhiệm và thái độ làm việc chuyên nghiệp.",
+      "answer": "Đội ngũ chuyên môn của Casa có kinh nghiệm lâu năm: cô Lê Thị Yến (Giám đốc chuyên môn) có 19 năm kinh nghiệm giáo dục mầm non; cô Phùng Thị Thanh Vân có hơn 25 năm kinh nghiệm, trong đó 10 năm chuyên sâu Montessori. Giáo viên nước ngoài có chứng chỉ quốc tế (TESOL, TEFL, TYLEC), kinh nghiệm tại nhiều trường quốc tế và được trường đào tạo cả chương trình Cambridge Early Years lẫn phương pháp Montessori. Nhà trường coi trọng lòng yêu trẻ, sự kiên nhẫn, tinh thần trách nhiệm và thái độ làm việc chuyên nghiệp.",
       "keywords": [
         "đội ngũ",
         "kinh nghiệm",
@@ -581,7 +617,7 @@
         "Giáo viên nước ngoài tại Casa có bằng cấp chuyên môn không?",
         "Giáo viên nước ngoài có chứng chỉ gì?"
       ],
-      "answer": "Giáo viên nước ngoài có nền tảng bằng cấp khác nhau (TESOL, TEFL, TYLEC, sư phạm quốc tế…). Trước khi đứng lớp, mỗi thầy cô đều được đào tạo lại bài bản theo phương pháp Montessori, chương trình và quy trình vận hành riêng của trường, nên đều được chuẩn hóa theo cùng một tiêu chuẩn chất lượng.",
+      "answer": "Giáo viên nước ngoài có nền tảng bằng cấp khác nhau (TESOL, TEFL, TYLEC, sư phạm quốc tế…). Trước khi đứng lớp, mỗi thầy cô nước ngoài đều được đào tạo lại bài bản cả chương trình Cambridge Early Years lẫn phương pháp Montessori, cùng quy trình vận hành riêng của trường, nên đều được chuẩn hóa theo cùng một tiêu chuẩn chất lượng.",
       "keywords": [
         "giáo viên nước ngoài",
         "bằng cấp",
@@ -596,7 +632,7 @@
         "Trường có giáo viên nước ngoài thật không ạ hay chỉ quảng cáo?",
         "Trẻ được học với giáo viên nào?"
       ],
-      "answer": "Có. Các con học cùng giáo viên Việt Nam và giáo viên nước ngoài. Ở hệ Quốc tế, giáo viên nước ngoài đồng hành xuyên suốt cả ngày cùng các con tại lớp (8h30–17h00); ở hệ Song ngữ, giáo viên nước ngoài dạy theo khung giờ cố định. Thầy cô nước ngoài có chứng chỉ giảng dạy quốc tế (TESOL/TEFL) và kinh nghiệm thực tế nhiều năm; phụ huynh có thể đến tham quan để gặp trực tiếp thầy cô tại lớp.",
+      "answer": "Có. Các con học cùng giáo viên Việt Nam và giáo viên nước ngoài. Ở hệ Quốc tế, giáo viên nước ngoài đồng hành xuyên suốt cả ngày cùng các con tại lớp (8h30–17h00); ở hệ Song ngữ, giáo viên nước ngoài dạy theo khung giờ cố định. Thầy cô nước ngoài có chứng chỉ giảng dạy quốc tế (TESOL/TEFL), kinh nghiệm thực tế nhiều năm và được trường đào tạo cả chương trình Cambridge Early Years lẫn phương pháp Montessori; phụ huynh có thể đến tham quan để gặp trực tiếp thầy cô tại lớp.",
       "keywords": [
         "giáo viên nước ngoài",
         "giáo viên Việt Nam",

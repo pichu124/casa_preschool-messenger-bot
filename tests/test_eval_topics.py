@@ -147,15 +147,17 @@ def test_every_model_failing_is_inconclusive_not_wrong(monkeypatch, fake, capsys
     assert len(fake.calls) == 1  # dừng ở câu đầu tiên, không chấm tiếp
 
 
-def test_no_argument_runs_scenarios_and_topic_set(monkeypatch, fake, capsys):
+def test_no_argument_runs_scenarios_topic_set_and_upset_set(monkeypatch, fake, capsys):
     monkeypatch.setattr(eval_chat, "TOPIC_CASES", FIVE)
     monkeypatch.setattr(eval_chat, "SCENARIOS", {"hoc_phi_tin_dau": eval_chat.SCENARIOS["hoc_phi_tin_dau"]})
+    monkeypatch.setattr(eval_chat, "UPSET_CASES", [eval_chat.UpsetCase("hp bn ạ", upset=False)])
     fake.answers = dict(ALL_RIGHT)
 
     code = run([])
 
     out = capsys.readouterr().out
-    assert "===== hoc_phi_tin_dau =====" in out and "===== topics =====" in out
+    assert "===== hoc_phi_tin_dau =====" in out and "===== topics =====" in out and "===== upset =====" in out
+    assert "câu âm báo nhầm 0/1" in out
     assert "đúng hoàn toàn 5/5 (100%)" in out
     assert code == 0, out
 

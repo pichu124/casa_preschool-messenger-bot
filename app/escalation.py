@@ -39,22 +39,34 @@ LEAD_CARD_FIELD = "lead_card_msg_id"
 # customer_id -> lock held while sending that parent's lead card or a reply to it (_send_lead_telegram).
 _lead_locks: dict[str, asyncio.Lock] = {}
 
-# Sent to the parent on escalation; only invite a phone/Zalo number when we don't have one yet and the parent
-# has not declined to leave one (then the consultant's Telegram reply comes back here, in Messenger).
+HOTLINE = "0989 059 838"
+_HOTLINE_LINE = (
+    f"Nếu Ba/Mẹ cần được tư vấn ngay, mình có thể liên hệ Hotline {HOTLINE} để Casa hỗ trợ nhanh hơn nhé ạ."
+)
+# Sent to the parent on escalation, the school's wording. Every one gives the hotline; none asks for a phone number:
+# parents were annoyed at being asked again and again, and the hotline does that job. Without a number on file the
+# consultant's Telegram reply comes back here, in Messenger.
 ESCALATION_MESSAGE_HAS_PHONE = (
     "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! "
     "Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, "
-    "tư vấn viên sẽ liên hệ và trả lời Ba/Mẹ trong thời gian sớm nhất ạ."
+    "tư vấn viên sẽ liên hệ và trả lời Ba/Mẹ trong thời gian sớm nhất ạ.\n\n" + _HOTLINE_LINE
 )
 ESCALATION_MESSAGE_ASK_PHONE = (
     "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! "
-    "Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, bộ phận sẽ phản hồi Ba/Mẹ sớm nhất ạ. "
-    "Nếu tiện, Ba/Mẹ để lại SĐT hoặc Zalo để tư vấn viên hỗ trợ Ba/Mẹ nhanh hơn nhé ạ."
-)
-ESCALATION_MESSAGE_PHONE_DECLINED = (
-    "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! "
     "Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, "
-    "nhân viên tư vấn sẽ trả lời Ba/Mẹ trực tiếp tại đây sớm nhất ạ."
+    "nhân viên phụ trách sẽ hỗ trợ và phản hồi trực tiếp tại đây sớm nhất ạ.\n\n" + _HOTLINE_LINE
+)
+ESCALATION_MESSAGE_PHONE_DECLINED = ESCALATION_MESSAGE_ASK_PHONE
+# Instead of the model's reply when the parent is upset (extract_customer_info flags "upset"), the school's wording.
+ESCALATION_MESSAGE_UPSET = (
+    "Dạ em xin lỗi Ba/Mẹ vì sự bất tiện này ạ. "
+    "Em đã chuyển thông tin sang tư vấn viên phụ trách để hỗ trợ mình ngay tại đây. "
+    "Bên em sẽ gửi thông tin đầy đủ để Ba/Mẹ tiện xem và trao đổi ạ."
+)
+# Instead of a second apology and a second Telegram card, when the parent is upset again right after a handover.
+ESCALATION_MESSAGE_UPSET_AGAIN = (
+    "Dạ tư vấn viên đang xem và sẽ phản hồi Ba/Mẹ ngay tại đây ạ. "
+    f"Nếu cần gấp, Ba/Mẹ gọi Hotline {HOTLINE} giúp em nhé ạ."
 )
 
 # In-memory mapping: telegram_message_id -> escalation info
@@ -344,6 +356,11 @@ def resolve_escalation(telegram_msg_id: int):
     if telegram_msg_id in _pending:
         del _pending[telegram_msg_id]
         _save_pending()
+
+
+def has_pending_escalation(customer_id: str) -> bool:
+    """Whether a consultant has yet to answer one of this customer's escalations on Telegram."""
+    return any(pending.get("customer_id") == customer_id for pending in _pending.values())
 
 
 def drop_pending_escalations(customer_id: str) -> int:

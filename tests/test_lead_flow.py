@@ -1,7 +1,7 @@
 """Phễu xin SĐT nối với tư vấn viên.
 
-Phụ huynh để lại SĐT lần đầu thì nhóm Telegram nhận đúng một tin lead; câu chuyển tư vấn viên chỉ
-mời để lại số khi chưa có số; history ghi đúng câu đã gửi; mỗi tin nhắn đồng bộ customers.json lên
+Phụ huynh để lại SĐT lần đầu thì nhóm Telegram nhận đúng một tin lead; câu chuyển tư vấn viên kèm
+hotline, không xin số; history ghi đúng câu đã gửi; mỗi tin nhắn đồng bộ customers.json lên
 GitHub đúng một lần. process_message gọi thẳng bằng asyncio.run (repo không có pytest-asyncio).
 """
 
@@ -355,12 +355,23 @@ def test_reply_to_escalation_reaches_customer_after_pending_lost(monkeypatch, ad
 # --- Câu chuyển tư vấn viên, history, analytics, hồ sơ ---
 
 
-def test_escalation_without_phone_invites_phone_or_zalo(bot):
+# Phản hồi của trường sau khi thử bot (đợt 7): câu chuyển tư vấn viên luôn kèm hotline, và không xin SĐT nữa
+# (phụ huynh bực vì bị xin số nhiều lần; hotline thay vai trò đó). Nguyên văn của trường.
+HOTLINE_LINE = "Nếu Ba/Mẹ cần được tư vấn ngay, mình có thể liên hệ Hotline 0989 059 838 để Casa hỗ trợ nhanh hơn nhé ạ."
+SCHOOL_HANDOVER = (
+    "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, nhân viên phụ "
+    "trách sẽ hỗ trợ và phản hồi trực tiếp tại đây sớm nhất ạ.\n\n" + HOTLINE_LINE
+)
+
+
+@pytest.mark.parametrize("known_profile", [{}, {"phone_declined": True}], ids=["chưa có SĐT", "đã từ chối SĐT"])
+def test_escalation_without_phone_sends_the_school_handover_with_hotline(bot, known_profile):
+    customer_memory._customers[CUSTOMER_ID] = dict(known_profile)
+
     bot.say(QUESTION, reply="", escalate=True)
 
-    assert len(bot.sent) == 1
-    assert "tư vấn" in bot.sent[0]
-    assert "SĐT" in bot.sent[0] and "Zalo" in bot.sent[0]
+    assert bot.sent == [SCHOOL_HANDOVER]
+    assert not [word for word in ASK_PHONE_WORDS if word in bot.sent[0]]
     assert len(bot.escalations()) == 1
     assert bot.leads() == []
 
@@ -380,7 +391,8 @@ def test_escalation_with_phone_does_not_ask_for_it(bot, known_profile, text, ext
     bot.say(text, reply="", escalate=True, extracted=extracted)
 
     assert len(bot.sent) == 1
-    assert "tư vấn" in bot.sent[0]
+    assert "tư vấn viên sẽ liên hệ" in bot.sent[0]
+    assert bot.sent[0].endswith("ạ.\n\n" + HOTLINE_LINE), bot.sent[0]
     assert not [word for word in ASK_PHONE_WORDS if word in bot.sent[0]]
     assert len(bot.escalations()) == 1
     assert len(bot.leads()) == leads
@@ -388,6 +400,89 @@ def test_escalation_with_phone_does_not_ask_for_it(bot, known_profile, text, ext
 
 def last_analytics_record() -> dict:
     return json.loads(Path(analytics.ANALYTICS_PATH).read_text(encoding="utf-8").splitlines()[-1])
+
+
+# Phản hồi của trường (đợt 7): phụ huynh nhất quyết không để số, muốn nhận thông tin qua chat và tỏ ra khó chịu thì bot
+# không im, không vòng vo, mà chuyển tư vấn viên kèm câu xin lỗi nguyên văn này, dù model chat không [ESCALATE].
+UPSET_APOLOGY = (
+    "Dạ em xin lỗi Ba/Mẹ vì sự bất tiện này ạ. Em đã chuyển thông tin sang tư vấn viên phụ trách để hỗ trợ mình ngay "
+    "tại đây. Bên em sẽ gửi thông tin đầy đủ để Ba/Mẹ tiện xem và trao đổi ạ."
+)
+UPSET_TEXT = "Sao cứ đòi số thế, không cho số thì không tư vấn à? Gửi thông tin qua đây luôn đi"
+
+
+@pytest.mark.parametrize("known_profile", [{}, {"phone": PHONE}], ids=["chưa có SĐT", "đã có SĐT"])
+def test_upset_parent_gets_the_apology_and_a_consultant(bot, known_profile):
+    customer_memory._customers[CUSTOMER_ID] = dict(known_profile)
+
+    bot.say(UPSET_TEXT, reply=MODEL_TEXT, escalate=False, extracted={"upset": True, "phone_declined": True})
+
+    assert bot.sent == [UPSET_APOLOGY]
+    (card,) = bot.escalations()
+    assert CUSTOMER_ID in card and UPSET_TEXT in card
+    assert escalation._pending[8001]["customer_id"] == CUSTOMER_ID
+    profile = customer_memory.get_profile(CUSTOMER_ID)
+    assert "upset" not in profile
+    assert profile["phone_declined"] is True
+    assert customer_memory.get_conversation_history(CUSTOMER_ID)[-1] == {"role": "assistant", "content": UPSET_APOLOGY}
+    assert last_analytics_record()["escalated"] is True
+    assert last_analytics_record()["topics"] == ["Khác"]
+
+
+# Phụ huynh đã được chuyển tư vấn viên mà còn bực tiếp: không gửi lại nguyên câu xin lỗi, không thêm thẻ Telegram
+# (lead viết câu này, 2026-10-23).
+UPSET_AGAIN = (
+    "Dạ tư vấn viên đang xem và sẽ phản hồi Ba/Mẹ ngay tại đây ạ. Nếu cần gấp, Ba/Mẹ gọi Hotline 0989 059 838 giúp "
+    "em nhé ạ."
+)
+
+
+def test_upset_again_after_the_apology_gets_a_short_line_and_no_second_card(bot):
+    bot.say(UPSET_TEXT, reply=MODEL_TEXT, extracted={"upset": True, "phone_declined": True})
+    bot.say("vẫn chưa thấy ai, gửi qua đây đi", reply=MODEL_TEXT, extracted={"upset": True})
+    bot.say("hỏi mãi mà không ai trả lời", reply="", escalate=True, extracted={"upset": True})
+
+    assert bot.sent == [UPSET_APOLOGY, UPSET_AGAIN, UPSET_AGAIN]
+    assert len(bot.escalations()) == 1
+    assert list(escalation._pending) == [8001]
+    history = customer_memory.get_conversation_history(CUSTOMER_ID)
+    assert [m["content"] for m in history if m["role"] == "assistant"] == [UPSET_APOLOGY, UPSET_AGAIN, UPSET_AGAIN]
+    assert last_analytics_record()["escalated"] is False
+
+
+@pytest.mark.parametrize(
+    "handover",
+    [
+        escalation.ESCALATION_MESSAGE_ASK_PHONE,
+        escalation.ESCALATION_MESSAGE_HAS_PHONE,
+        # Câu chuyển tư vấn viên trước 9694fb8, còn là tin cuối của phụ huynh được chuyển trước khi deploy
+        "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, "
+        "nhân viên tư vấn sẽ trả lời Ba/Mẹ trực tiếp tại đây sớm nhất ạ.",
+    ],
+    ids=["chưa có SĐT", "có SĐT", "câu cũ"],
+)
+def test_upset_right_after_any_handover_gets_the_short_line_and_no_card(bot, handover):
+    customer_memory._customers[CUSTOMER_ID] = {
+        "conversation_history": [
+            {"role": "user", "content": QUESTION, "timestamp": "2026-10-23T03:00:00"},
+            {"role": "assistant", "content": handover, "timestamp": "2026-10-23T03:00:05"},
+        ]
+    }
+    escalation._pending[8000] = {"customer_id": CUSTOMER_ID, "customer_name": FB_NAME, "question": QUESTION}
+
+    bot.say(UPSET_TEXT, reply=MODEL_TEXT, extracted={"upset": True})
+
+    assert bot.sent == [UPSET_AGAIN]
+    assert bot.escalations() == []
+
+
+@pytest.mark.parametrize("upset", ["true", 1, False])
+def test_upset_flag_counts_only_as_json_true(bot, upset):
+    bot.say(UPSET_TEXT, extracted={"upset": upset})
+
+    assert bot.sent == [MODEL_TEXT]
+    assert bot.escalations() == []
+    assert "upset" not in customer_memory.get_profile(CUSTOMER_ID)
 
 
 @pytest.mark.parametrize(
@@ -488,3 +583,54 @@ def test_unexpected_error_sends_apology_with_diacritics(monkeypatch, bot):
 
     assert len(bot.sent) == 1
     assert "sự cố" in bot.sent[0]
+
+
+def test_upset_after_the_consultant_answered_gets_an_apology_and_a_new_card(bot):
+    # Admin trả lời qua Telegram không vào lịch sử: tin cuối của bot vẫn là câu chuyển. Không còn escalation chờ thì
+    # phụ huynh bực phải được xin lỗi và có thẻ mới, không phải câu "tư vấn viên đang xem".
+    bot.say(QUESTION, reply="", escalate=True)
+    assert len(bot.escalations()) == 1
+    escalation.resolve_escalation(8001)
+    bot.say("hỏi mãi, gửi bảng giá qua đây luôn", extracted={"upset": True})
+    assert bot.sent[-1] == escalation.ESCALATION_MESSAGE_UPSET
+    assert len(bot.escalations()) == 2
+
+
+def test_upset_after_the_consultant_answered_one_of_two_cards_gets_an_apology_and_a_new_card(bot, monkeypatch):
+    # Hai câu liền nhau đều được chuyển (thẻ 8001, 8002); tư vấn viên trả lời gộp vào thẻ 8002 qua /telegram-webhook.
+    # Thẻ 8001 không được còn "chờ": phụ huynh bực sau đó phải được xin lỗi và có thẻ mới.
+    monkeypatch.setattr(settings, "TELEGRAM_WEBHOOK_SECRET", WEBHOOK_SECRET)
+
+    async def fake_format_admin_reply(admin_text, question):
+        return admin_text
+
+    async def fake_classify_qa(question, answer):
+        return {}
+
+    async def fake_add_qa_pair(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(main.ai_engine, "format_admin_reply", fake_format_admin_reply)
+    monkeypatch.setattr(main.ai_engine, "classify_qa", fake_classify_qa)
+    monkeypatch.setattr(main.qa_db, "add_qa_pair", fake_add_qa_pair)
+
+    bot.say(QUESTION, reply="", escalate=True)
+    bot.say("Lớp có mấy cô ạ?", reply="", escalate=True)
+    assert sorted(escalation._pending) == [8001, 8002]
+
+    update = {
+        "update_id": 11,
+        "message": {
+            "message_id": 8200,
+            "chat": {"id": -1001, "type": "supergroup"},
+            "text": ADMIN_TEXT,
+            "reply_to_message": {"message_id": 8002, "text": bot.telegram[1]},
+        },
+    }
+    resp = client.post("/telegram-webhook", json=update, headers={"X-Telegram-Bot-Api-Secret-Token": WEBHOOK_SECRET})
+    assert resp.json() == {"status": "ok"}
+    assert escalation._pending == {}
+
+    bot.say("hỏi mãi, gửi bảng giá qua đây luôn", extracted={"upset": True})
+    assert bot.sent[-1] == escalation.ESCALATION_MESSAGE_UPSET
+    assert len(bot.escalations()) == 3

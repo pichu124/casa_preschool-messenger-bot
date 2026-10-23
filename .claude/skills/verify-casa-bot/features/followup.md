@@ -66,4 +66,5 @@ Preconditions:
 - Giờ Việt Nam ngoài 8–20 (ngoài 01:00–13:59 UTC) → `due: 0` với mọi phụ huynh, kể cả trong slot.
 - Harness chạy app với `TZ=UTC` như Render; lịch sử lưu `datetime.now()` không múi giờ, `app/followup.py` đọc là UTC.
 - Phụ huynh đã được chuyển tư vấn viên bị loại vì tin cuối của bot là câu chuyển tiếp; nếu câu chuyển tiếp đổi chữ mà `HANDED_TO_CONSULTANT` không đổi theo thì phụ huynh đó sẽ bị nhắc: kiểm bằng hành trình trên.
+- Phụ huynh đã nhận câu xin lỗi `ESCALATION_MESSAGE_UPSET` trong 24 giờ tính tới tin cuối của họ cũng bị loại, kể cả khi họ nhắn tiếp và tin cuối của bot là câu trả lời thường (`UPSET …` rồi một tin bất kỳ, tua vào slot → không có trong `followups`).
 - `/test-chat` cũng tạo hồ sơ có lịch sử (`user_id` mặc định `test_user`) và có thể đến hạn; không dùng nó trong hành trình này.

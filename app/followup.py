@@ -14,6 +14,8 @@ from app.escalation import (
     ESCALATION_MESSAGE_ASK_PHONE,
     ESCALATION_MESSAGE_HAS_PHONE,
     ESCALATION_MESSAGE_PHONE_DECLINED,
+    ESCALATION_MESSAGE_UPSET,
+    ESCALATION_MESSAGE_UPSET_AGAIN,
 )
 from app.messenger import send_message
 
@@ -29,7 +31,22 @@ SEND_SLOT = timedelta(hours=2)  # due from latest send - 2h: 3+ runs at minutes 
 MIN_SILENCE = timedelta(hours=3)
 SEND_HOURS_VN = range(8, 21)  # 8:00 to 20:59 Vietnam time
 # The consultant has the conversation: no follow-up after these.
-HANDED_TO_CONSULTANT = (ESCALATION_MESSAGE_HAS_PHONE, ESCALATION_MESSAGE_ASK_PHONE, ESCALATION_MESSAGE_PHONE_DECLINED)
+HANDED_TO_CONSULTANT = (
+    ESCALATION_MESSAGE_HAS_PHONE,
+    ESCALATION_MESSAGE_ASK_PHONE,
+    ESCALATION_MESSAGE_PHONE_DECLINED,
+    ESCALATION_MESSAGE_UPSET,
+    ESCALATION_MESSAGE_UPSET_AGAIN,
+    # Before 9694fb8 (no hotline): still the last bot message of parents handed over before that deploy
+    "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, "
+    "tư vấn viên sẽ liên hệ và trả lời Ba/Mẹ trong thời gian sớm nhất ạ.",
+    "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, bộ phận sẽ phản "
+    "hồi Ba/Mẹ sớm nhất ạ. Nếu tiện, Ba/Mẹ để lại SĐT hoặc Zalo để tư vấn viên hỗ trợ Ba/Mẹ nhanh hơn nhé ạ.",
+    "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, "
+    "nhân viên tư vấn sẽ trả lời Ba/Mẹ trực tiếp tại đây sớm nhất ạ.",
+)
+# Sent only to a parent upset at being asked for a phone number (app/main.py)
+TO_UPSET_PARENT = (ESCALATION_MESSAGE_UPSET, ESCALATION_MESSAGE_UPSET_AGAIN)
 
 # The school's wording, verbatim, under the school's labels (_template_key picks one).
 TEMPLATES = {
@@ -110,6 +127,13 @@ def _is_due(profile: dict, now_utc: datetime) -> bool:
     latest_send = _latest_send(parent_at)
     if not latest_send - SEND_SLOT <= now_utc <= latest_send:
         return False
+    # Upset in this conversation (the 24 hours up to the parent's last message), even if the parent wrote on: the
+    # follow-up asks for the phone number they were upset about. An unreadable time counts as recent.
+    for m in history:
+        if m.get("role") == "assistant" and m.get("content") in TO_UPSET_PARENT:
+            at = _as_utc(m.get("timestamp"))
+            if at is None or at >= parent_at - MESSENGER_WINDOW:
+                return False
     # Already followed up, or staff answered by hand in the Page inbox (app/main.py), since the parent's last message
     for key in ("followup_sent_at", "staff_replied_at"):
         if key in profile:

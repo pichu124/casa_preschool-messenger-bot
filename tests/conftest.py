@@ -66,6 +66,7 @@ def isolate(monkeypatch, tmp_path):
     monkeypatch.setattr(main.ai_engine, "system_prompt", main.ai_engine.system_prompt)
     monkeypatch.setattr(main, "_processed_fb_mids", set())
     monkeypatch.setattr(main, "_processed_tg_mids", set())
+    monkeypatch.setattr(main, "_sender_locks", {})
 
     monkeypatch.setattr(analytics, "ANALYTICS_PATH", str(tmp_path / "analytics.jsonl"))
     monkeypatch.setattr(escalation, "PENDING_ESCALATIONS_PATH", str(tmp_path / "pending_escalations.json"))

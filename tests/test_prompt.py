@@ -174,6 +174,26 @@ def test_extract_prompt_asks_for_topics_of_this_message_from_the_fixed_list(monk
     assert re.search(r"SĐT[^\n]*tuổi bé[^\n]*buổi[^\n]*cơ sở[^\n]*\"topics\": \[\]", rule), rule
 
 
+# Phản hồi của trường (đợt 7): phụ huynh khó chịu, gay gắt đòi thông tin qua chat thì chuyển tư vấn viên kèm lời xin
+# lỗi. Model chat có trần ký tự; model trích xuất nhận diện việc này và trả cờ "upset" (không phải trường hồ sơ).
+def test_extract_prompt_flags_an_upset_parent(monkeypatch):
+    recorder = RecordingProvider('{"upset": true, "phone_declined": true}')
+    engine = make_engine(monkeypatch, fake=recorder)
+
+    info = asyncio.run(engine.extract_customer_info("sao cứ đòi số thế, gửi qua đây luôn đi"))
+
+    assert info == {"upset": True, "phone_declined": True}
+    (rule,) = [line for line in recorder.system_prompt.splitlines() if '"upset"' in line]
+    # Cả ba điều kiện cùng lúc, đúng ý trường (mục 2g.2): khi cờ bật, main gửi câu xin lỗi thay mọi câu của model.
+    assert re.search(r'"upset": true CHỈ khi[^\n]*không muốn để[^\n]*qua chat[^\n]*VÀ[^\n]*khó chịu', rule), rule
+    # Ca CARE (chê đắt, so sánh trường) và lo lắng thường thì bot phải tự tư vấn, không xin lỗi rồi chuyển.
+    not_upset = rule.split("KHÔNG tính", 1)[1]
+    for case in ("chê đắt", "so sánh", "khóc", "ăn", "an toàn", "hỏi lại", "lịch sự"):
+        assert case in not_upset, case
+    assert "phàn nàn" not in rule
+    assert "upset" not in ai_engine.PROFILE_FIELDS
+
+
 def test_classify_qa_parses_json_after_reasoning(monkeypatch):
     payload = {"category": "Xe đưa đón", "keywords": ["xe bus"], "similar_questions": ["Có xe đón không?"]}
     engine = make_engine(monkeypatch, r1=FakeProvider(f"<think>Phân loại.</think>{json.dumps(payload, ensure_ascii=False)}"))
@@ -365,24 +385,49 @@ def test_system_prompt_only_teaches_known_quick_reply_keys():
     assert set(re.findall(r"\[QUICK:([^\]]*)\]", SYSTEM_PROMPT)) == QUICK_KEYS
 
 
-def test_cambridge_subjects_are_taught_per_system():
-    # Phản hồi đợt 4 (G2): hệ Quốc tế học đủ 3 môn English, Mathematics, Let's Explore; Kim Mã chỉ môn English.
+def test_prompt_never_puts_kim_ma_with_the_full_cambridge_programme():
+    # Phản hồi đợt 4 (G2), 5 (D2), 6: hệ Quốc tế học đủ English, Mathematics, Let's Explore; Kim Mã học môn English,
+    # còn lại theo 5 lĩnh vực Montessori. Từ đợt 7 chi tiết theo hệ nằm ở Q&A (tests/test_knowledge.py); prompt vẫn
+    # không được ghép Kim Mã với môn của hệ Quốc tế hay nói Kim Mã chỉ học English.
     assert "Understanding the World" not in SYSTEM_PROMPT
-    assert re.search(r"Quốc tế[^.;\n]{0,80}English[^.;\n]{0,10}Mathematics[^.;\n]{0,10}Let's Explore", SYSTEM_PROMPT)
-    assert re.search(r"Kim Mã[^.;\n]{0,40}English", SYSTEM_PROMPT)
+    assert "Kim Mã chỉ học" not in SYSTEM_PROMPT and "toán…" not in SYSTEM_PROMPT
     for clause in re.split(r"[.;\n]", SYSTEM_PROMPT):
         if "Kim Mã" in clause or "Song ngữ" in clause:
             assert "Mathematics" not in clause and "Let's Explore" not in clause, clause
 
 
-def test_kim_ma_is_not_taught_as_english_only():
-    # Phản hồi đợt 5 (D2) và 6: ngoài Cambridge môn English, Kim Mã học theo 5 lĩnh vực Montessori. Không liệt kê
-    # dở ("còn toán… theo Montessori"): model sẽ tự đoán phần còn thiếu.
-    assert "Kim Mã chỉ học" not in SYSTEM_PROMPT
-    assert re.search(r"Kim Mã[^.;\n]{0,40}English[^.;\n]{0,10}còn lại theo 5 lĩnh vực Montessori", SYSTEM_PROMPT)
-    assert "toán…" not in SYSTEM_PROMPT
-    kim_ma = [c for c in re.split(r"[.;\n]", SYSTEM_PROMPT) if "Kim Mã học" in c]
-    assert kim_ma and all("…" not in c for c in kim_ma), kim_ma
+# Phản hồi của trường (đợt 7): câu nhóm 3–6 tuổi từng kể chi tiết từng hệ ("hệ Quốc tế học trọn English –
+# Mathematics – Let's Explore, còn Kim Mã học môn English") khi phụ huynh chưa nói cơ sở. Trường muốn câu chung, rồi
+# hỏi cơ sở; chi tiết theo hệ chỉ khi đã biết cơ sở.
+def test_3_to_6_programme_is_told_in_general_until_the_campus_is_known(monkeypatch):
+    (line,) = [line for line in SYSTEM_PROMPT.splitlines() if line.strip().startswith("- 3–6 tuổi")]
+    assert "Cambridge Early Years kết hợp Montessori" in line, line
+    assert "thời lượng Cambridge theo từng chương trình/cơ sở" in line, line
+    assert re.search(r"Chưa biết cơ sở[^\n]*nói chung[^\n]*hỏi cơ sở[^\n]*biết rồi mới nói chi tiết", line), line
+    for detail in ("Mathematics", "Let's Explore", "Kim Mã", "Quốc tế", "Song ngữ"):
+        assert detail not in line, line
+    for reminder in _reminders(monkeypatch):
+        (rule,) = [r for r in reminder.splitlines() if "khác biệt giữa các hệ/cơ sở" in r]
+        assert re.search(r"Chưa biết cơ sở[^\n]*không tự kể khác biệt[^\n]*nói chung rồi hỏi cơ sở", rule), rule
+    # Ví dụ trả lời theo hệ thì đã biết cơ sở.
+    (english,) = [(parent, reply) for parent, reply in _examples() if "tieng anh" in parent]
+    assert "Mỹ Đình" in english[0] and "Kim Mã" not in english[1], english
+
+
+# Phản hồi của trường (đợt 7): trường làm việc thứ 2–6, cuối tuần phải sắp xếp riêng một cô. Bot từng trả lời "Em báo
+# tư vấn viên xếp mẹ ghé thứ 7 ạ…". Khéo mời qua giờ hành chính thứ 2–6, không bao giờ hứa cuối tuần; phụ huynh không
+# sắp xếp được thì báo tư vấn viên sắp xếp và liên hệ xác nhận, xin SĐT nếu chưa có.
+WEEKEND = re.compile(
+    r"thứ 2–6[^\n]*thứ 7/Chủ nhật[^\n]*KHÔNG hứa[^\n]*giờ hành chính thứ 2–6[^\n]*tư vấn viên[^\n]*sắp xếp[^\n]*xác nhận"
+)
+
+
+def test_weekend_visit_is_never_promised_and_weekdays_are_offered(monkeypatch):
+    assert WEEKEND.search(SYSTEM_PROMPT)
+    for reminder in _reminders(monkeypatch):
+        (line,) = [line for line in reminder.splitlines() if "thứ 7/Chủ nhật" in line]
+        assert WEEKEND.search(line), line
+        assert re.search(r"chưa có SĐT[^\n]*xin SĐT/Zalo", line), line
 
 
 def test_system_prompt_instructions_stay_compact():
@@ -1062,7 +1107,7 @@ def test_prompt_never_teaches_lua_for_a_child():
 
 # Review 2026-10-22: phụ huynh hỏi học phí, gửi tuổi + cơ sở, bot xin số; phụ huynh không gửi, không từ chối rõ mà hỏi
 # lại "em cứ báo con số luôn đi". Extract chỉ đặt phone_declined khi từ chối rõ, nên ca này không phải ca "từ chối cho
-# số": bot không được nêu số, không được xin lại ngay, nên phải [ESCALATE] (main gửi kèm lời xin SĐT/Zalo).
+# số": bot không được nêu số, không được xin lại ngay, nên phải [ESCALATE] (main gửi câu chuyển kèm hotline).
 NO_PHONE_FEES = re.compile(r"không để lại số khi được xin hoặc từ chối cho số[^\n]*học phí")
 
 
@@ -1141,3 +1186,55 @@ def test_eval_age_question_after_the_phone_is_specific():
     assert any("mấy tháng" in p for p in eval_chat.check_turn(turn, False, False, no_age, [turn.message]))
     starts = "Tư vấn viên sẽ liên hệ Ba/Mẹ sớm ạ. Bé nhà mình mấy tuổi và dự kiến đi học từ khi nào ạ?"
     assert any("đi học từ" in p for p in eval_chat.check_turn(turn, False, False, starts, [turn.message]))
+
+
+# Kịch bản eval cho phản hồi đợt 7: tham quan cuối tuần.
+WEEKEND_ASK = "Mẹ qua thứ 7 được k nhỉ"
+
+
+def _turn(scenario: str, message: str):
+    (turn,) = [t for t in eval_chat.SCENARIOS[scenario] if t.message == message]
+    return turn
+
+
+def test_eval_flags_promising_a_weekend_visit_and_accepts_inviting_on_weekdays():
+    turn = _turn("tham_quan_cuoi_tuan", WEEKEND_ASK)
+    production = "Dạ được ạ, em báo tư vấn viên xếp mẹ ghé thứ 7 rồi gọi xác nhận giờ ạ."
+    problems = eval_chat.check_turn(turn, False, False, production, [turn.message])
+    assert any("được ạ" in p for p in problems) and any("thứ 2" in p for p in problems), problems
+    weekdays = (
+        "Dạ cuối tuần trường phải sắp xếp riêng nên em chưa dám hẹn trước ạ. Mẹ có thể qua từ thứ 2 đến thứ 6 trong "
+        "giờ hành chính không ạ?"
+    )
+    assert eval_chat.check_turn(turn, False, False, weekdays, [turn.message]) == []
+
+
+def test_eval_parent_who_cannot_come_on_weekdays_is_passed_to_a_consultant():
+    turns = eval_chat.SCENARIOS["tham_quan_cuoi_tuan"]
+    turn = turns[-1]
+    assert turns[-2].message == WEEKEND_ASK and not turn.known.get("phone")
+    messages = [t.message for t in turns]
+    promised = "Dạ được ạ, thứ 7 em xếp cho Mẹ ghé nhé."
+    assert eval_chat.check_turn(turn, False, False, promised, messages)
+    noted = (
+        "Dạ vậy em báo tư vấn viên sắp xếp rồi liên hệ xác nhận với Mẹ ạ. Nếu tiện, Mẹ để lại SĐT/Zalo để tư vấn viên "
+        "gọi nhé? [QUICK:phone]"
+    )
+    assert eval_chat.check_turn(turn, False, False, noted, messages) == []
+
+
+# Phản hồi của trường (đợt 7): hỏi thời lượng Cambridge (hệ Quốc tế), bot trả lời giờ tiếng Anh chung mà không nhắc Cambridge.
+def test_eval_cambridge_hours_must_name_cambridge_for_the_international_system():
+    (turn,) = eval_chat.SCENARIOS["cambridge_thoi_luong"]
+    assert turn.known.get("interested_campus") in ("Mỹ Đình", "Chùa Láng")
+    english_only = (
+        "Ở hệ Quốc tế, buổi sáng con có khoảng 2,5 giờ tiếng Anh, buổi chiều thêm 1–1,5 giờ ạ. Không biết Ba/Mẹ có "
+        "muốn ghé tham quan lớp một buổi không ạ? [QUICK:visit_invite]"
+    )
+    problems = eval_chat.check_turn(turn, False, False, english_only, [turn.message])
+    assert any("cambridge" in p for p in problems), problems
+    cambridge = (
+        "Dạ bé học Cambridge Early Years mỗi ngày khoảng 1,5–2 giờ: sáng English 30–40 phút, chiều Mathematics hoặc "
+        "Let's Explore. Không biết Ba/Mẹ có muốn ghé tham quan lớp một buổi không ạ? [QUICK:visit_invite]"
+    )
+    assert eval_chat.check_turn(turn, False, False, cambridge, [turn.message]) == []

@@ -451,7 +451,7 @@ def sync_summary(report: dict, today_vn: date) -> str:
             older.append(f"{label} đang dùng {fee_in_use(fee)}")
     if missing:
         note = f" ({', '.join(older)})" if older else ""
-        lines.append(f"⚠️ Chưa có học phí tháng {today_vn.month}: {', '.join(missing)}{note}")
+        lines.append(f"⚠️ Chưa có ảnh học phí mới tháng {today_vn.month}: {', '.join(missing)}{note}")
     if report["skipped"]:
         lines.append(f"⚠️ Bỏ qua {len(report['skipped'])} file không đúng quy ước thư mục: {_listed(report['skipped'])}")
     if report["failed"]:

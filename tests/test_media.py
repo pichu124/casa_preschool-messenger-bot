@@ -505,7 +505,7 @@ def test_capnhatanh_syncs_now_and_reports_counts_to_the_admin_group(admin_group)
     assert "Cơ sở vật chất: Chùa Láng 6, Mỹ Đình 7, Kim Mã 5" in text
     assert "Thực đơn: Quốc tế 1, Song ngữ 1" in text
     assert "HỆ QUỐC TẾ/logo.png" in text
-    assert "Chưa có học phí" not in text
+    assert "Chưa có ảnh học phí mới" not in text
 
 
 def test_capnhatanh_warns_when_this_months_fee_image_is_missing(admin_group):
@@ -517,7 +517,7 @@ def test_capnhatanh_warns_when_this_months_fee_image_is_missing(admin_group):
     command()
 
     (sent,) = admin_group.telegram
-    assert f"Chưa có học phí tháng {month}: Quốc tế, Song ngữ (Song ngữ đang dùng tháng {previous})" in sent["text"]
+    assert f"Chưa có ảnh học phí mới tháng {month}: Quốc tế, Song ngữ (Song ngữ đang dùng tháng {previous})" in sent["text"]
 
 
 def test_capnhatanh_warns_when_this_months_fee_image_is_last_years(admin_group):
@@ -531,7 +531,7 @@ def test_capnhatanh_warns_when_this_months_fee_image_is_last_years(admin_group):
 
     (sent,) = admin_group.telegram
     assert (
-        f"Chưa có học phí tháng {month}: Quốc tế, Song ngữ (Song ngữ đang dùng tháng {month} sửa lần cuối "
+        f"Chưa có ảnh học phí mới tháng {month}: Quốc tế, Song ngữ (Song ngữ đang dùng tháng {month} sửa lần cuối "
         f"{last_year:%d/%m/%Y})" in sent["text"]
     )
 

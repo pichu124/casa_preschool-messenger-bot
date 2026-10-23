@@ -1238,6 +1238,8 @@ def test_timetable_being_sent_answers_a_schedule_question_without_escalating(mon
     line = _reminder(with_note).splitlines()[-1]
     assert line.startswith("- [HỆ THỐNG] Sau câu trả lời này hệ thống gửi ảnh thời khoá biểu cơ sở Kim Mã."), line
     assert re.search(r"lịch học[^.]*giờ[^.]*trả lời chung[^.]*KHÔNG \[ESCALATE\][^.]*không tự nêu giờ", line), line
+    # Chỉ lịch trong tuần: lịch hè, Tết, học bù không có trong thời khoá biểu nên vẫn chuyển tư vấn viên.
+    assert re.search(r"Lịch hè/Tết/học bù[^.]*vẫn \[ESCALATE\]", line), line
     assert "ESCALATE" not in maybe.splitlines()[-1] and "lịch học" not in maybe.splitlines()[-1], maybe
     assert "ESCALATE" not in media_note([ImageNote("fee", "học phí hệ Song ngữ (cơ sở Kim Mã)")]).splitlines()[-1]
     escalate = next(l for l in _reminder(with_note).splitlines() if "BẮT BUỘC trả lời chính xác chuỗi [ESCALATE]" in l)

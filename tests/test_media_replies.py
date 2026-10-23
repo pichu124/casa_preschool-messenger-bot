@@ -275,6 +275,7 @@ def test_last_years_fee_image_of_this_month_is_sent_and_the_school_is_reminded(p
 
     (reminder,) = [t for t in parent.telegram if "HỌC PHÍ THÁNG 11" in t]
     assert "Song ngữ" in reminder and "ảnh tháng 11 sửa lần cuối 01/11/2026" in reminder, reminder
+    assert "đổi tên hay chuyển thư mục không tính là ảnh mới" in reminder, reminder
 
 
 def test_fee_asked_again_in_the_same_month_does_not_send_next_month_unasked(parent, catalog, today):

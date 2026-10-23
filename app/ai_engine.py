@@ -139,8 +139,8 @@ MEDIA_NOTE_HEADER = (
 # question that the Q&A alone would escalate ("lịch chi tiết"). Not on "Nếu phụ huynh hỏi …" lines.
 IMAGE_ANSWERS = {
     "timetable": (
-        "Hỏi lịch học/thời khoá biểu/giờ trong ngày → trả lời chung, báo em gửi thời khoá biểu, KHÔNG [ESCALATE], "
-        "không tự nêu giờ ngoài Q&A."
+        "Hỏi lịch học trong tuần/thời khoá biểu/giờ trong ngày → trả lời chung, báo em gửi thời khoá biểu, KHÔNG "
+        "[ESCALATE], không tự nêu giờ ngoài Q&A. Lịch hè/Tết/học bù không có trong Q&A thì vẫn [ESCALATE]."
     ),
 }
 FACILITIES_NEED_CAMPUS = (

@@ -14,6 +14,7 @@ from app.escalation import (
     ESCALATION_MESSAGE_ASK_PHONE,
     ESCALATION_MESSAGE_HAS_PHONE,
     ESCALATION_MESSAGE_PHONE_DECLINED,
+    ESCALATION_MESSAGE_UPSET,
 )
 from app.messenger import send_message
 
@@ -29,7 +30,12 @@ SEND_SLOT = timedelta(hours=2)  # due from latest send - 2h: 3+ runs at minutes 
 MIN_SILENCE = timedelta(hours=3)
 SEND_HOURS_VN = range(8, 21)  # 8:00 to 20:59 Vietnam time
 # The consultant has the conversation: no follow-up after these.
-HANDED_TO_CONSULTANT = (ESCALATION_MESSAGE_HAS_PHONE, ESCALATION_MESSAGE_ASK_PHONE, ESCALATION_MESSAGE_PHONE_DECLINED)
+HANDED_TO_CONSULTANT = (
+    ESCALATION_MESSAGE_HAS_PHONE,
+    ESCALATION_MESSAGE_ASK_PHONE,
+    ESCALATION_MESSAGE_PHONE_DECLINED,
+    ESCALATION_MESSAGE_UPSET,
+)
 
 # The school's wording, verbatim, under the school's labels (_template_key picks one).
 TEMPLATES = {

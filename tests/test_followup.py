@@ -26,6 +26,7 @@ from app.escalation import (
     ESCALATION_MESSAGE_ASK_PHONE,
     ESCALATION_MESSAGE_HAS_PHONE,
     ESCALATION_MESSAGE_PHONE_DECLINED,
+    ESCALATION_MESSAGE_UPSET,
 )
 
 client = TestClient(main.app)
@@ -224,6 +225,7 @@ DUE_CASES = [
     ("tin cuối: chuyển tư vấn viên, xin SĐT", profile(bot_text=ESCALATION_MESSAGE_ASK_PHONE), NOW, None),
     ("tin cuối: chuyển tư vấn viên, có SĐT", profile(bot_text=ESCALATION_MESSAGE_HAS_PHONE), NOW, None),
     ("tin cuối: chuyển tư vấn viên, từ chối SĐT", profile(bot_text=ESCALATION_MESSAGE_PHONE_DECLINED), NOW, None),
+    ("tin cuối: xin lỗi, chuyển tư vấn viên", profile(bot_text=ESCALATION_MESSAGE_UPSET), NOW, None),
     ("tin cuối là của phụ huynh", profile(last="user"), NOW, None),
     ("có phone", profile(kid_age="3 tuổi", phone=PHONE), NOW, None),
     ("có visit_request", profile(kid_age="3 tuổi", visit_request="tham quan sáng thứ 7"), NOW, None),

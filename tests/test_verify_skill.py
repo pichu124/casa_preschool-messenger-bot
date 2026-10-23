@@ -336,3 +336,30 @@ def test_outbox_cuts_the_gemini_system_instruction():
 
     assert cut["systemInstruction"]["parts"][0]["text"] == "x" * 200 + "…(5000 chars)"
     assert cut["contents"] == body["contents"]
+
+
+def test_fake_apps_script_lists_the_school_drive_tree_and_every_file_is_classified(monkeypatch):
+    from app import media
+
+    monkeypatch.setattr(fake, "args", SimpleNamespace(scenario=str(SKILL / "harness" / "scenario.default.json"), port=1))
+
+    code, out, _ = fake.route("POST", "script.google.com", "/macros/s/FAKE/exec", {}, {"type": "media", "token": "t"})
+
+    assert (code, out["ok"], len(out["files"])) == (200, True, 30)
+    kinds = [media.classify(f["path"], f["name"])["kind"] for f in out["files"]]
+    assert sorted(set(kinds)) == ["facilities", "fee", "menu", "timetable"]
+
+
+def test_fake_drive_redirects_like_drive_then_serves_an_image(monkeypatch):
+    from io import BytesIO
+
+    from PIL import Image
+
+    monkeypatch.setattr(fake, "args", SimpleNamespace(scenario=str(SKILL / "harness" / "scenario.default.json"), port=1))
+
+    code, _, extra = fake.route("GET", "drive.google.com", "/uc", {}, None, {"export": "download", "id": "qt-menu"})
+    assert (code, extra["location"]) == (303, "http://127.0.0.1:1/drive.usercontent.google.com/download?id=qt-menu&export=download")
+    code, data, _ = fake.route("GET", "drive.usercontent.google.com", "/download", {}, None, {"id": "qt-menu"})
+    assert code == 200
+    with Image.open(BytesIO(data)) as img:
+        assert (img.format, img.size) == ("PNG", (64, 48))

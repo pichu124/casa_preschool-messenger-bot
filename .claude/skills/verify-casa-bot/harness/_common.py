@@ -89,6 +89,14 @@ def summarize(rec: dict) -> str | None:
             reply = f" reply_to={reply_to}" if reply_to else ""
             return f"{seq} TG  sendMessage message_id={mid}{reply} header={first!r}"
         return f"{seq} TG  {rec['path']} {json.dumps(body, ensure_ascii=False)}"
+    if host == "script.google.com" and (body or {}).get("type") == "media":
+        files = (rec.get("response") or {}).get("files") if isinstance(rec.get("response"), dict) else None
+        listed = f" files={len(files)}" if isinstance(files, list) else ""
+        return f"{seq} SHEET {json.dumps({k: body.get(k) for k in ('type', 'token')}, ensure_ascii=False)}{listed}"
+    if host in ("drive.google.com", "drive.usercontent.google.com"):
+        file_id = (rec.get("query") or {}).get("id")
+        what = rec.get("location") or rec.get("response")
+        return f"{seq} DRIVE {method} {host}{rec['path']} id={file_id} -> {what}"
     if host == "script.google.com":
         keys = ("event", "customer_id", "phone", "visit_request", "stage", "token")
         if (body or {}).get("type") == "topic":

@@ -11,6 +11,7 @@ Mỗi file là một tính năng người dùng (phụ huynh, tư vấn viên tr
 | Tin nhắc lại phụ huynh im lặng | [followup.md](followup.md) | `POST /followup/run` |
 | Dashboard, thống kê, xuất Excel | [dashboard-export.md](dashboard-export.md) | `/dashboard`, `/customers/export` |
 | File tĩnh, Messenger profile, đăng ký webhook | [static-messenger-profile.md](static-messenger-profile.md) | `/static/*`, `/setup-*`, `GET /webhook` |
+| Ảnh từ Google Drive: đồng bộ, danh mục, `/capnhatanh` | [media.md](media.md) | khởi động, `POST /telegram-webhook`, `GET /media` |
 
 ## Điều kiện nền
 

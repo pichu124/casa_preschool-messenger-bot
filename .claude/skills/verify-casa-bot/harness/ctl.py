@@ -73,10 +73,10 @@ def app_python(source: Path) -> str:
         pass
     candidates += [Path(p) for p in (shutil.which("python3"), shutil.which("python")) if p]
     for c in candidates:
-        probe = [str(c), "-c", "import fastapi, uvicorn, httpx, openai"]
+        probe = [str(c), "-c", "import fastapi, uvicorn, httpx, openai, PIL"]
         if c.exists() and subprocess.run(probe, capture_output=True).returncode == 0:
             return str(c)
-    sys.exit("no Python with fastapi/uvicorn/httpx/openai: python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt")
+    sys.exit("no Python with fastapi/uvicorn/httpx/openai/Pillow: python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt")
 
 
 def alive(pid: int) -> bool:
@@ -135,6 +135,9 @@ def app_env(state: dict, overrides: dict) -> dict:
         "LEADS_SHEET_TOKEN": f"fake-sheet-token-{rid}",
         "FOLLOWUP_ENABLED": "false",
         "TOPICS_SHEET_ENABLED": "false",
+        "MEDIA_SYNC_ENABLED": "false",  # --env MEDIA_SYNC_ENABLED=true: sync from the fake Apps Script and Drive
+        "MEDIA_SYNC_MINUTES": "30",
+        "MEDIA_DIR": "static/media",
         "GITHUB_TOKEN": f"fake-github-token-{rid}",
         "CUSTOMERS_GITHUB_REPO": "fake-owner/fake-private-customers",
         "OPENAI_API_KEY": f"fake-openai-key-{rid}",

@@ -169,3 +169,10 @@ def test_dashboard_shows_topics_and_escalated_questions_and_where_full_figures_a
         assert key in html, key
     assert "top_categories" not in html
     assert "tính từ lần khởi động gần nhất" in html and "Google Sheet" in html
+
+
+def test_dashboard_escapes_every_parent_supplied_field():
+    # Tên Facebook do phụ huynh tự đặt: chèn thẳng vào innerHTML là XSS trên trình duyệt người xem dashboard.
+    html = (Path(__file__).resolve().parent.parent / "app" / "dashboard.html").read_text(encoding="utf-8")
+    assert "${m.user_name" not in html
+    assert "escapeHtml(m.user_name" in html

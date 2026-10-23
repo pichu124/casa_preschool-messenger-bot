@@ -290,7 +290,7 @@ function renderMessages(messages) {
     const question = (m.question || '').length > 60 ? m.question.slice(0, 60) + '...' : m.question;
     return `<tr>
       <td>${time}</td>
-      <td>${m.user_name || 'Ẩn danh'}</td>
+      <td>${escapeHtml(m.user_name || 'Ẩn danh')}</td>
       <td>${escapeHtml(question)}</td>
       <td>${escapeHtml(topicsText(m.topics))}</td>
       <td>${badge}</td>

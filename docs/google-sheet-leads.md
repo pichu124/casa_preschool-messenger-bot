@@ -2,7 +2,7 @@
 
 Mỗi sự kiện lead, bot báo vào nhóm Telegram đang dùng và cùng lúc ghi vào Google Sheet. Mỗi phụ huynh (Customer ID) chỉ có **một thẻ** Telegram và **một hàng** Sheet:
 
-- Telegram: lead đầu tiên của phụ huynh là thẻ đầy đủ (tiêu đề theo bảng dưới). Thay đổi sau đó là tin ngắn **trả lời vào thẻ đó**, chỉ nêu phần đổi, vd `🔄 Lan Thử: Hẹn: tham quan buổi sáng → tham quan sáng mai`, `🔄 Lan Thử: SĐT: 0900000401 → 0911000402`, `🔄 Lan Thử: để lại SĐT 0900000401`, kèm giờ Việt Nam. Thẻ bị xoá khỏi nhóm thì lần sau bot gửi thẻ đầy đủ mới và các thay đổi sau trả lời vào thẻ mới. Reply thẻ hay tin ngắn không gửi gì tới phụ huynh.
+- Telegram: lead đầu tiên của phụ huynh là thẻ đầy đủ (tiêu đề theo bảng dưới). Thay đổi sau đó là tin ngắn **trả lời vào thẻ đó**, chỉ nêu phần đổi, vd `🔄 Lan Thử: Hẹn: tham quan buổi sáng → tham quan sáng mai`, `🔄 Lan Thử: SĐT: 0900000401 → 0911000402`, `🔄 Lan Thử: để lại SĐT 0900000401`, `🔄 Lan Thử: Dự kiến nhập học: tháng 12`, `🔄 Lan Thử: Tuổi bé: dưới 2 tuổi → 2 tuổi; Khu vực: Cầu Giấy`, kèm giờ Việt Nam. Một tin của phụ huynh là tối đa một tin Telegram: đổi hẹn và nói tuổi bé trong cùng tin là một tin ngắn `🔄 Lan Thử: Hẹn: … → …; Tuổi bé: 3 tuổi`. Thẻ bị xoá khỏi nhóm thì lần sau bot gửi thẻ đầy đủ mới và các thay đổi sau trả lời vào thẻ mới. Reply thẻ hay tin ngắn không gửi gì tới phụ huynh.
 - Sheet: hàng đầu tiên thêm khi có lead đầu tiên; mỗi sự kiện sau cập nhật đúng hàng đó (mọi cột theo dữ liệu mới, "Sự kiện" là sự kiện mới nhất), giữ "Lần đầu liên hệ".
 
 | Sự kiện | Khi nào | Tiêu đề thẻ Telegram (khi là lead đầu tiên) |
@@ -11,6 +11,7 @@ Mỗi sự kiện lead, bot báo vào nhóm Telegram đang dùng và cùng lúc 
 | `new_phone` | Phụ huynh để lại SĐT lần đầu | 📞 KHÁCH ĐỂ LẠI SĐT |
 | `phone_changed` | Phụ huynh gửi SĐT khác số đã có (so theo chữ số, nên cùng số viết khác kiểu không tính) | 📞 KHÁCH ĐỔI SĐT |
 | `visit_request` | Phụ huynh chốt hẹn tham quan/học thử mới hoặc khác lần trước | 📅 KHÁCH HẸN THAM QUAN/HỌC THỬ |
+| `info_update` (Sheet nhận chữ `Cập nhật thông tin`) | Phụ huynh đã là lead (đã có SĐT hoặc hẹn) nói thêm hoặc đổi tên bé, tuổi bé, cơ sở/hệ, khu vực/địa chỉ, dự kiến nhập học hay mối quan tâm (so không phân biệt hoa thường, khoảng trắng), và tin đó không có sự kiện nào ở trên; có thì phần đổi thông tin đi cùng sự kiện đó | 📝 KHÁCH CẬP NHẬT THÔNG TIN (khi Telegram chưa có thẻ của phụ huynh) |
 
 Bot POST JSON tới một web app Google Apps Script gắn với Sheet (`app/leads_sheet.py`). Sheet lỗi hoặc chưa cấu hình thì phụ huynh vẫn nhận trả lời và Telegram vẫn nhận tin; log Render chỉ ghi loại sự kiện và customer_id, không ghi SĐT hay URL web app.
 
@@ -21,7 +22,7 @@ Bot gửi các khóa dưới đây (cùng `token`), trừ hai cột cuối do sc
 | Khóa | Cột | Nội dung |
 |---|---|---|
 | `time` | Thời gian | Giờ Việt Nam lúc bot gửi sự kiện mới nhất, `YYYY-MM-DD HH:MM:SS` |
-| `event` | Sự kiện | Sự kiện mới nhất: SĐT mới / Đổi SĐT / Hẹn tham quan/học thử |
+| `event` | Sự kiện | Sự kiện mới nhất: SĐT mới / Đổi SĐT / Hẹn tham quan/học thử / Cập nhật thông tin. Bot gửi sẵn chữ `Cập nhật thông tin` (không phải mã như `new_phone`) và `cell()` hiện nguyên chữ của sự kiện không có trong `EVENT_LABELS`, nên script đã deploy không cần sửa |
 | `fb_name` | Tên Facebook | Tên trên Facebook của phụ huynh |
 | `customer_id` | Customer ID | ID Messenger của khách (PSID) |
 | `phone` | SĐT | SĐT/Zalo hiện tại trong hồ sơ |

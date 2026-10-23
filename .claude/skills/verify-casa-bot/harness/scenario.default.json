@@ -17,6 +17,7 @@
     {"kind": "extract", "contains": "PHONE_B", "reply": {"phone": "0987654321"}},
     {"kind": "extract", "contains": "VISIT_AM", "reply": {"visit_request": "tham quan buổi sáng"}},
     {"kind": "extract", "contains": "VISIT_TOMORROW", "reply": {"visit_request": "tham quan sáng mai"}},
+    {"kind": "extract", "contains": "START_DEC", "reply": {"expected_start": "tháng 12"}},
     {"kind": "extract", "contains": "Em muốn hẹn tham quan buổi sáng", "reply": {"visit_request": "tham quan buổi sáng"}},
     {"kind": "extract", "contains": "Em muốn đặt lịch tham quan trường", "reply": {"visit_request": "tham quan trường"}},
     {"kind": "extract", "contains": "Bé nhà em 2-3 tuổi", "reply": {"kid_age": "2-3 tuổi"}},

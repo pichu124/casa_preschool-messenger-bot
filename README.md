@@ -171,6 +171,33 @@ Ket qua `{"due": n, "sent": m, "enabled": true|false}`; `verbose=1` them danh sa
 
 Muc "Chu de phu huynh hoi (7 ngay)": model trich xuat gan moi tin cua phu huynh vao cac chu de co dinh trong `app/topics.py` (Hoc phi, Uu dai, Xe dua don, ...; tin chi tra loi ho so nhu SDT, tuoi be thi khong co chu de; tin chuyen tu van vien khong co chu de thi la "Khac"). Bang "Cau chuyen tu van vien gan day" liet ke 10 cau moi nhat. Cau hoi luu trong `analytics.jsonl` da che SDT thanh `[SĐT]`. Hai muc nay cung tinh tu `analytics.jsonl` (mat khi Render khoi dong lai); so lieu day du nam o tab "Chu de" tren Google Sheet (muc 8, `TOPICS_SHEET_ENABLED`).
 
+### 12. Anh tu Google Drive (`app/media.py`, mac dinh TAT)
+
+Bot tu dong bo anh tu thu muc Google Drive "Anh cho Chatbot" cua truong (chia se "ai co link deu xem duoc"): truong doi anh tren Drive la bot dung anh moi, khong can sua code. Bot goi chinh web app Apps Script cua Sheet lead (muc 8, body `type: "media"`) de lay danh sach anh, tai anh moi hoac da doi, thu nho con canh dai toi da 1600 px (JPEG) va phuc vu CONG KHAI tai `{PUBLIC_BASE_URL}/static/media/<id>.jpg`. Anh khong con tren Drive thi bi xoa. Dong bo luc khoi dong (chay nen, khong cho), roi moi `MEDIA_SYNC_MINUTES` phut. Mang loi hay Apps Script loi thi bot giu anh cu (log ERROR). Quy tac khi nao gui anh nao cho phu huynh: chua co (lam sau).
+
+- `MEDIA_SYNC_ENABLED`: `true` thi bat. Mac dinh tat. Chi bat SAU KHI da dan script moi, cap quyen Drive va deploy New version (docs/google-sheet-leads.md, muc 7): script truoc tab "Chu de" ghi body la vao tab Leads nhu mot lead rong. Dung chung `LEADS_SHEET_WEBHOOK_URL` va `LEADS_SHEET_TOKEN`; thieu mot trong ba bien thi tat, log WARNING mot lan.
+- `MEDIA_SYNC_MINUTES`: so phut giua hai lan dong bo, mac dinh 30.
+- `MEDIA_DIR`: thu muc luu anh va `catalog.json` (danh muc), mac dinh `static/media` (da gitignore). Tren Render dia khong ben: sau moi lan deploy hoac restart, bot tai lai toan bo anh o lan dong bo dau.
+
+Lenh Telegram `/capnhatanh`: trong nhom admin (`TELEGRAM_CHAT_ID`), go `/capnhatanh` (khong reply tin nao). Bot dong bo ngay roi gui tom tat vao nhom: so anh moi loai va moi co so, file bi bo qua vi khong dung quy uoc, canh bao khi chua co hoc phi thang hien tai. Bot khong phan hoi thi go `/capnhatanh@<ten bot>` (bot Telegram o che do privacy co the chi nhan lenh kem ten bot). Xem danh muc: `GET /media?secret=`.
+
+Quy uoc thu muc (ten so khong dau, khong phan biet hoa thuong, thua dau cach van duoc):
+
+```
+Ảnh cho Chatbot/
+  HỆ QUỐC TẾ/  (hoac HỆ SONG NGỮ/)
+    HỌC PHÍ THÁNG 10/          anh hoc phi thang 10
+    THỰC ĐƠN/                  anh thuc don
+    CƠ SỞ CHÙA LÁNG/
+      THỜI KHÓA BIỂU/          ten anh ghi nhom tuoi: "TKB 15 tháng - 3 tuổi", "TKB 3-5 tuổi", "TKB 5-6 tuổi"
+      ẢNH CƠ SỞ VẬT CHẤT/      anh co so vat chat
+```
+
+- Sang thang moi: tao thu muc `HỌC PHÍ THÁNG 11` trong tung he va dat anh moi vao. Chua co thang hien tai thi bot dung thang gan nhat truoc do, va `/capnhatanh` canh bao.
+- Ten anh thoi khoa bieu ghi nhom tuoi (`15 tháng - 3 tuổi`, `3-5 tuổi`, `3-6 tuổi`, ...). Khong doc duoc nhom tuoi thi anh bi bo qua.
+- Co so moi: tao thu muc `CƠ SỞ <TÊN>` trong he cua co so do (co hai thu muc con nhu tren).
+- Anh dat sai cho (vd thang trong thu muc he) bi bo qua va duoc liet ke trong tom tat `/capnhatanh`.
+
 ## Chay ung dung
 
 ### Development (local)
@@ -200,10 +227,12 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 | GET | `/` | Health check | khong |
 | GET | `/webhook` | Facebook webhook verification | `hub.verify_token` = `FB_VERIFY_TOKEN` |
 | POST | `/webhook` | Nhan tin nhan tu Messenger | chu ky `X-Hub-Signature-256` (chi khi dat `FB_APP_SECRET`) |
-| POST | `/telegram-webhook` | Nhan admin reply tu Telegram | header `X-Telegram-Bot-Api-Secret-Token` |
+| POST | `/telegram-webhook` | Nhan admin reply va lenh `/capnhatanh` (muc 12) tu Telegram | header `X-Telegram-Bot-Api-Secret-Token` |
 | POST | `/setup-telegram-webhook` | Dang ky webhook Telegram voi secret hien tai | `?secret=` |
 | POST | `/setup-messenger-profile` | Dang ky nut Bat dau va cau hoi goi y voi Page | `?secret=` |
 | GET | `/static/<file>` | Anh tinh trong `static/` | khong (cong khai) |
+| GET | `/static/media/<id>.jpg` | Anh dong bo tu Google Drive (muc 12) | khong (cong khai) |
+| GET | `/media` | Danh muc anh Drive: so anh moi loai, tung anh (loai, he, co so, thang, nhom tuoi, URL), file bi bo qua, loi lan dong bo cuoi | `?secret=` |
 | GET | `/dashboard` | Dashboard analytics | `?secret=` |
 | GET | `/analytics/stats`, `/analytics/messages` | Du lieu analytics (JSON) | `?secret=` |
 | POST | `/analytics/reset` | Xoa du lieu analytics | `?secret=` |
@@ -281,6 +310,7 @@ app/
   qa_database.py   - Quan ly co so du lieu Q&A
   escalation.py    - Chuyen cau hoi cho admin
   followup.py      - Tin nhac lai khach trong cua so 24 gio
+  media.py         - Dong bo anh tu Google Drive cua truong
 data/
   qa_database.json - Du lieu Q&A
 static/            - Anh cong khai cho Q&A (vd thuc don mau)

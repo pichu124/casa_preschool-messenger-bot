@@ -65,7 +65,10 @@ Sheet chứa dữ liệu cá nhân của phụ huynh và trẻ: chỉ chia sẻ 
 ```javascript
 // Nhận lead từ bot Messenger Casa (app/leads_sheet.py) vào tab Leads: mỗi phụ huynh (Customer ID) một hàng.
 // Body có "type": "topic" là một dòng của tab Chủ đề (mỗi tin có chủ đề một dòng).
+// Body có "type": "media": danh sách ảnh trong thư mục Drive "Ảnh cho Chatbot" (app/media.py), không ghi Sheet.
 const SHEET_NAME = 'Leads';
+// Thư mục "Ảnh cho Chatbot" trên Drive; Script Property MEDIA_ROOT_ID (nếu có) thay id này.
+const MEDIA_ROOT_ID = '1woEr3jr6TAN82_YmfOASpQ609qHp4DiZ';
 const TOPIC_SHEET_NAME = 'Chủ đề';
 // [khóa, tiêu đề cột]. Thứ tự này là thứ tự cột: chỉ thêm cột mới vào cuối.
 // Hai cột cuối script tự điền từ `time` của bot, các cột khác là khóa trong JSON bot gửi.
@@ -116,6 +119,9 @@ function doPost(e) {
   const token = PropertiesService.getScriptProperties().getProperty('LEADS_TOKEN');
   if (!token || !data || data.token !== token) {
     return reply(false);
+  }
+  if (data.type === 'media') {
+    return mediaReply();
   }
   // Không có "type": lead (như mọi bản bot trước). "topic": dòng tab Chủ đề. Loại khác: không ghi gì.
   if (data.type !== undefined && data.type !== 'topic') {
@@ -234,13 +240,60 @@ function cell(key, value) {
   return text ? "'" + text : '';
 }
 
+// {"ok":true,"files":[{id,name,mimeType,modified,path}]}: mọi ảnh dưới thư mục gốc, path là tên các thư mục con
+// từ gốc xuống (không gồm tên thư mục gốc). Không ghi gì vào Sheet.
+function mediaReply() {
+  const rootId = PropertiesService.getScriptProperties().getProperty('MEDIA_ROOT_ID') || MEDIA_ROOT_ID;
+  let files;
+  try {
+    files = imagesIn(DriveApp.getFolderById(rootId), []);
+  } catch (err) {
+    return reply(false, 'Drive: ' + err.message);
+  }
+  return json({ ok: true, files: files });
+}
+
+function imagesIn(folder, path) {
+  const files = [];
+  const it = folder.getFiles();
+  while (it.hasNext()) {
+    const file = it.next();
+    if (!file.isTrashed() && String(file.getMimeType()).indexOf('image/') === 0) {
+      files.push({
+        id: file.getId(),
+        name: file.getName(),
+        mimeType: file.getMimeType(),
+        modified: file.getLastUpdated().toISOString(),
+        path: path,
+      });
+    }
+  }
+  const folders = folder.getFolders();
+  while (folders.hasNext()) {
+    const sub = folders.next();
+    if (!sub.isTrashed()) {
+      imagesIn(sub, path.concat([sub.getName()])).forEach((f) => files.push(f));
+    }
+  }
+  return files;
+}
+
+// Chạy tay một lần trong trình soạn Apps Script (chọn hàm → Run) để cấp quyền đọc Drive và xem số ảnh trong log.
+function checkMedia() {
+  const body = JSON.parse(mediaReply().getContent());
+  Logger.log(body.ok ? body.files.length + ' ảnh' : body.error);
+}
+
 function reply(ok, error) {
-  const body = error ? { ok: ok, error: error } : { ok: ok };
+  return json(error ? { ok: ok, error: error } : { ok: ok });
+}
+
+function json(body) {
   return ContentService.createTextOutput(JSON.stringify(body)).setMimeType(ContentService.MimeType.JSON);
 }
 ```
 
-Script trả `{"ok":true}` khi đã thêm hoặc cập nhật hàng (hoặc thêm dòng tab Chủ đề), `{"ok":false}` khi body không phải JSON, sai token, `type` lạ hoặc không lấy được khóa, `{"ok":false,"error":"…"}` (không ghi gì) khi ô tiêu đề O1 hoặc P1 đã có chữ khác "Lần đầu liên hệ"/"Cập nhật lúc" (vd cột người tư vấn tự thêm). Bot chỉ coi là thành công khi nhận đúng `{"ok":true}`.
+Script trả `{"ok":true}` khi đã thêm hoặc cập nhật hàng (hoặc thêm dòng tab Chủ đề), `{"ok":true,"files":[…]}` cho `type` `media` (mục 7), `{"ok":false}` khi body không phải JSON, sai token, `type` lạ hoặc không lấy được khóa, `{"ok":false,"error":"…"}` (không ghi gì) khi ô tiêu đề O1 hoặc P1 đã có chữ khác "Lần đầu liên hệ"/"Cập nhật lúc" (vd cột người tư vấn tự thêm), hoặc `"error":"Drive: …"` khi không mở được thư mục ảnh. Bot chỉ coi là thành công khi nhận đúng `{"ok":true}`.
 
 ## 2. Deploy web app
 
@@ -311,3 +364,25 @@ Script đang chạy trước ngày này coi mọi body là lead: nhận dòng ch
 4. Trên Render → service của bot → **Environment**: thêm `TOPICS_SHEET_ENABLED` = `true` → Save (Render deploy lại để bot nhận biến). Bot dùng chung `LEADS_SHEET_WEBHOOK_URL` và `LEADS_SHEET_TOKEN`, không cần biến nào khác.
 
 Tắt: xoá `TOPICS_SHEET_ENABLED` hoặc đặt khác `true`. Dòng chủ đề không có tên Facebook, SĐT trong câu hỏi đã thay bằng `[SĐT]`; tab vẫn có Customer ID, tuổi bé: chỉ chia sẻ như tab Leads. Dashboard (`/dashboard`) cũng đếm chủ đề 7 ngày, nhưng chỉ từ lần bot khởi động gần nhất; số liệu đầy đủ là tab này.
+
+## 7. Ảnh từ Google Drive (2026-10-23)
+
+Bot lấy ảnh học phí, thực đơn, thời khoá biểu và cơ sở vật chất từ thư mục Drive **Ảnh cho Chatbot** của trường qua chính web app này (`app/media.py`; quy ước thư mục: README mục 12): body `{"type":"media","token":…}` → script trả danh sách ảnh (id, tên, loại file, lần sửa cuối, đường dẫn thư mục), không ghi gì vào Sheet. Script trước ngày này không có nhánh đó: bản trước tab Chủ đề ghi body vào tab **Leads** như một lead rỗng, bản có tab Chủ đề trả `{"ok":false}`. Vì vậy bot chỉ gọi khi biến `MEDIA_SYNC_ENABLED` là `true` (mặc định tắt), và người vận hành làm đúng thứ tự:
+
+1. Mở Sheet → **Tiện ích mở rộng → Apps Script**. Trong `Code.gs`, xoá hết code cũ, dán toàn bộ script ở bước 1 → **Lưu**.
+2. Cấp quyền đọc Drive: trên thanh công cụ, ô chọn hàm chọn `checkMedia` → **Run** → **Review permissions** → chọn tài khoản trường → **Advanced → Go to … (unsafe)** → **Allow**. **Execution log** in số ảnh (vd `30 ảnh`). In `Drive: …` thì tài khoản chạy script chưa xem được thư mục: chia sẻ thư mục cho tài khoản đó (quyền Xem), hoặc đặt `MEDIA_ROOT_ID` (cuối mục này).
+3. **Deploy → Manage deployments** → chọn deployment đang dùng → biểu tượng bút chì (**Edit**) → Version: **New version** → **Deploy**. URL web app giữ nguyên, `LEADS_TOKEN` giữ nguyên. Đừng bấm **New deployment**.
+4. Thử (thay `<LEADS_TOKEN>` và URL):
+
+   ```bash
+   curl -sL -H 'Content-Type: application/json' -d '{"token":"<LEADS_TOKEN>","type":"media"}' \
+     'https://script.google.com/macros/s/<DEPLOYMENT_ID>/exec'
+   ```
+
+   → `{"ok":true,"files":[{"id":"…","name":"7.png","mimeType":"image/png","modified":"…","path":["HỆ QUỐC TẾ","HỌC PHÍ THÁNG 10"]}, …]}`; tab **Leads** và **Chủ đề** không đổi. In `{"ok":false}` là web app còn chạy bản cũ (làm lại bước 3).
+5. Trên Render → service của bot → **Environment**: thêm `MEDIA_SYNC_ENABLED` = `true` → Save (Render deploy lại). Bot dùng chung `LEADS_SHEET_WEBHOOK_URL` và `LEADS_SHEET_TOKEN`; `MEDIA_SYNC_MINUTES` (mặc định 30) là số phút giữa hai lần đồng bộ.
+6. Trong nhóm Telegram admin gõ `/capnhatanh` → bot đồng bộ ngay và gửi tóm tắt số ảnh mỗi loại.
+
+Thư mục gốc là hằng `MEDIA_ROOT_ID` trong script (thư mục của trường). Dùng thư mục khác: **Project Settings → Script Properties** → thêm `MEDIA_ROOT_ID` = id thư mục (phần sau `/folders/` trong link) → Save; không cần deploy lại.
+
+Tắt: xoá `MEDIA_SYNC_ENABLED` hoặc đặt khác `true` (ảnh đã tải vẫn ở trên đĩa tới lần deploy sau).

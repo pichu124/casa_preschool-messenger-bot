@@ -1214,7 +1214,7 @@ class ScriptedProvider(FakeProvider):
 
 FEES_FIRST = "Dạ Casa chào Ba/Mẹ ạ 🌿 Cảm ơn Ba/Mẹ đã quan tâm đến Casa dei Bambini. Bé nhà mình được mấy tuổi rồi ạ? [QUICK:age]"
 FEES_ASK_PHONE = (
-    "Hệ Quốc tế Mỹ Đình có giáo viên nước ngoài cả ngày và cam kết không tăng học phí suốt thời gian con học ạ. "
+    "Hệ Quốc tế Mỹ Đình có giáo viên nước ngoài cả ngày và cam kết không tăng học phí cơ bản suốt thời gian con học ạ. "
     "Nếu tiện, Ba/Mẹ để lại SĐT/Zalo để tư vấn viên gửi bảng phí chi tiết nhé? [QUICK:phone]"
 )
 EVASIVE = (
@@ -1299,3 +1299,16 @@ def test_eval_cambridge_hours_must_name_cambridge_for_the_international_system()
         "Let's Explore. Không biết Ba/Mẹ có muốn ghé tham quan lớp một buổi không ạ? [QUICK:visit_invite]"
     )
     assert eval_chat.check_turn(turn, False, False, cambridge, [turn.message]) == []
+
+
+def test_fee_commitment_is_only_the_base_tuition():
+    # Trường xác nhận 2026-10-23: cam kết không tăng chỉ áp cho học phí cơ bản; tiền ăn, phí khác vẫn điều chỉnh.
+    import json as _json
+    from pathlib import Path as _Path
+
+    pairs = _json.loads((_Path(__file__).resolve().parent.parent / "data" / "qa_database.json").read_text("utf-8"))["qa_pairs"]
+    texts = [SYSTEM_PROMPT] + [p["answer"] for p in pairs]
+    for text in texts:
+        for m in re.finditer(r"(?:không tăng học phí|học phí[^.]{0,20}không tăng)(?! cơ bản)", text):
+            window = text[max(0, m.start() - 15) : m.end() + 10]
+            assert "cơ bản" in window, window

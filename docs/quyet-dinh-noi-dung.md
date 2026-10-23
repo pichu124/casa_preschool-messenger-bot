@@ -177,7 +177,7 @@ Yêu cầu (nguyên văn ý): câu "Ba/Mẹ cho bé học thử 1 tuần miễn 
 - Cambridge Early Years hệ Quốc tế (3–6 tuổi): hằng ngày thứ Hai–thứ Sáu, tổng ~1,5–2 giờ/ngày; sáng English ~30–40 phút; chiều ~14:45–16:00 luân phiên Mathematics hoặc Let's Explore. Kim Mã: chờ trường xác nhận.
 - Khai giảng chính thức 05/09 hằng năm; nhận hồ sơ và nhập học quanh năm.
 - Tặng 1 tuần học thử hoàn toàn miễn phí.
-- Cam kết không tăng học phí trong suốt thời gian con theo học.
+- Cam kết không tăng học phí cơ bản trong suốt thời gian con theo học; tiền ăn và các khoản phí khác vẫn điều chỉnh bình thường (trường xác nhận 2026-10-23).
 - Học phí thu theo quý, 6 tháng hoặc 12 tháng; không thu theo tháng. Đóng trong 5 ngày làm việc đầu quý, quá hạn có phí nộp muộn.
 - Nhập học giữa tháng: học phí tháng đầu tính theo số ngày đi học thực tế. Khoản đầu kỳ (phí phát triển trường, phí học liệu và hoạt động ngoại khóa): thu tròn năm vào tháng 7 hằng năm; nhập học giữa năm học thì thu tròn theo tháng, từ tháng bé nhập học tới hết tháng 6.
 - Báo nghỉ trước 7:00 sáng (LittleLives hoặc email) → tiền ăn ngày nghỉ trừ vào quý sau.
@@ -192,7 +192,7 @@ Yêu cầu (nguyên văn ý): câu "Ba/Mẹ cho bé học thử 1 tuần miễn 
 ## 5. 7 nguyên tắc tư vấn (từ kịch bản)
 
 1. Hỏi độ tuổi con + khu vực trước khi nói học phí (không hỏi thẳng ngân sách).
-2. Kể giá trị trước, con số sau: giáo viên nước ngoài toàn thời gian (hệ Quốc tế), Cambridge Early Years kết hợp Montessori, cam kết không tăng học phí.
+2. Kể giá trị trước, con số sau: giáo viên nước ngoài toàn thời gian (hệ Quốc tế), Cambridge Early Years kết hợp Montessori, cam kết không tăng học phí cơ bản.
 3. Tổng chi phí thực tế do tư vấn viên tính và gửi, không tính trên chat.
 4. Dùng "học thử 1 tuần miễn phí" làm bước trung gian với khách còn phân vân.
 5. CARE khi chê đắt/so sánh trường khác: Connect → Acknowledge → Resolve → Evaluate.

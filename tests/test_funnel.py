@@ -182,3 +182,12 @@ def test_test_chat_cleans_extraction_like_messenger(admin, model):
     model.extracted = {"phone_declined": True}
 
     assert chat("Mình chưa muốn để số ạ")["phone_declined"] is True
+
+
+def test_test_chat_does_not_save_topics_in_the_profile(admin, model):
+    model.extracted = {"topics": ["Học phí"], "kid_age": "3 tuổi"}
+
+    profile = chat("Bé 3 tuổi học phí bao nhiêu ạ?")
+
+    assert profile["kid_age"] == "3 tuổi"
+    assert "topics" not in profile

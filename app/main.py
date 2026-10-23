@@ -541,9 +541,11 @@ def _clean_extracted(extracted: dict, phone_from_qr: str | None, text: str) -> d
     otherwise phone is the first phone number in what the model gave ("0912345678, 0987654321" keeps the
     first), else the first one in `text` itself, so a number the parent typed is kept even when every model
     fails; it then also drops phone_declined. phone_declined is kept only as JSON true (models also return
-    "false"); topics_covered is only ever what the bot replied with (topics_in_reply)."""
+    "false"); topics_covered is only ever what the bot replied with (topics_in_reply); topics are statistics of
+    one message (app/topics.py), not profile data."""
     extracted = dict(extracted)
     extracted.pop("topics_covered", None)
+    extracted.pop("topics", None)
     phone = phone_from_qr or _find_phone(extracted.pop("phone", None))
     if not phone:
         phone = _find_phone(text)

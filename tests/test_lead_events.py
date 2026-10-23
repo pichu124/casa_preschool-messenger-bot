@@ -730,6 +730,17 @@ def test_lead_message_whose_extraction_returns_empty_fields_publishes_nothing(ch
     assert customer_memory.get_profile(CUSTOMER_ID)["kid_age"] == "2 tuổi"
 
 
+def test_topics_of_a_lead_message_are_not_saved_and_publish_nothing(chat, net):
+    """Chủ đề là thống kê của từng tin, không phải hồ sơ: không lưu, không sinh sự kiện lead."""
+    known_customer(phone=PHONE, kid_age="3 tuổi", lead_card_msg_id=7001)
+
+    chat.say(QUESTION, extracted={"topics": ["Học phí", "Ưu đãi"], "kid_age": "3 tuổi"})
+
+    assert chat.sent == [MODEL_TEXT]
+    assert "topics" not in customer_memory.get_profile(CUSTOMER_ID)
+    assert (net.telegram, net.sheet) == ([], [])
+
+
 def test_info_update_without_a_card_sends_the_full_card(chat, net):
     """Lead từ trước khi có thẻ, hoặc thẻ chưa gửi được (Telegram chưa cấu hình): thẻ đầy đủ, các thay đổi sau trả lời vào nó."""
     known_customer(phone=PHONE, kid_age="2 tuổi")

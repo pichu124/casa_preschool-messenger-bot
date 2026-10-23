@@ -23,7 +23,17 @@ LEAD_HEADERS = {
     "new_phone": LEAD_HEADER,
     "phone_changed": "📞 KHÁCH ĐỔI SĐT",
     "visit_request": "📅 KHÁCH HẸN THAM QUAN/HỌC THỬ",
+    "info_update": "📝 KHÁCH CẬP NHẬT THÔNG TIN",
 }
+# Lead info the card and the Sheet row show: (label in the 🔄 reply, profile fields shown together on the card).
+LEAD_INFO = (
+    ("Tên bé", ("kid_name",)),
+    ("Tuổi bé", ("kid_age",)),
+    ("Quan tâm", ("interested_program", "interested_campus")),
+    ("Khu vực", ("area", "address")),
+    ("Dự kiến nhập học", ("expected_start",)),
+    ("Mối quan tâm", ("concerns",)),
+)
 # Profile field: Telegram message_id of the parent's lead card, which later lead updates reply to.
 LEAD_CARD_FIELD = "lead_card_msg_id"
 # customer_id -> lock held while sending that parent's lead card or a reply to it (_send_lead_telegram).
@@ -157,11 +167,22 @@ def _same_text(value) -> str:
     return " ".join(str(value or "").split()).casefold()
 
 
+def _texts(value) -> dict[str, str]:
+    """Non-empty values of a profile field (a list for concerns), keyed by _same_text."""
+    texts = {}
+    for item in value if isinstance(value, list) else [value]:
+        texts.setdefault(_same_text(item), item)
+    texts.pop("", None)
+    return texts
+
+
 def lead_events(before: dict, extracted: dict) -> list[str]:
     """Lead events in one parent message: `before` is the profile before it, `extracted` what it adds.
 
-    Phones are compared after normalize_phone and visit requests ignoring case and spacing, so the same value
-    written another way is no event.
+    Phones are compared after normalize_phone, everything else ignoring case and spacing, so the same value
+    written another way is no event. "info_update": a parent who was already a lead (phone or visit request)
+    gives a new value for a LEAD_INFO field, and the message has no other event (_lead_update lists the info
+    changes with them).
     """
     events = []
     phone = normalize_phone(extracted.get("phone"))
@@ -174,6 +195,10 @@ def lead_events(before: dict, extracted: dict) -> list[str]:
     visit = _same_text(extracted.get("visit_request"))
     if visit and visit != _same_text(before.get("visit_request")):
         events.append("visit_request")
+    if not events and (before.get("phone") or before.get("visit_request")):
+        fields = [field for _, fields in LEAD_INFO for field in fields]
+        if any(_texts(extracted.get(field)).keys() - _texts(before.get(field)).keys() for field in fields):
+            events.append("info_update")
     return events
 
 
@@ -207,6 +232,10 @@ def _lead_card(kind: str, customer_id: str, fb_name: str, profile: dict, last_me
     )
 
 
+def _info(profile: dict, fields: tuple[str, ...]) -> str:
+    return _join(*{k: v for field in fields for k, v in _texts(profile.get(field)).items()}.values())
+
+
 def _lead_update(kinds: list[str], customer_id: str, fb_name: str, before: dict, profile: dict) -> str:
     """Short reply to the parent's card: only what changed, old → new."""
     changes = []
@@ -218,6 +247,10 @@ def _lead_update(kinds: list[str], customer_id: str, fb_name: str, before: dict,
         elif kind == "visit_request":
             old = f"{before['visit_request']} → " if before.get("visit_request") else ""
             changes.append(f"Hẹn: {old}{profile.get('visit_request')}")
+    for label, fields in LEAD_INFO:
+        old, new = _info(before, fields), _info(profile, fields)
+        if new and _same_text(new) != _same_text(old):
+            changes.append(f"{label}: {old} → {new}" if old else f"{label}: {new}")
     return f"🔄 {fb_name or customer_id}: {'; '.join(changes)}\n🕐 {datetime.now(VN_TZ).strftime('%d/%m/%Y %H:%M')}"
 
 

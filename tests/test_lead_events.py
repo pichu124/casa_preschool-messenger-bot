@@ -1,4 +1,4 @@
-"""Sự kiện lead (SĐT mới, đổi SĐT, hẹn tham quan/học thử) sang nhóm Telegram và Google Sheet.
+"""Sự kiện lead (SĐT mới, đổi SĐT, hẹn tham quan/học thử, lead cập nhật thông tin) sang nhóm Telegram và Google Sheet.
 
 Telegram và Google Sheet chạy thật tới tầng httpx; transport giả trả lời như api.telegram.org và như web app
 Apps Script (POST /exec → 302 → JSON ở script.googleusercontent.com). process_message gọi bằng asyncio.run.
@@ -82,6 +82,20 @@ VN = timezone(timedelta(hours=7))
         ({"visit_request": VISIT}, {}, []),
         ({}, {"visit_request": "  "}, []),
         ({}, {"phone": PHONE, "visit_request": VISIT}, ["new_phone", "visit_request"]),
+        ({"phone": PHONE}, {"expected_start": "tháng 12"}, ["info_update"]),
+        ({"visit_request": VISIT, "kid_age": "dưới 2 tuổi"}, {"kid_age": "2 tuổi"}, ["info_update"]),
+        ({"phone": PHONE}, {"interested_program": "song ngữ"}, ["info_update"]),
+        ({"phone": PHONE}, {"address": "ngõ 12 Trần Thái Tông"}, ["info_update"]),
+        ({"phone": PHONE, "kid_name": "Bin"}, {"kid_name": "Bơ"}, ["info_update"]),
+        ({"phone": PHONE, "concerns": ["học phí"]}, {"concerns": ["học phí", "giờ đón"]}, ["info_update"]),
+        ({"phone": PHONE, "kid_age": "2 tuổi"}, {"kid_age": " 2  Tuổi"}, []),
+        ({"phone": PHONE, "interested_campus": "Kim Mã"}, {"interested_campus": "kim mã"}, []),
+        ({"phone": PHONE, "concerns": ["học phí", "giờ đón"]}, {"concerns": ["Học phí"]}, []),
+        ({"phone": PHONE, "kid_age": "2 tuổi"}, {"kid_age": "", "expected_start": "  ", "area": None}, []),
+        ({"phone": PHONE}, {"parent_name": FB_NAME, "topics_covered": ["menu"], "lead_source": "ads"}, []),
+        ({"kid_age": "2 tuổi"}, {"kid_age": "3 tuổi", "area": "Cầu Giấy"}, []),
+        ({"phone": PHONE}, {"visit_request": VISIT, "kid_age": "2 tuổi"}, ["visit_request"]),
+        ({"phone": PHONE}, {"phone": NEW_PHONE, "expected_start": "tháng 12"}, ["phone_changed"]),
     ],
     ids=[
         "không có gì",
@@ -122,6 +136,20 @@ VN = timezone(timedelta(hours=7))
         "không nhắc lại hẹn",
         "hẹn rỗng",
         "SĐT mới và hẹn",
+        "lead nói dự kiến nhập học",
+        "lead đổi tuổi bé",
+        "lead nói hệ",
+        "lead nói địa chỉ",
+        "lead đổi tên bé",
+        "lead thêm mối quan tâm",
+        "lead nói lại tuổi, khác hoa thường và khoảng trắng",
+        "lead nói lại cơ sở, khác hoa thường",
+        "lead nhắc lại mối quan tâm đã có",
+        "lead, trích xuất trả trường rỗng",
+        "lead, chỉ có trường không hiện trên thẻ",
+        "chưa là lead mà nói tuổi và khu vực",
+        "lead hẹn và nói tuổi: một sự kiện hẹn",
+        "lead đổi SĐT và nói dự kiến nhập học: một sự kiện đổi SĐT",
     ],
 )
 def test_lead_events(before, extracted, events):
@@ -572,6 +600,133 @@ def test_card_not_sent_is_not_saved_and_the_next_lead_sends_the_card(monkeypatch
     assert updates == []
     assert card.startswith("📅 KHÁCH HẸN THAM QUAN/HỌC THỬ") and f"SĐT: {PHONE}\n" in card
     assert saved_card_id() == card_id
+
+
+# --- Lead nói thêm thông tin: Sheet và thẻ Telegram cập nhật ngay (người vận hành, 2026-10-23) ---
+
+INFO_UPDATE_EVENT = "Cập nhật thông tin"  # "Sự kiện" trên Sheet: Apps Script cũ hiện nguyên chữ
+
+
+def test_lead_telling_expected_start_replies_to_the_card_and_updates_the_sheet_row(chat, net, caplog):
+    """Sự cố 2026-10-23: đặt lịch, để số, rồi "Tầm tháng 12": hàng Sheet vẫn trống "Dự kiến nhập học"."""
+    chat.say(f"Cho mình đặt lịch {VISIT}", extracted={"visit_request": VISIT})
+    chat.say(f"Số mình {PHONE}", extracted={"phone": PHONE})
+    with caplog.at_level(logging.DEBUG):
+        chat.say("Tầm tháng 12", extracted={"expected_start": "tháng 12"})
+
+    card_id, card, updates = card_and_updates(net)
+    assert card.startswith("📅 KHÁCH HẸN THAM QUAN/HỌC THỬ")
+    assert update_lines(updates) == [
+        (card_id, f"🔄 {FB_NAME}: để lại SĐT {PHONE}"),
+        (card_id, f"🔄 {FB_NAME}: Dự kiến nhập học: tháng 12"),
+    ]
+    assert [row["event"] for row in net.sheet] == ["visit_request", "new_phone", INFO_UPDATE_EVENT]
+    row = dict(net.sheet[-1])
+    assert_vietnam_now(row.pop("time"))
+    assert row == {
+        "token": SHEET_TOKEN,
+        "event": INFO_UPDATE_EVENT,
+        "fb_name": FB_NAME,
+        "customer_id": CUSTOMER_ID,
+        "phone": PHONE,
+        "kid_name": "",
+        "kid_age": "",
+        "campus": "",
+        "area": "",
+        "expected_start": "tháng 12",
+        "visit_request": VISIT,
+        "ad_title": "",
+        "stage": "Đã hẹn tham quan/học thử",
+        "last_message": "Tầm tháng 12",
+    }
+    assert [r.getMessage() for r in caplog.records if r.getMessage().startswith("Lead ")][-1] == (
+        f"Lead info_update for customer {CUSTOMER_ID}: Telegram msg_id={net.telegram_sent[-1][0]}, Sheet written=True"
+    )
+    assert leaked(caplog) == []
+
+
+def test_lead_changing_kid_age_and_telling_area_and_concern_is_one_reply_old_to_new(chat, net):
+    known_customer(kid_age="dưới 2 tuổi", concerns=["học phí"])
+    chat.say(f"Số mình {PHONE}", extracted={"phone": PHONE})
+    chat.say(
+        "Bé 2 tuổi rồi, nhà mình ở Cầu Giấy, giờ đón thế nào ạ",
+        extracted={"kid_age": "2 tuổi", "area": "Cầu Giấy", "concerns": ["giờ đón"]},
+    )
+
+    card_id, _, updates = card_and_updates(net)
+    assert update_lines(updates) == [
+        (
+            card_id,
+            f"🔄 {FB_NAME}: Tuổi bé: dưới 2 tuổi → 2 tuổi; Khu vực: Cầu Giấy; "
+            "Mối quan tâm: học phí → học phí, giờ đón",
+        )
+    ]
+    assert [(row["event"], row["kid_age"], row["area"]) for row in net.sheet] == [
+        ("new_phone", "dưới 2 tuổi", ""),
+        (INFO_UPDATE_EVENT, "2 tuổi", "Cầu Giấy"),
+    ]
+
+
+def test_parent_not_yet_a_lead_telling_kid_age_publishes_nothing(chat, net):
+    chat.say("Bé nhà mình 2 tuổi", extracted={"kid_age": "2 tuổi"})
+    chat.say("Nhà mình ở Cầu Giấy, tầm tháng 12 cho bé đi học", extracted={"area": "Cầu Giấy", "expected_start": "tháng 12"})
+
+    assert chat.sent == [MODEL_TEXT, MODEL_TEXT]
+    assert (net.telegram, net.sheet) == ([], [])
+    assert customer_memory.get_profile(CUSTOMER_ID)["expected_start"] == "tháng 12"
+
+
+def test_lead_repeating_known_info_publishes_nothing(chat, net):
+    known_customer(
+        phone=PHONE, kid_age="2 tuổi", interested_campus="Kim Mã", expected_start="tháng 12", concerns=["học phí"]
+    )
+
+    chat.say(
+        "Bé 2 tuổi, học Kim Mã, tầm tháng 12, học phí sao ạ",
+        extracted={"kid_age": "2 Tuổi", "interested_campus": "kim  mã", "expected_start": " Tháng 12", "concerns": ["Học phí"]},
+    )
+
+    assert chat.sent == [MODEL_TEXT]
+    assert (net.telegram, net.sheet) == ([], [])
+
+
+def test_changed_visit_and_kid_age_in_one_message_are_one_reply_and_one_sheet_row(chat, net):
+    chat.say(f"Cho mình hẹn {VISIT}", extracted={"visit_request": VISIT})
+    chat.say(
+        "Bé 3 tuổi, cho bé học thử tuần sau nhé", extracted={"visit_request": "học thử tuần sau", "kid_age": "3 tuổi"}
+    )
+
+    card_id, _, updates = card_and_updates(net)
+    assert update_lines(updates) == [(card_id, f"🔄 {FB_NAME}: Hẹn: {VISIT} → học thử tuần sau; Tuổi bé: 3 tuổi")]
+    assert [(row["event"], row["visit_request"], row["kid_age"]) for row in net.sheet] == [
+        ("visit_request", VISIT, ""),
+        ("visit_request", "học thử tuần sau", "3 tuổi"),
+    ]
+
+
+def test_lead_message_whose_extraction_returns_empty_fields_publishes_nothing(chat, net):
+    known_customer(phone=PHONE, kid_age="2 tuổi", area="Cầu Giấy", lead_card_msg_id=7001)
+
+    chat.say("Dạ vâng ạ", extracted={"kid_age": "", "area": "  ", "expected_start": None, "concerns": []})
+
+    assert chat.sent == [MODEL_TEXT]
+    assert (net.telegram, net.sheet) == ([], [])
+    assert customer_memory.get_profile(CUSTOMER_ID)["kid_age"] == "2 tuổi"
+
+
+def test_info_update_without_a_card_sends_the_full_card(chat, net):
+    """Lead từ trước khi có thẻ, hoặc thẻ chưa gửi được (Telegram chưa cấu hình): thẻ đầy đủ, các thay đổi sau trả lời vào nó."""
+    known_customer(phone=PHONE, kid_age="2 tuổi")
+
+    chat.say("Tầm tháng 12", extracted={"expected_start": "tháng 12"})
+    chat.say("À bé tên Bơ", extracted={"kid_name": "Bơ"})
+
+    card_id, card, updates = card_and_updates(net)
+    assert card.startswith("📝 KHÁCH CẬP NHẬT THÔNG TIN\n")
+    assert f"SĐT: {PHONE}\n" in card and "Dự kiến nhập học: tháng 12\n" in card and "Tầm tháng 12" in card
+    assert update_lines(updates) == [(card_id, f"🔄 {FB_NAME}: Tên bé: Bơ")]
+    assert saved_card_id() == card_id
+    assert [row["event"] for row in net.sheet] == [INFO_UPDATE_EVENT, INFO_UPDATE_EVENT]
 
 
 def test_no_sheet_url_sends_no_sheet_request(monkeypatch, chat, net):

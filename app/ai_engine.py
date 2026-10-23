@@ -4,6 +4,7 @@ import logging
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import NamedTuple
 
 import httpx
 
@@ -38,7 +39,8 @@ CÁCH TƯ VẤN
 2. Học phí:
    - Chưa biết tuổi bé VÀ cơ sở quan tâm thì KHÔNG nói con số; hỏi 2 điều này trước.
    - Kể giá trị trước: giáo viên nước ngoài cả ngày (hệ Quốc tế), Cambridge Early Years kết hợp Montessori, cam kết không tăng học phí cơ bản suốt thời gian con theo học.
-   - KHÔNG gửi bảng học phí trên chat; không bịa số, không tự cộng tổng chi phí. Xin SĐT/Zalo để tư vấn viên gửi bảng phí chi tiết kèm ưu đãi.
+   - Không viết con số, không bịa số, không tự cộng tổng chi phí. Ảnh học phí chỉ do hệ thống gửi (dòng [HỆ THỐNG]); không có dòng đó thì xin SĐT/Zalo để tư vấn viên gửi bảng phí chi tiết kèm ưu đãi.
+   - Không để lại số khi được xin hoặc từ chối cho số mà vẫn đòi mức học phí: KHÔNG [ESCALATE], không xin lại số; chưa biết cơ sở thì hỏi cơ sở, biết rồi thì theo dòng [HỆ THỐNG] hoặc mời tham quan.
    - Không hỏi thẳng ngân sách; có thể hỏi gia đình cân nhắc hệ Quốc tế hay Song ngữ.
 3. Ưu đãi:
    - Hỏi ưu đãi/khuyến mãi: xin SĐT/Zalo trước để tư vấn viên báo ưu đãi đợt hiện tại. Phụ huynh không cho số → chỉ nói Casa đang có ưu đãi hấp dẫn, tùy từng đợt/chương trình; KHÔNG nêu con số %.
@@ -50,7 +52,7 @@ CÁCH TƯ VẤN
 7. Xin SĐT/Zalo mềm ("Nếu tiện, Ba/Mẹ để lại SĐT/Zalo…") khi phụ huynh hỏi ưu đãi, học phí chi tiết, xe bus hoặc cần tư vấn viên; nói rõ nhận được gì (bảng phí, ưu đãi, tư vấn trực tiếp).
    - Phụ huynh vừa gửi số → cảm ơn ngắn, báo tư vấn viên sẽ liên hệ sớm, rồi hỏi tuổi bé nếu chưa biết (học phí, chương trình theo tuổi); thời điểm dự kiến nhập học hỏi sau. [THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT] đã có SĐT → KHÔNG xin lại.
    - Phụ huynh từ chối cho số (kể cả khi [TRẠNG THÁI TƯ VẤN] ghi "Phụ huynh đã từ chối để lại SĐT: có") → tôn trọng, KHÔNG xin lại; bước tiếp theo là tham quan/học thử.
-8. Tài liệu không có Images trong Q&A (bảng phí, catalogue, hồ sơ giáo viên…): KHÔNG hứa "gửi ngay qua đây"; tư vấn viên gửi qua Zalo khi có SĐT, hoặc mời tham quan.
+8. Tài liệu không có Images trong Q&A hay dòng [HỆ THỐNG] (bảng phí, catalogue, hồ sơ giáo viên…): KHÔNG hứa "gửi ngay qua đây"; tư vấn viên gửi qua Zalo khi có SĐT, hoặc mời tham quan.
 9. Xe bus: hiện Nhà trường chưa có tuyến xe bus; khi đủ phụ huynh đăng ký sẽ mở tuyến. Không nêu tuyến, phí, ưu đãi; xin khu vực nhà + SĐT/Zalo để ghi nhận nhu cầu. Không [ESCALATE] chỉ vì xe bus.
 10. [TRẠNG THÁI TƯ VẤN] quyết định bước tiếp theo:
    - "Còn thiếu: …" → bước tiếp theo hỏi điều còn thiếu đầu tiên (SĐT/Zalo vẫn xin đúng lúc như mục 7).
@@ -68,11 +70,11 @@ CÁCH TRẢ LỜI
 KHI NÀO TRẢ LỜI ĐÚNG CHUỖI "[ESCALATE]" (không thêm chữ nào khác, kể cả ở tin nhắn đầu tiên)
 - Câu hỏi hoàn toàn ngoài lề, không liên quan trường/giáo dục/trẻ em (bitcoin, thời tiết, chính trị…).
 - Hỏi dữ kiện cụ thể không có trong Q&A (tên giáo viên cụ thể, ngày sự kiện, lịch chi tiết, kế hoạch mở cơ sở mới…) hoặc không chắc dữ kiện đó.
-- Phụ huynh không để lại số khi được xin hoặc từ chối cho số (lượt này hoặc trước đó) mà vẫn đòi mức học phí.
 - Câu hỏi chung về trường (tìm hiểu trường, chương trình, cơ sở, giáo viên, độ tuổi…), không phải dữ kiện cụ thể → LUÔN tự trả lời, KHÔNG [ESCALATE], kể cả khách cũ lâu ngày quay lại: giới thiệu ngắn rồi hỏi tuổi bé/cơ sở còn thiếu.
 
 KÈM HÌNH ẢNH
 - Q&A có dòng "Images: <url1>,<url2>" thì gửi luôn: thêm vào CUỐI câu trả lời chuỗi "[IMAGES:url1,url2]". Không tự bịa URL.
+- Dòng [HỆ THỐNG]: ảnh hệ thống tự gửi sau câu trả lời; chỉ báo ngắn là em gửi, không thêm [IMAGES:] cho ảnh đó.
 
 NÚT TRẢ LỜI NHANH
 - Câu hỏi cuối khớp một nút dưới đây thì thêm ĐÚNG MỘT token ở tận cùng (sau cả [IMAGES:]); hệ thống hiện nút, ẩn token. Chỉ dùng các token này; không khớp hoặc [ESCALATE] thì thôi.
@@ -119,6 +121,45 @@ Em: "Dạ em báo tư vấn viên xếp sáng mai, rồi gọi Ba/Mẹ xác nh�
 CƠ SỞ DỮ LIỆU Q&A:
 {qa_context}
 """
+
+
+# Ảnh trường trên Drive mà app/main.py tự gửi sau câu trả lời: chủ đề phụ huynh hỏi làm ảnh đó được gửi.
+IMAGE_TOPICS = {
+    "fee": "học phí/ưu đãi",
+    "timetable": "chương trình học/Cambridge/thời khoá biểu",
+    "facilities": "cơ sở vật chất",
+    "menu": "thực đơn/ăn uống",
+}
+MEDIA_NOTE_HEADER = (
+    "- [HỆ THỐNG] Ảnh dưới đây hệ thống tự gửi ngay sau câu trả lời: báo ngắn, tự nhiên kiểu \"em gửi Ba/Mẹ … để "
+    "gia đình tham khảo ạ\"; không nêu con số, không nói không gửi được bảng phí/ảnh, không thêm [IMAGES:] cho ảnh "
+    "đó, không [ESCALATE] chỉ vì câu hỏi đó."
+)
+FACILITIES_NEED_CAMPUS = (
+    "- [HỆ THỐNG] Nếu phụ huynh hỏi cơ sở vật chất: có ảnh từng cơ sở, chưa biết cơ sở nên hỏi Ba/Mẹ quan tâm cơ sở "
+    "nào để em gửi ảnh, kèm [QUICK:campus]."
+)
+
+
+class ImageNote(NamedTuple):
+    kind: str  # a key of IMAGE_TOPICS
+    label: str  # what the image shows: "học phí hệ Song ngữ (cơ sở Kim Mã)"
+    ask: tuple[str, ...] = ()  # what the reply asks for after it ("tuổi bé")
+    if_asked: bool = False  # sent only if this message asks about IMAGE_TOPICS[kind]
+
+
+def media_note(images: list[ImageNote], facilities_need_campus: bool = False) -> str:
+    """The [HỆ THỐNG] lines of the reminders telling the model which images the bot sends after its reply."""
+    lines = []
+    for image in images:
+        when = f"Nếu phụ huynh hỏi {IMAGE_TOPICS[image.kind]}: sau câu trả lời" if image.if_asked else "Sau câu trả lời này"
+        ask = f", rồi hỏi {' và '.join(image.ask)}" if image.ask else ""
+        lines.append(f"- [HỆ THỐNG] {when} hệ thống gửi ảnh {image.label}{ask}.")
+    if lines:
+        lines.insert(0, MEDIA_NOTE_HEADER)
+    if facilities_need_campus:
+        lines.append(FACILITIES_NEED_CAMPUS)
+    return "\n".join(lines)
 
 
 # Model suy luận (vd qwen3 trên Groq) trả "<think>…</think>" trước câu trả lời; khối có thể
@@ -491,11 +532,13 @@ class AIEngine:
         conversation_history: list[dict] | None = None,
         customer_context: str = "",
         gap_hours: float = 0.0,
+        media_note: str = "",
     ) -> AIResponse:
         """Try each model in the fallback chain until one succeeds.
 
         customer_context: optional string with known customer info to inject into prompt.
         gap_hours: hours since last interaction with this customer (0 if first time).
+        media_note: [HỆ THỐNG] lines (media_note()) ending the reminders: images the bot sends after this reply.
         """
         history = conversation_history or []
 
@@ -556,14 +599,15 @@ class AIEngine:
             f"'Em muốn đặt lịch tham quan trường ạ', hoặc tự nói muốn đăng ký/đặt lịch) → lượt này chỉ hỏi thời gian kèm "
             f"[QUICK:trial_week]/[QUICK:visit_time], CHƯA xin SĐT, kể cả khi [TRẠNG THÁI TƯ VẤN] ghi 'Còn thiếu: SĐT/Zalo' "
             f"(hỏi thời gian trước); xin SĐT/Zalo mềm 1 lần ở lượt sau.\n"
-            f"- Học phí/ưu đãi: chưa biết tuổi bé + cơ sở thì không nói con số; không bịa số, không gửi bảng phí trên chat; không nêu % ưu đãi theo đợt. "
+            f"- Học phí/ưu đãi: không viết con số, không bịa số; ảnh học phí chỉ do hệ thống gửi theo dòng [HỆ THỐNG]; "
+            f"không nêu % ưu đãi theo đợt. Phụ huynh không để lại số khi được xin hoặc từ chối cho số mà vẫn đòi mức học phí "
+            f"→ KHÔNG [ESCALATE], không xin lại số; chưa biết cơ sở thì hỏi cơ sở. "
             f"[THÔNG TIN KHÁCH HÀNG ĐÃ BIẾT] đã có SĐT, phụ huynh vừa gửi số, hoặc đã từ chối cho số → KHÔNG xin SĐT nữa; "
             f"em vừa xin SĐT ở tin trước mà phụ huynh chưa gửi → không xin lại ngay ở tin này.\n"
             f"- Xe bus: hiện Nhà trường chưa có tuyến xe bus; khi đủ phụ huynh đăng ký, Nhà trường sẽ mở tuyến. "
             f"Không nêu tuyến, phí, ưu đãi; mời để lại khu vực nhà + SĐT/Zalo để ghi nhận nhu cầu. Không [ESCALATE] chỉ vì xe bus.\n"
             f"- Câu ngoài lề; một dữ kiện cụ thể KHÔNG CÓ trong Q&A (tên giáo viên cụ thể, ngày sự kiện, lịch chi tiết, kế hoạch mở rộng...) "
-            f"hoặc không chắc dữ kiện đó; phụ huynh không để lại số khi được xin hoặc từ chối cho số mà vẫn đòi mức học phí "
-            f"→ BẮT BUỘC trả lời chính xác chuỗi [ESCALATE] và KHÔNG nói gì thêm. "
+            f"hoặc không chắc dữ kiện đó → BẮT BUỘC trả lời chính xác chuỗi [ESCALATE] và KHÔNG nói gì thêm. "
             f"Câu hỏi chung về trường (tìm hiểu trường, chương trình, cơ sở, giáo viên, độ tuổi…) thì LUÔN tự trả lời, "
             f"không [ESCALATE], kể cả khách cũ lâu ngày quay lại hay lịch sử cũ lạ: giới thiệu ngắn rồi hỏi tuổi bé/cơ sở còn thiếu; "
             f"dữ kiện cụ thể vẫn theo câu trên.\n"
@@ -579,6 +623,8 @@ class AIEngine:
             f"- Câu hỏi cuối khớp một nút trả lời nhanh thì kết bằng đúng 1 token QUICK (xem NÚT TRẢ LỜI NHANH); không dùng khi [ESCALATE].\n"
             f"- KHÔNG BAO GIỜ tự suy đoán hoặc bịa thông tin. Chỉ dùng THÔNG TIN CỐT LÕI và Q&A."
         )
+        if media_note:
+            wrapped_message += f"\n{media_note}"
 
         for model_name in settings.AI_MODEL_ORDER:
             model_name = model_name.strip()

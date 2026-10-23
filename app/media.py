@@ -71,6 +71,33 @@ def age_range(name: str) -> tuple[int, int] | None:
     return (low, high) if low < high else None
 
 
+_KID_AGE = re.compile(
+    r"(duoi\s+)?(\d+(?:[.,]5)?)\s*(?:-\s*\d+(?:[.,]5)?\s*)?(thang|tuoi)(?:\s*(\d+)\s*thang)?"
+)
+
+
+def age_months(kid_age: str) -> int | None:
+    """Months of a kid age as parents and the profile write it: "20 tháng" -> 20, "3 tuổi" -> 36, "2-3 tuổi" -> 24
+    (the lower end), "dưới 2 tuổi" -> 18, "2 tuổi 3 tháng" -> 27, a bare number is years ("3" -> 36); else None."""
+    folded = fold(str(kid_age or "")).translate(_DASHES)
+    if folded.isdigit():
+        return int(folded) * 12
+    m = _KID_AGE.search(folded)
+    if not m:
+        return None
+    value = float(m[2].replace(",", "."))
+    if m[3] == "thang":
+        return int(value)
+    return int(value * 12) - (6 if m[1] else 0) + int(m[4] or 0)
+
+
+def campus_in(text: str) -> str | None:
+    """The one campus key named in `text` ("Em quan tâm cơ sở Kim Mã ạ" -> "Kim Mã"); None for none or several."""
+    folded = fold(str(text or ""))
+    named = [c for c in CAMPUSES if re.search(rf"\b{fold(c)}\b", folded)]
+    return named[0] if len(named) == 1 else None
+
+
 def campus_key(name: str) -> str:
     folded = fold(name)
     return next((c for c in CAMPUSES if fold(c) == folded), " ".join(name.split()).title())

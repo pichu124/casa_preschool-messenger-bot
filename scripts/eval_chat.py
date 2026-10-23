@@ -1,8 +1,9 @@
 """Chấm hội thoại tư vấn của bot với model AI thật, theo kịch bản bán hàng của trường.
 
 Cách chạy (từ thư mục gốc repo, cần ít nhất một API key AI trong .env hoặc biến môi trường):
-    .venv/bin/python scripts/eval_chat.py                 # chạy mọi kịch bản
+    .venv/bin/python scripts/eval_chat.py                 # chạy mọi kịch bản hội thoại và bộ chủ đề
     .venv/bin/python scripts/eval_chat.py che_dat xe_bus  # chỉ chạy các kịch bản được nêu tên
+    .venv/bin/python scripts/eval_chat.py topics          # chỉ chạy bộ chủ đề (tên TOPIC_SUITE)
 
 Mỗi kịch bản là vài lượt phụ huynh nhắn liên tiếp; lịch sử hội thoại chỉ giữ trong bộ nhớ. Script dùng
 AIEngine + data/qa_database.json như bot thật, nhưng KHÔNG đi qua app.main hay lưu hồ sơ khách (chỉ mượn hàm
@@ -21,8 +22,17 @@ Không lặp lại câu của tin bot liền trước, không chép câu kể tr
 2026-10-22; xem near_copies): câu từ MIN_COPY_WORDS từ trở lên, giống ≥ COPY_RATIO theo SequenceMatcher trên từ.
 Heuristic chỉ để lọc nhanh: vẫn phải đọc transcript.
 
-Exit: 0 = mọi heuristic đạt; 1 = có lượt vi phạm; 2 = INCONCLUSIVE (chưa có API key, mọi model đều lỗi)
-hoặc sai tên kịch bản.
+Bộ chủ đề (TOPIC_CASES) đo model trích xuất gắn "topics" (app/topics.py) đúng bao nhiêu. Mỗi câu mẫu là một tin
+phụ huynh (kèm câu bot hỏi ngay trước nếu cần) và tập chủ đề kỳ vọng; script gọi AIEngine.extract_customer_info
+như process_message (hồ sơ FB_NAME, last_bot_message) rồi lọc bằng clean_topics như bot. Mỗi câu là 1 lượt gọi
+extract (tốn phí: 20 câu là 20 lượt, cộng lượt dự phòng khi một model lỗi). Tập ra = tập kỳ vọng là "đúng", có
+giao mà khác là "một phần", không giao là "sai" (kỳ vọng [] mà ra chủ đề nào cũng là sai). Chỉ gọi extract, không
+gọi chat, nên không có ["Khác"] bot tự gán khi escalate: "Khác" phải do model gắn. Model trả lời mà không ra JSON
+thì tính như []. Mỗi câu in một dòng; cuối in tỷ lệ đúng hoàn toàn và đúng một phần. Bộ đạt khi tỷ lệ đúng hoàn
+toàn ≥ TOPIC_PASS_RATIO (80%).
+
+Exit: 0 = mọi heuristic đạt và bộ chủ đề (nếu chạy) đạt ngưỡng; 1 = có lượt vi phạm hoặc bộ chủ đề dưới ngưỡng;
+2 = INCONCLUSIVE (chưa có API key, mọi model đều lỗi) hoặc sai tên kịch bản.
 """
 import asyncio
 import logging
@@ -30,6 +40,7 @@ import os
 import re
 import sys
 import unicodedata
+from collections import Counter
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -46,6 +57,7 @@ from app.config import settings
 from app.customer_memory import format_profile_for_prompt
 from app.messenger import QUICK_REPLIES
 from app.qa_database import QADatabase
+from app.topics import clean_topics
 
 ASKS_PHONE = ("sđt", "số điện thoại", "zalo")
 # Câu cuối đạt nếu có hành động cụ thể, hoặc là câu hỏi lấy thông tin còn thiếu để tư vấn tiếp. "đăng ký" chỉ là bước
@@ -267,6 +279,48 @@ SCENARIOS: dict[str, list[Turn]] = {
 }
 
 
+TOPIC_SUITE = "topics"
+TOPIC_PASS_RATIO = 0.8
+FULL, PARTIAL, WRONG = "đúng", "một phần", "sai"
+ASK_PHONE_BOT = "Nếu tiện, Ba/Mẹ để lại SĐT/Zalo để tư vấn viên liên hệ nhé? [QUICK:phone]"
+ASK_AGE_BOT = "Dạ Ba/Mẹ cho em xin tuổi bé để em tư vấn lớp phù hợp ạ? [QUICK:age]"
+ASK_TIME_BOT = "Vâng ạ. Ba/Mẹ muốn đưa bé qua tham quan buổi sáng hay buổi chiều ạ? [QUICK:visit_time]"
+BOOKED_BOT = "Dạ em đã báo tư vấn viên, tư vấn viên sẽ gọi Ba/Mẹ xác nhận giờ cụ thể ạ."
+
+
+@dataclass
+class TopicCase:
+    message: str
+    expected: tuple[str, ...]  # chủ đề kỳ vọng, viết như trong TOPICS; () = tin không có chủ đề
+    last_bot_message: str = ""  # câu bot gửi ngay trước, như process_message truyền cho extract (lịch sử giữ token [QUICK:])
+
+
+TOPIC_CASES: list[TopicCase] = [
+    TopicCase("hp bn ạ", ("Học phí",)),
+    TopicCase("tiền học 1 thág bao nhiu v ạ", ("Học phí",)),
+    TopicCase("học phí bao nhiêu, có ưu đãi gì không ạ", ("Học phí", "Ưu đãi")),
+    TopicCase("trường dạy theo phương pháp gì vậy ạ", ("Chương trình/phương pháp",)),
+    TopicCase("be hoc tieng anh may tieng 1 ngay vay", ("Tiếng Anh/GV nước ngoài",)),
+    TopicCase("1 lớp mấy cô mấy bạn ạ", ("Giáo viên/tỷ lệ cô trò",)),
+    TopicCase("trường có sân chơi không, phòng học có điều hoà không ạ", ("Cơ sở vật chất",)),
+    TopicCase("có camera không, ăn uống thế nào", ("An toàn/sức khoẻ/camera", "Ăn uống/thực đơn")),
+    TopicCase("mấy giờ đón con ạ, có trông muộn không", ("Giờ học/đón trả/trông muộn",)),
+    TopicCase("trường có xe bus đưa đón không ạ", ("Xe đưa đón",)),
+    TopicCase("bé 14 tháng trường nhận chưa ạ, nhập học cần giấy tờ gì", ("Độ tuổi/nhập học/hồ sơ",)),
+    TopicCase("cho bé đi học thử vài hôm được không ạ", ("Học thử/tham quan",)),
+    TopicCase("con mình hay khóc khi xa mẹ, đi học có quen được không", ("Thích nghi/tâm lý bé",)),
+    TopicCase("trường mình khác gì so với Vinschool ạ", ("So sánh trường khác",)),
+    TopicCase("giá bitcoin hôm nay bao nhiêu vậy", ("Khác",)),
+    TopicCase(TEST_PHONE, (), last_bot_message=ASK_PHONE_BOT),
+    # Phụ huynh tự gõ tuổi (bấm nút thì bot nhận "Bé nhà em dưới 2 tuổi ạ").
+    TopicCase("Dưới 2 tuổi", (), last_bot_message=ASK_AGE_BOT),
+    # Bấm nút "Buổi chiều": bot nhận nghĩa của nút (app.main quick_reply_meaning), không phải tiêu đề.
+    TopicCase(QUICK_REPLIES["visit_time"][1][1], (), last_bot_message=ASK_TIME_BOT),
+    TopicCase("Chào trường ạ", ()),
+    TopicCase("Cảm ơn ạ", (), last_bot_message=BOOKED_BOT),
+]
+
+
 def sentences(text: str) -> list[str]:
     """Các câu của câu bot gửi, bỏ token [QUICK:]/[IMAGES:] và mẩu chỉ có emoji.
 
@@ -405,28 +459,85 @@ async def run_scenario(engine: AIEngine, name: str, turns: list[Turn]) -> tuple[
     return failures, True
 
 
+ALL_MODELS_FAILED = "INCONCLUSIVE: mọi model AI đều lỗi (key sai, hết quota hoặc mất mạng)"
+
+
+class EvalEngine(AIEngine):
+    """AIEngine đếm số lời gọi có model trả lời: extract_customer_info trả {} cả khi mọi model lỗi."""
+
+    answered = 0
+
+    async def _generate(self, *args, **kwargs) -> str:
+        text = await super()._generate(*args, **kwargs)
+        self.answered += 1
+        return text
+
+
+def grade_topics(expected: tuple[str, ...], got: list[str]) -> str:
+    want, have = set(expected), set(got)
+    if want == have:
+        return FULL
+    return PARTIAL if want & have else WRONG
+
+
+async def extract_topics(engine: EvalEngine, case: TopicCase) -> list[str] | None:
+    """Chủ đề bot sẽ đếm cho tin này; None khi mọi model lỗi."""
+    before = engine.answered
+    extracted = await engine.extract_customer_info(case.message, FB_NAME, last_bot_message=case.last_bot_message)
+    return clean_topics(extracted.get("topics")) if engine.answered > before else None
+
+
+async def run_topic_cases(engine: EvalEngine) -> bool | None:
+    """True/False = bộ chủ đề đạt/dưới ngưỡng; None = mọi model lỗi."""
+    print(f"\n===== {TOPIC_SUITE} =====")
+    grades = Counter()
+    for case in TOPIC_CASES:
+        got = await extract_topics(engine, case)
+        if got is None:
+            print(f"PH: {case.message}\n  ! mọi model đều lỗi")
+            return None
+        grade = grade_topics(case.expected, got)
+        grades[grade] += 1
+        print(f"{grade} | {case.message!r} | kỳ vọng {list(case.expected)} | ra {got}")
+    total = len(TOPIC_CASES)
+    print(
+        f"\nChủ đề ({total} câu): đúng hoàn toàn {grades[FULL]}/{total} ({grades[FULL] / total:.0%}), "
+        f"đúng một phần {grades[PARTIAL]}/{total} ({grades[PARTIAL] / total:.0%}); "
+        f"đạt khi đúng hoàn toàn ≥ {TOPIC_PASS_RATIO:.0%}"
+    )
+    return grades[FULL] / total >= TOPIC_PASS_RATIO
+
+
 async def main(selected: list[str]) -> int:
-    unknown = [name for name in selected if name not in SCENARIOS]
+    unknown = [name for name in selected if name not in SCENARIOS and name != TOPIC_SUITE]
     if unknown:
-        print(f"Không có kịch bản: {', '.join(unknown)}. Có: {', '.join(SCENARIOS)}")
+        print(f"Không có kịch bản: {', '.join(unknown)}. Có: {', '.join(SCENARIOS)}, {TOPIC_SUITE}")
         return 2
     if not any(API_KEY_MAP.get(name.strip()) for name in settings.AI_MODEL_ORDER):
         print("INCONCLUSIVE: chưa có API key AI")
         print(f"Đặt key cho một model trong AI_MODEL_ORDER ({','.join(settings.AI_MODEL_ORDER)}) vào .env rồi chạy lại.")
         return 2
 
-    engine = AIEngine(QADatabase(str(ROOT / "data" / "qa_database.json")).build_context())
+    engine = EvalEngine(QADatabase(str(ROOT / "data" / "qa_database.json")).build_context())
+    scenarios = [name for name in selected if name in SCENARIOS] if selected else list(SCENARIOS)
     failed_turns = 0
-    for name in selected or SCENARIOS:
+    for name in scenarios:
         failures, answered = await run_scenario(engine, name, SCENARIOS[name])
         if not answered:
-            print("\nINCONCLUSIVE: mọi model AI đều lỗi (key sai, hết quota hoặc mất mạng)")
+            print(f"\n{ALL_MODELS_FAILED}")
             return 2
         failed_turns += failures
+    if scenarios:
+        total = sum(len(SCENARIOS[name]) for name in scenarios)
+        print(f"\n{total - failed_turns}/{total} lượt đạt heuristic")
 
-    total = sum(len(SCENARIOS[name]) for name in selected or SCENARIOS)
-    print(f"\n{total - failed_turns}/{total} lượt đạt heuristic")
-    return 1 if failed_turns else 0
+    topics_passed = True
+    if not selected or TOPIC_SUITE in selected:
+        topics_passed = await run_topic_cases(engine)
+        if topics_passed is None:
+            print(f"\n{ALL_MODELS_FAILED}")
+            return 2
+    return 1 if failed_turns or not topics_passed else 0
 
 
 if __name__ == "__main__":

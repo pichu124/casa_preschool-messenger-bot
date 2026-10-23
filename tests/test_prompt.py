@@ -1227,6 +1227,23 @@ def test_media_note_says_which_images_follow_and_what_to_ask():
     assert media_note([]) == ""
 
 
+# Review 2026-10-23: "lịch chi tiết không có trong Q&A → [ESCALATE]" mâu thuẫn với luật gửi ảnh thời khoá biểu khi
+# tin có "lịch học". Có ảnh thời khoá biểu chắc chắn gửi thì trả lời chung + báo gửi, không [ESCALATE], không bịa giờ;
+# ảnh chỉ gửi nếu hỏi chương trình (dòng "Nếu…") thì câu hỏi giờ cụ thể vẫn theo luật cũ.
+def test_timetable_being_sent_answers_a_schedule_question_without_escalating(monkeypatch):
+    sure = media_note([ImageNote("timetable", "thời khoá biểu cơ sở Kim Mã")])
+    maybe = media_note([ImageNote("timetable", "thời khoá biểu cơ sở Kim Mã", if_asked=True)])
+    _, with_note = model_input(monkeypatch, "lịch học của bé thế nào ạ", conversation_history=FOLLOW_UP, media_note=sure)
+
+    line = _reminder(with_note).splitlines()[-1]
+    assert line.startswith("- [HỆ THỐNG] Sau câu trả lời này hệ thống gửi ảnh thời khoá biểu cơ sở Kim Mã."), line
+    assert re.search(r"lịch học[^.]*giờ[^.]*trả lời chung[^.]*KHÔNG \[ESCALATE\][^.]*không tự nêu giờ", line), line
+    assert "ESCALATE" not in maybe.splitlines()[-1] and "lịch học" not in maybe.splitlines()[-1], maybe
+    assert "ESCALATE" not in media_note([ImageNote("fee", "học phí hệ Song ngữ (cơ sở Kim Mã)")]).splitlines()[-1]
+    escalate = next(l for l in _reminder(with_note).splitlines() if "BẮT BUỘC trả lời chính xác chuỗi [ESCALATE]" in l)
+    assert "lịch chi tiết" in escalate, escalate
+
+
 # Review 2026-10-22: "lịch học" trong danh sách câu hỏi chung mâu thuẫn với ca "lịch chi tiết không có trong Q&A →
 # [ESCALATE]"; Q&A không có thời gian biểu trong ngày nên model có thể bịa giờ.
 def test_general_school_questions_do_not_cover_schedules_or_specific_facts(monkeypatch):

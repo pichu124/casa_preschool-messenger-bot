@@ -135,6 +135,14 @@ MEDIA_NOTE_HEADER = (
     "gia đình tham khảo ạ\"; không nêu con số, không nói không gửi được bảng phí/ảnh, không thêm [IMAGES:] cho ảnh "
     "đó, không [ESCALATE] chỉ vì câu hỏi đó."
 )
+# How the reply answers once the image surely follows ("Sau câu trả lời này"): the timetable answers a schedule
+# question that the Q&A alone would escalate ("lịch chi tiết"). Not on "Nếu phụ huynh hỏi …" lines.
+IMAGE_ANSWERS = {
+    "timetable": (
+        "Hỏi lịch học/thời khoá biểu/giờ trong ngày → trả lời chung, báo em gửi thời khoá biểu, KHÔNG [ESCALATE], "
+        "không tự nêu giờ ngoài Q&A."
+    ),
+}
 FACILITIES_NEED_CAMPUS = (
     "- [HỆ THỐNG] Nếu phụ huynh hỏi cơ sở vật chất: có ảnh từng cơ sở, chưa biết cơ sở nên hỏi Ba/Mẹ quan tâm cơ sở "
     "nào để em gửi ảnh, kèm [QUICK:campus]."
@@ -154,7 +162,8 @@ def media_note(images: list[ImageNote], facilities_need_campus: bool = False) ->
     for image in images:
         when = f"Nếu phụ huynh hỏi {IMAGE_TOPICS[image.kind]}: sau câu trả lời" if image.if_asked else "Sau câu trả lời này"
         ask = f", rồi hỏi {' và '.join(image.ask)}" if image.ask else ""
-        lines.append(f"- [HỆ THỐNG] {when} hệ thống gửi ảnh {image.label}{ask}.")
+        answer = "" if image.if_asked or image.kind not in IMAGE_ANSWERS else f" {IMAGE_ANSWERS[image.kind]}"
+        lines.append(f"- [HỆ THỐNG] {when} hệ thống gửi ảnh {image.label}{ask}.{answer}")
     if lines:
         lines.insert(0, MEDIA_NOTE_HEADER)
     if facilities_need_campus:

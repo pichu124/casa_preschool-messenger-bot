@@ -31,6 +31,9 @@ Bảo mật:
 3. [x] ~~SĐT nước ngoài viết kèm số 0 sau mã nước~~ (vd "+886 0912 345 678"): đã sửa, bot lưu nguyên số nước ngoài, không còn nhận nhầm thành số Việt Nam.
 4. [x] ~~SĐT theo đầu số cũ~~: không cần, phụ huynh đã dùng đầu số mới; bot giữ nguyên, chỉ nhận đầu số hiện hành.
 5. [ ] **"Mối quan tâm" có báo Telegram không?** Hiện phụ huynh đã là lead mà hỏi sang chủ đề mới (học phí, giờ đón…) thì bot gửi một tin 🔄 "Mối quan tâm: học phí → học phí, giờ đón" và ghi Sheet "Cập nhật thông tin" (Sheet không có cột này). Agent đề xuất bỏ khỏi danh sách báo (`LEAD_INFO` trong `app/escalation.py`, một dòng) để nhóm Telegram bớt nhiễu; người vận hành đang cân nhắc, tạm giữ.
+6. [ ] **Tên môn Cambridge thứ 3**: "Let's Explore" (dữ liệu hiện tại, góp ý số 5 của trường) hay "Understanding the World" (góp ý số 4)? Người vận hành: để sửa sau.
+7. [ ] **Thời lượng Cambridge (English) ở Kim Mã**: bao nhiêu phút/ngày, buổi nào? Q&A hiện ghi tư vấn viên sẽ báo. Để sửa sau.
+8. [ ] **Có hỏi tên bé không** (góp ý số 1 của trường muốn xin "tên bé – độ tuổi – cơ sở")? Hiện bot chỉ hỏi tuổi và cơ sở. Để sửa sau.
 
 ## D. Dữ kiện cần trường xác nhận
 

@@ -527,3 +527,17 @@ def test_media_endpoint_needs_the_secret_and_lists_the_catalog(admin_group):
     menu = next(item for item in body["items"] if item["id"] == "qt-menu")
     assert (menu["kind"], menu["system"], menu["url"]) == ("menu", "quoc_te", url("qt-menu"))
     assert menu["path"] == [QT, "THỰC ĐƠN"]
+
+
+def test_media_mount_serves_images_but_not_the_catalog(tmp_path):
+    """catalog.json lives next to the images (Drive paths and ids): /static/media/ serves only the .jpg files."""
+    from fastapi import FastAPI
+
+    (tmp_path / "abc.jpg").write_bytes(b"\xff\xd8jpeg")
+    (tmp_path / media.CATALOG_FILE).write_text('{"items": []}', encoding="utf-8")
+    probe = FastAPI()
+    probe.mount("/static/media", main._ImagesOnly(directory=tmp_path), name="media")
+    client = TestClient(probe)
+
+    assert client.get("/static/media/abc.jpg").status_code == 200
+    assert client.get(f"/static/media/{media.CATALOG_FILE}").status_code == 404

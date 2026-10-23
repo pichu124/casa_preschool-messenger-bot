@@ -86,9 +86,20 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Preschool Messenger Bot", version=APP_VERSION, lifespan=lifespan)
+
+
+class _ImagesOnly(StaticFiles):
+    """Serves only the synced .jpg images: MEDIA_DIR also holds catalog.json (Drive paths and ids), kept private."""
+
+    async def get_response(self, path, scope):
+        if not path.endswith(".jpg"):
+            raise HTTPException(status_code=404)
+        return await super().get_response(path, scope)
+
+
 # Images synced from Google Drive (app/media.py), wherever MEDIA_DIR is; mounted before /static, which it is under.
 Path(settings.MEDIA_DIR).mkdir(parents=True, exist_ok=True)
-app.mount("/static/media", StaticFiles(directory=settings.MEDIA_DIR), name="media")
+app.mount("/static/media", _ImagesOnly(directory=settings.MEDIA_DIR), name="media")
 # Public files (Q&A images such as the sample menu), referenced as "static/<file>" in qa_database.json.
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

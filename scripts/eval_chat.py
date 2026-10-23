@@ -151,7 +151,7 @@ SCENARIOS: dict[str, list[Turn]] = {
         ),
     ],
     # Review 2026-10-22: chưa để số, chưa từ chối rõ (extract không đặt phone_declined) mà hỏi lại học phí: bot không
-    # được nêu số, không xin lại ngay, nên [ESCALATE]; main gửi câu chuyển tư vấn viên kèm hotline (ESCALATION_MESSAGE_ASK_PHONE).
+    # được nêu số, không xin lại ngay, nên [ESCALATE]; main gửi câu chuyển kèm hotline (ESCALATION_MESSAGE_ASK_PHONE).
     "hoc_phi_chua_de_so": [
         Turn("cho mình hỏi học phí ạ", known=FB_NAME),
         Turn("bé nhà mình 3 tuổi, mình quan tâm cơ sở Mỹ Đình", known=FB_NAME, any_of=[ASKS_PHONE]),

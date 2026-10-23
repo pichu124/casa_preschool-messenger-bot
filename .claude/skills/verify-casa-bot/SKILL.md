@@ -109,6 +109,7 @@ Webhook trả 200 ngay rồi xử lý nền, nên HTTP 200 **không** chứng mi
 | `VISIT_TOMORROW` | extract `visit_request: tham quan sáng mai` (đổi lịch hẹn) |
 | `START_DEC` | extract `expected_start: tháng 12` (lead nói thêm thông tin) |
 | `DECLINE` | extract `phone_declined: true` |
+| `UPSET` | extract `upset: true, phone_declined: true` (phụ huynh khó chịu, đòi thông tin qua chat: bot gửi câu xin lỗi và chuyển tư vấn viên) |
 | `HOC_PHI` | extract `topics: ["Học phí"]` (chủ đề của tin: dashboard, tab "Chủ đề" của Sheet) |
 | (khác) | `Dạ Casa chào Ba/Mẹ ạ, em hỗ trợ ngay ạ.`; extract `{}` |
 

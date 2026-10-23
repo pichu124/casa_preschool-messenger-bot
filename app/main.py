@@ -31,6 +31,7 @@ from app.escalation import (
     ESCALATION_HEADER,
     ESCALATION_MESSAGE_ASK_PHONE,
     ESCALATION_MESSAGE_HAS_PHONE,
+    ESCALATION_MESSAGE_UPSET,
     drop_pending_escalations,
     escalate_to_admin,
     get_pending_escalation,
@@ -568,10 +569,11 @@ def _clean_extracted(extracted: dict, phone_from_qr: str | None, text: str) -> d
     first), else the first one in `text` itself, so a number the parent typed is kept even when every model
     fails; it then also drops phone_declined. phone_declined is kept only as JSON true (models also return
     "false"); topics_covered is only ever what the bot replied with (topics_in_reply); topics are statistics of
-    one message (app/topics.py), not profile data."""
+    one message (app/topics.py) and upset is about this message, neither is profile data."""
     extracted = dict(extracted)
     extracted.pop("topics_covered", None)
     extracted.pop("topics", None)
+    extracted.pop("upset", None)
     phone = phone_from_qr or _find_phone(extracted.pop("phone", None))
     if not phone:
         phone = _find_phone(text)
@@ -650,15 +652,18 @@ async def process_message(
             ai_engine.extract_customer_info(text, existing_profile, last_bot_message=last_bot_message),
         )
         topics_given = extracted.get("topics")
+        # Only JSON true, as phone_declined: models also return "true"/"false"
+        upset = extracted.get("upset") is True
         extracted = _clean_extracted(extracted, phone_from_qr, text)
 
         logger.info(
             f"User {sender_id} ({user_name}): {len(text)} chars "
-            f"-> Model: {response.model_used}, Escalate: {response.should_escalate}, "
+            f"-> Model: {response.model_used}, Escalate: {response.should_escalate}, Upset: {upset}, "
             f"HasProfile: {bool(existing_profile)}, GapHours: {gap_hours:.1f}, HistoryLen: {len(history)}"
         )
 
-        escalated = response.should_escalate or not response.text
+        # An upset parent goes to a consultant with an apology, whatever the model replied
+        escalated = response.should_escalate or not response.text or upset
         topics = clean_topics(topics_given, escalated=escalated)
         covered = []
         if escalated:
@@ -667,7 +672,9 @@ async def process_message(
                 customer_name=full_name,
                 question=text,
             )
-            if had_phone or extracted.get("phone"):
+            if upset:
+                reply_text = ESCALATION_MESSAGE_UPSET
+            elif had_phone or extracted.get("phone"):
                 reply_text = ESCALATION_MESSAGE_HAS_PHONE
             else:
                 reply_text = ESCALATION_MESSAGE_ASK_PHONE

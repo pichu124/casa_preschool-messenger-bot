@@ -402,6 +402,42 @@ def last_analytics_record() -> dict:
     return json.loads(Path(analytics.ANALYTICS_PATH).read_text(encoding="utf-8").splitlines()[-1])
 
 
+# Phản hồi của trường (đợt 7): phụ huynh nhất quyết không để số, muốn nhận thông tin qua chat và tỏ ra khó chịu thì bot
+# không im, không vòng vo, mà chuyển tư vấn viên kèm câu xin lỗi nguyên văn này, dù model chat không [ESCALATE].
+UPSET_APOLOGY = (
+    "Dạ em xin lỗi Ba/Mẹ vì sự bất tiện này ạ. Em đã chuyển thông tin sang tư vấn viên phụ trách để hỗ trợ mình ngay "
+    "tại đây. Bên em sẽ gửi thông tin đầy đủ để Ba/Mẹ tiện xem và trao đổi ạ."
+)
+UPSET_TEXT = "Sao cứ đòi số thế, không cho số thì không tư vấn à? Gửi thông tin qua đây luôn đi"
+
+
+@pytest.mark.parametrize("known_profile", [{}, {"phone": PHONE}], ids=["chưa có SĐT", "đã có SĐT"])
+def test_upset_parent_gets_the_apology_and_a_consultant(bot, known_profile):
+    customer_memory._customers[CUSTOMER_ID] = dict(known_profile)
+
+    bot.say(UPSET_TEXT, reply=MODEL_TEXT, escalate=False, extracted={"upset": True, "phone_declined": True})
+
+    assert bot.sent == [UPSET_APOLOGY]
+    (card,) = bot.escalations()
+    assert CUSTOMER_ID in card and UPSET_TEXT in card
+    assert escalation._pending[8001]["customer_id"] == CUSTOMER_ID
+    profile = customer_memory.get_profile(CUSTOMER_ID)
+    assert "upset" not in profile
+    assert profile["phone_declined"] is True
+    assert customer_memory.get_conversation_history(CUSTOMER_ID)[-1] == {"role": "assistant", "content": UPSET_APOLOGY}
+    assert last_analytics_record()["escalated"] is True
+    assert last_analytics_record()["topics"] == ["Khác"]
+
+
+@pytest.mark.parametrize("upset", ["true", 1, False])
+def test_upset_flag_counts_only_as_json_true(bot, upset):
+    bot.say(UPSET_TEXT, extracted={"upset": upset})
+
+    assert bot.sent == [MODEL_TEXT]
+    assert bot.escalations() == []
+    assert "upset" not in customer_memory.get_profile(CUSTOMER_ID)
+
+
 @pytest.mark.parametrize(
     ("reply", "escalate", "escalated"),
     [

@@ -40,7 +40,9 @@ LEAD_CARD_FIELD = "lead_card_msg_id"
 _lead_locks: dict[str, asyncio.Lock] = {}
 
 HOTLINE = "0989 059 838"
-_HOTLINE_LINE = f"Nếu Ba/Mẹ cần được tư vấn ngay, mình có thể liên hệ Hotline {HOTLINE} để Casa hỗ trợ nhanh hơn nhé ạ."
+_HOTLINE_LINE = (
+    f"Nếu Ba/Mẹ cần được tư vấn ngay, mình có thể liên hệ Hotline {HOTLINE} để Casa hỗ trợ nhanh hơn nhé ạ."
+)
 # Sent to the parent on escalation, the school's wording. Every one gives the hotline; none asks for a phone number:
 # parents were annoyed at being asked again and again, and the hotline does that job. Without a number on file the
 # consultant's Telegram reply comes back here, in Messenger.
@@ -55,6 +57,12 @@ ESCALATION_MESSAGE_ASK_PHONE = (
     "nhân viên phụ trách sẽ hỗ trợ và phản hồi trực tiếp tại đây sớm nhất ạ.\n\n" + _HOTLINE_LINE
 )
 ESCALATION_MESSAGE_PHONE_DECLINED = ESCALATION_MESSAGE_ASK_PHONE
+# Instead of the model's reply when the parent is upset (extract_customer_info flags "upset"), the school's wording.
+ESCALATION_MESSAGE_UPSET = (
+    "Dạ em xin lỗi Ba/Mẹ vì sự bất tiện này ạ. "
+    "Em đã chuyển thông tin sang tư vấn viên phụ trách để hỗ trợ mình ngay tại đây. "
+    "Bên em sẽ gửi thông tin đầy đủ để Ba/Mẹ tiện xem và trao đổi ạ."
+)
 
 # In-memory mapping: telegram_message_id -> escalation info
 _pending: dict[int, dict] = {}

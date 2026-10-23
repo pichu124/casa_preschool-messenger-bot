@@ -174,6 +174,20 @@ def test_extract_prompt_asks_for_topics_of_this_message_from_the_fixed_list(monk
     assert re.search(r"SĐT[^\n]*tuổi bé[^\n]*buổi[^\n]*cơ sở[^\n]*\"topics\": \[\]", rule), rule
 
 
+# Phản hồi của trường (đợt 7): phụ huynh khó chịu, gay gắt đòi thông tin qua chat thì chuyển tư vấn viên kèm lời xin
+# lỗi. Model chat có trần ký tự; model trích xuất nhận diện việc này và trả cờ "upset" (không phải trường hồ sơ).
+def test_extract_prompt_flags_an_upset_parent(monkeypatch):
+    recorder = RecordingProvider('{"upset": true, "phone_declined": true}')
+    engine = make_engine(monkeypatch, fake=recorder)
+
+    info = asyncio.run(engine.extract_customer_info("sao cứ đòi số thế, gửi qua đây luôn đi"))
+
+    assert info == {"upset": True, "phone_declined": True}
+    (rule,) = [line for line in recorder.system_prompt.splitlines() if '"upset"' in line]
+    assert re.search(r'"upset": true khi[^\n]*khó chịu[^\n]*phàn nàn[^\n]*qua chat', rule), rule
+    assert "upset" not in ai_engine.PROFILE_FIELDS
+
+
 def test_classify_qa_parses_json_after_reasoning(monkeypatch):
     payload = {"category": "Xe đưa đón", "keywords": ["xe bus"], "similar_questions": ["Có xe đón không?"]}
     engine = make_engine(monkeypatch, r1=FakeProvider(f"<think>Phân loại.</think>{json.dumps(payload, ensure_ascii=False)}"))

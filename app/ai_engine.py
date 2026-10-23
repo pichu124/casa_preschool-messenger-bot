@@ -648,6 +648,8 @@ class AIEngine:
             '"tham quan buổi sáng", phụ huynh bấm lại "Đặt lịch tham quan" thì không ghi "tham quan trường")\n'
             '- "concerns": list các mối quan tâm (VD: ["học phí", "an toàn", "ăn uống"])\n'
             '- "kid_traits": list tính cách/đặc điểm bé (VD: ["nhút nhát", "hiếu động", "biếng ăn"])\n'
+            '- "upset": true khi phụ huynh khó chịu, bực bội, phàn nàn, hoặc gay gắt đòi nhận thông tin qua chat thay vì '
+            'để lại số (VD: "sao cứ đòi số thế", "không cho số thì không tư vấn à", "gửi qua đây luôn đi, hỏi mãi")\n'
             '- "topics": list chủ đề phụ huynh hỏi hoặc quan tâm trong TIN NÀY (không tính tin trước), CHỈ chọn '
             f"nguyên văn trong: {', '.join(json.dumps(t, ensure_ascii=False) for t in TOPICS)}. Hỏi điều không thuộc "
             'chủ đề nào thì ["Khác"]. Tin chỉ là thông tin hồ sơ (SĐT, tuổi bé trả lời câu bot hỏi, bấm chọn buổi '

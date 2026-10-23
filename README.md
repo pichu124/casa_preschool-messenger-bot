@@ -88,7 +88,7 @@ curl -s https://api.deepseek.com/models -H "Authorization: Bearer $DEEPSEEK_API_
 curl -s https://generativelanguage.googleapis.com/v1beta/models -H "x-goog-api-key: $GEMINI_API_KEY"
 ```
 
-Roi cham hoi thoai voi model that: `.venv/bin/python scripts/eval_chat.py` (exit 0 = dat; 2 = chua co API key hoac moi model deu loi). Model sai ten chi hien trong log (`Model ... failed`) va bot chuyen sang model tiep theo trong `AI_MODEL_ORDER`.
+Roi cham hoi thoai voi model that: `.venv/bin/python scripts/eval_chat.py` (exit 0 = dat; 1 = co luot vi pham hoac bo chu de duoi nguong; 2 = chua co API key hoac moi model deu loi). Khong tham so thi chay ca cac kich ban hoi thoai lan bo chu de; `scripts/eval_chat.py topics` chi chay bo chu de: 20 tin phu huynh mau, moi tin 1 luot goi `extract_customer_info` that (ton phi), loc bang `clean_topics` nhu bot, roi in tung tin (ky vong, ra, dung / mot phan / sai) va ty le dung hoan toan, dung mot phan. Bo chu de dat khi dung hoan toan >= 80% (`TOPIC_PASS_RATIO`). Model sai ten chi hien trong log (`Model ... failed`) va bot chuyen sang model tiep theo trong `AI_MODEL_ORDER`.
 
 ### 6. Secret cho endpoint admin va Telegram webhook
 

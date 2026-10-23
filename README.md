@@ -168,6 +168,8 @@ Ket qua `{"due": n, "sent": m, "enabled": true|false}`; `verbose=1` them danh sa
 
 `/dashboard?secret=` co muc "Pheu tu van": tong khach, co tuoi be, co co so quan tam, co SDT, da hen tham quan/hoc thu, tu quang cao, va so khach theo giai doan (Moi -> Da biet tuoi/co so -> Da co SDT -> Da hen). Pheu tinh tu ho so khach (`data/customers.json`), khong tu `analytics.jsonl`. Cac o tin nhan, nguoi dung, escalation va ti le chuyen tu van vien tinh tu `analytics.jsonl`, file nay mat moi lan deploy, nen chi phan anh tu lan deploy gan nhat. `/customers/export` co them cot Khu vuc, Du kien nhap hoc, Hen tham quan/hoc thu, Nguon (tieu de quang cao), Giai doan, Da tu choi SDT.
 
+Muc "Chu de phu huynh hoi (7 ngay)": model trich xuat gan moi tin cua phu huynh vao cac chu de co dinh trong `app/topics.py` (Hoc phi, Uu dai, Xe dua don, ...; tin chi tra loi ho so nhu SDT, tuoi be thi khong co chu de; tin chuyen tu van vien khong co chu de thi la "Khac"). Bang "Cau chuyen tu van vien gan day" liet ke 10 cau moi nhat. Cau hoi luu trong `analytics.jsonl` da che SDT thanh `[SĐT]`. Hai muc nay cung tinh tu `analytics.jsonl` (mat khi Render khoi dong lai); so lieu day du nam o tab "Chu de" tren Google Sheet.
+
 ## Chay ung dung
 
 ### Development (local)

@@ -108,6 +108,7 @@ Webhook trả 200 ngay rồi xử lý nền, nên HTTP 200 **không** chứng mi
 | `VISIT_TOMORROW` | extract `visit_request: tham quan sáng mai` (đổi lịch hẹn) |
 | `START_DEC` | extract `expected_start: tháng 12` (lead nói thêm thông tin) |
 | `DECLINE` | extract `phone_declined: true` |
+| `HOC_PHI` | extract `topics: ["Học phí"]` (chủ đề của tin: dashboard, tab "Chủ đề" của Sheet) |
 | (khác) | `Dạ Casa chào Ba/Mẹ ạ, em hỗ trợ ngay ạ.`; extract `{}` |
 
 Chữ trên nút (`--text`), nghĩa của nút và câu ice breaker lấy từ `QUICK_REPLIES` và `ICE_BREAKERS` trong `app/messenger.py`; `tests/test_verify_skill.py` đỏ khi kịch bản, feature map hay ví dụ ở đây lệch khỏi đó.

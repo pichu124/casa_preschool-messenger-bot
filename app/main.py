@@ -43,6 +43,7 @@ from app.escalation import (
 from app import analytics
 from app import customer_memory
 from app.coverage import topics_in_reply
+from app.topics import clean_topics
 from app.followup import run_followups
 
 logging.basicConfig(
@@ -438,6 +439,21 @@ def _find_phone(value) -> str | None:
     return None
 
 
+PHONE_MASK = "[SĐT]"
+
+
+def mask_phones(text: str) -> str:
+    """`text` with each DIGIT_RUN holding a phone number (as _find_phone sees it, parentheses read as spaces)
+    replaced by PHONE_MASK, so a question can be stored without the parent's number."""
+    spaced = re.sub(r"[()]", " ", text)
+    parts, end = [], 0
+    for run in DIGIT_RUN.finditer(spaced):
+        if _phone_in_run(run.group()):
+            parts += [text[end : run.start()], PHONE_MASK]
+            end = run.end()
+    return "".join(parts) + text[end:]
+
+
 def _staff_reply(echo: dict) -> StaffReply | None:
     """A message echo (sender: the Page, recipient: the parent) of a message the bot did not send; None for the
     bot's own messages."""
@@ -558,47 +574,6 @@ def _clean_extracted(extracted: dict, phone_from_qr: str | None, text: str) -> d
     return extracted
 
 
-def _guess_category(question: str, answer: str = "") -> str:
-    """Guess the Q&A category by matching the user's question against keywords + questions in database.
-
-    Returns the best matching category, or empty string if no match.
-    """
-    if not question:
-        return ""
-
-    q_lower = question.lower()
-    best_score = 0
-    best_category = ""
-
-    for pair in qa_db.qa_pairs:
-        category = pair.get("category", "")
-        if not category:
-            continue
-        score = 0
-
-        # Match against keywords (each match = 2 points)
-        for kw in pair.get("keywords", []):
-            if kw and kw.lower() in q_lower:
-                score += 2
-
-        # Match against stored questions (substring match = 3 points)
-        for stored_q in pair.get("questions", []):
-            if not stored_q:
-                continue
-            stored_lower = stored_q.lower()
-            # Count common significant words (length > 3)
-            q_words = set(w for w in q_lower.split() if len(w) > 3)
-            stored_words = set(w for w in stored_lower.split() if len(w) > 3)
-            common = q_words & stored_words
-            score += len(common)
-
-        if score > best_score:
-            best_score = score
-            best_category = category
-
-    return best_category if best_score >= 2 else ""
-
-
 async def process_message(
     sender_id: str, text: str, attribution: dict | None = None, phone_from_qr: str | None = None
 ):
@@ -638,6 +613,7 @@ async def process_message(
             ),
             ai_engine.extract_customer_info(text, existing_profile, last_bot_message=last_bot_message),
         )
+        topics_given = extracted.get("topics")
         extracted = _clean_extracted(extracted, phone_from_qr, text)
 
         logger.info(
@@ -647,7 +623,7 @@ async def process_message(
         )
 
         escalated = response.should_escalate or not response.text
-        category = ""
+        topics = clean_topics(topics_given, escalated=escalated)
         covered = []
         if escalated:
             await escalate_to_admin(
@@ -668,7 +644,6 @@ async def process_message(
             clean_text, image_urls = _extract_images(response.text)
             clean_text, quick_key = _extract_quick_reply(clean_text)
             quick_replies = build_quick_replies(quick_key)
-            category = _guess_category(text)
             covered = topics_in_reply(response.text)
 
             # Messenger shows quick replies only under the latest message: they go on the last one sent
@@ -689,10 +664,10 @@ async def process_message(
             analytics.log_message(
                 user_id=sender_id,
                 user_name=full_name or user_name,
-                question=text,
+                question=mask_phones(text),
                 model_used=response.model_used,
                 escalated=escalated,
-                category=category,
+                topics=topics,
             )
         except Exception as log_err:
             logger.warning(f"Analytics logging failed: {log_err}")

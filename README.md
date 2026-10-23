@@ -251,11 +251,21 @@ File Excel can co cac cot: `category | question | answer | keywords`
 curl -X POST "http://localhost:8000/import-excel?file_path=data/qa_database_sample.xlsx&secret=<TELEGRAM_WEBHOOK_SECRET>"
 ```
 
+### Bot hoc tu admin (Telegram)
+
+Tu van vien reply tin "CAN TRO GIUP" tren Telegram thi bot them cap Q&A moi vao `data/qa_database.json` va day len nhanh `main` voi commit `[skip deploy]` (Render khong deploy lai); xem cac cap da hoc o `/qa-learned`. Vi dia tren Render chi co ban cua lan deploy gan nhat, moi lan khoi dong (va moi lan `/reload-qa`) bot co `GITHUB_TOKEN` thi keo `data/qa_database.json` moi nhat tu `main` va ghi de ban tren dia, nen restart khong lam mat cac cap da hoc.
+
+- Day len chi ghi de dung phien ban da keo: `main` co commit moi tu do (sua tay, instance khac luc deploy) thi bot keo lai, gop cac cap minh chua day duoc vao ban moi roi day lai, nen ban sua tay khong mat va cap da xoa tren `main` khong song lai.
+- Cap day khong duoc (GitHub loi) thi bot giu trong bo nho va tren dia, day lai o cap tiep theo hoac `/reload-qa` (log ERROR). Restart truoc luc do thi cap do mat.
+- Khoi dong ma keo loi (mang, timeout, 404, 401/403, 5xx, JSON hong, `qa_pairs` thieu hoac rong) thi bot dung ban tren dia va KHONG day Q&A len GitHub cho toi khi keo duoc, de ban tren dia khong de mat cac cap da hoc tren `main`. `/reload-qa` keo loi sau mot lan keo thanh cong thi bot giu nguyen bo nho.
+
 ### Reload sau khi chinh sua
 
 ```bash
 curl -X POST "http://localhost:8000/reload-qa?secret=<TELEGRAM_WEBHOOK_SECRET>"
 ```
+
+Co `GITHUB_TOKEN` thi reload lay ban tren `main` chu khong lay file vua sua tren dia: sua Q&A bang commit len `main`. Chay `uvicorn` cuc bo voi `GITHUB_TOKEN` (trong `.env` hoac env) cung vay: luc khoi dong `data/qa_database.json` trong working tree bi ghi de bang ban tren `main`, va cap admin day qua Telegram duoc day len `main` that. `scripts/eval_chat.py` tu bo `GITHUB_TOKEN` nen cham dung file dang sua.
 
 ## Cau truc du an
 

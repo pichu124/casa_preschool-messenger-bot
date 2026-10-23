@@ -4,7 +4,7 @@ launcher.py rewrites https://<host>/<path> to http://127.0.0.1:<port>/<host>/<pa
 here is the real host. Every request is appended to the outbox (JSONL) with the response it got. Answers follow
 the scenario file, re-read on every request (edit it or run `ctl.py scenario` while the app runs).
 
-    python3 fake_server.py --port N --outbox FILE --scenario FILE --github-dir DIR --run-id ID
+    python3 fake_server.py --port N --outbox FILE --scenario FILE --github-dir DIR --run-id ID [--github-file PATH=FILE ...]
 """
 import argparse
 import base64
@@ -112,22 +112,30 @@ def gemini_response(text: str, model: str) -> dict:
     }
 
 
+def _sha(content: bytes) -> str:
+    return hashlib.sha1(content).hexdigest()
+
+
 def github(method: str, path: str, accept: str, body) -> tuple[int, object]:
     fail = scenario().get("fail") or {}
+    stored = github_files.get(path)
     if method == "PUT":
         if fail.get("github_put"):
             return 500, {"message": "fake_server: github_put failure from scenario"}
+        sha = (body or {}).get("sha")
+        if stored is not None and sha != _sha(stored):  # like GitHub: the PUT must name the current version
+            return 409, {"message": f"{path.rsplit('/', 1)[-1]} does not match {sha}"}
         content = base64.b64decode((body or {}).get("content", ""))
         github_files[path] = content
         out = Path(args.github_dir) / path.lstrip("/")
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_bytes(content)
-        return 200, {"content": {"sha": hashlib.sha1(content).hexdigest()}}
-    stored = github_files.get(path)
+        return 200, {"content": {"sha": _sha(content)}}
     if "raw" in accept:
         return (200, stored) if stored is not None else (404, {"message": "Not Found"})
-    sha = hashlib.sha1(stored).hexdigest() if stored is not None else "fake-sha-initial"
-    return 200, {"sha": sha, "content": ""}
+    if stored is None:
+        return 200, {"sha": "fake-sha-initial", "content": ""}
+    return 200, {"sha": _sha(stored), "encoding": "base64", "content": base64.encodebytes(stored).decode()}
 
 
 def route(method: str, host: str, path: str, headers, body) -> tuple[int, object, dict]:
@@ -211,6 +219,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"run_id": args.run_id})
         n = int(self.headers.get("content-length") or 0)
         raw = self.rfile.read(n) if n else b""
+        if self.path.startswith("/__fake/github-commit?"):  # someone else commits the file (manual edit, other instance)
+            path = parse_qs(urlsplit(self.path).query)["path"][0]
+            github_files[path] = raw
+            return self._send(200, {"path": path, "sha": _sha(raw)})
         try:
             body = json.loads(raw) if raw else None
         except ValueError:
@@ -256,7 +268,12 @@ def main():
     p.add_argument("--scenario", required=True)
     p.add_argument("--github-dir", required=True)
     p.add_argument("--run-id", required=True)
+    p.add_argument("--github-file", action="append", default=[], metavar="PATH=FILE",
+                   help="serve FILE as GitHub contents PATH (/repos/<owner>/<repo>/contents/<path>) until a PUT replaces it")
     args = p.parse_args()
+    for spec in args.github_file:
+        path, _, file = spec.partition("=")
+        github_files[path] = Path(file).read_bytes()
     ThreadingHTTPServer(("127.0.0.1", args.port), Handler).serve_forever()
 
 

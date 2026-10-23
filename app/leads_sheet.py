@@ -10,10 +10,12 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 VN_TZ = timezone(timedelta(hours=7))
+# "event" sent as its "Sự kiện" text: Apps Script deployed before the event shows an unknown event as is.
+SHEET_EVENTS = {"info_update": "Cập nhật thông tin"}
 
 
 async def post_lead_row(kind: str, row: dict) -> bool:
-    """POST `row` plus token, event kind and Vietnam time to LEADS_SHEET_WEBHOOK_URL.
+    """POST `row` plus token, event (kind, or its SHEET_EVENTS text) and Vietnam time to LEADS_SHEET_WEBHOOK_URL.
 
     True only when the web app answers {"ok": true}. Empty URL: False without any request. Never raises; logs
     carry neither the URL (whoever has it can post rows) nor the row (it has the parent's phone number).
@@ -24,7 +26,7 @@ async def post_lead_row(kind: str, row: dict) -> bool:
     body = {
         **row,
         "token": settings.LEADS_SHEET_TOKEN,
-        "event": kind,
+        "event": SHEET_EVENTS.get(kind, kind),
         "time": datetime.now(VN_TZ).strftime("%Y-%m-%d %H:%M:%S"),
     }
     try:

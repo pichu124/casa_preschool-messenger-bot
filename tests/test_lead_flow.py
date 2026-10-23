@@ -336,9 +336,9 @@ def test_reply_to_other_message_does_not_reach_customer(admin_sent):
 def test_reply_to_escalation_reaches_customer_after_pending_lost(monkeypatch, admin_sent):
     pushed = []
 
-    async def fake_push_qa_to_github(qa_pairs):
+    def fake_push_qa_to_github(qa_pairs, sha):
         pushed.append(qa_pairs[-1]["answer"])
-        return True
+        return "sha-after-push"
 
     monkeypatch.setattr(github_sync, "push_qa_to_github", fake_push_qa_to_github)
     question = "Có xe đưa đón khu Cầu Giấy không ạ?"

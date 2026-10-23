@@ -101,9 +101,9 @@ def assert_reply_applied(resp, sent):
 def test_admin_reply_reaches_customer_is_learned_and_resolves_escalation(monkeypatch, sent):
     pushed = []
 
-    async def fake_push_qa_to_github(qa_pairs):
+    def fake_push_qa_to_github(qa_pairs, sha):
         pushed.append(qa_pairs[-1]["answer"])
-        return True
+        return "sha-after-push"
 
     monkeypatch.setattr(github_sync, "push_qa_to_github", fake_push_qa_to_github)
 
@@ -114,7 +114,7 @@ def test_admin_reply_reaches_customer_is_learned_and_resolves_escalation(monkeyp
 
 
 def test_admin_reply_still_applied_when_github_sync_fails(monkeypatch, sent):
-    async def failing_push_qa_to_github(qa_pairs):
+    def failing_push_qa_to_github(qa_pairs, sha):
         raise httpx.ConnectTimeout("timed out")
 
     monkeypatch.setattr(github_sync, "push_qa_to_github", failing_push_qa_to_github)
@@ -129,9 +129,9 @@ def test_admin_reply_still_applied_when_github_sync_fails(monkeypatch, sent):
 def test_admin_taught_pair_listed_in_qa_learned_and_survives_save_load(monkeypatch, known_qa, sent):
     pushed = []
 
-    async def fake_push_qa_to_github(qa_pairs):
+    def fake_push_qa_to_github(qa_pairs, sha):
         pushed.append(qa_pairs[-1])
-        return True
+        return "sha-after-push"
 
     monkeypatch.setattr(github_sync, "push_qa_to_github", fake_push_qa_to_github)
 
@@ -163,3 +163,19 @@ def test_qa_learned_still_lists_legacy_pairs_by_category(monkeypatch, known_qa):
     body = client.get("/qa-learned", params={"secret": WEBHOOK_SECRET}).json()
 
     assert body == {"total": 2, "learned_pairs": [EARLIER_ADMIN_PAIR, legacy]}
+
+
+def test_admin_taught_pair_survives_restart_without_deploy(github_main, sent):
+    """Render khởi động lại mà không deploy: đĩa quay về bản trong image, cặp vừa học chỉ còn trên GitHub main."""
+    image = json.dumps({"qa_pairs": [REGULAR_PAIR, EARLIER_ADMIN_PAIR]}, ensure_ascii=False).encode()
+    github_main.commit([REGULAR_PAIR, EARLIER_ADMIN_PAIR])
+    main.qa_db.load()
+
+    resp = client.post("/telegram-webhook", json=telegram_reply_update(ADMIN_TEXT), headers=TELEGRAM_HEADERS)
+    assert_reply_applied(resp, sent)
+
+    Path(main.qa_db.path).write_bytes(image)
+    restarted = QADatabase(main.qa_db.path)
+
+    assert [p["answer"] for p in restarted.qa_pairs] == [REGULAR_PAIR["answer"], EARLIER_ADMIN_PAIR["answer"], ADMIN_TEXT]
+    assert ADMIN_TEXT in restarted.build_context()

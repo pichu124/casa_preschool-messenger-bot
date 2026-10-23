@@ -24,7 +24,8 @@ class Settings:
     FOLLOWUP_ENABLED: bool = os.getenv("FOLLOWUP_ENABLED", "").strip().lower() == "true"
 
     # GitHub auto-sync
-    GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
+    # strip(): a pasted token with a trailing newline is an illegal header, and h11 quotes it in the error
+    GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "").strip()
     # owner/name of a PRIVATE repo for data/customers.json; empty = keep customer data on local disk only
     CUSTOMERS_GITHUB_REPO: str = os.getenv("CUSTOMERS_GITHUB_REPO", "")
 

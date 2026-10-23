@@ -50,4 +50,4 @@ Preconditions:
 - Fake Drive không giả trang "quét virus" hay giới hạn tải của Google; ảnh lớn (14 MB của Kim Mã) chỉ thử được ở pytest (`tests/test_media.py`, Pillow thật), không qua harness.
 - `static/media/` bị gitignore nên bản sao bắt đầu không có ảnh; mỗi lần `up` là tải lại đủ.
 - Fake extract trả `{}` cho câu tự viết như "Bé 20 tháng, cơ sở Kim Mã": hồ sơ không có tuổi/cơ sở (trích xuất thật thì có). Câu đó vẫn tính cho chính lượt ấy (bot đọc tên cơ sở và tuổi trong tin), nhưng lượt sau thì không; dùng nút `QR:age:*`, `QR:campus:2` hoặc `TOUR_CAMPUS` để hồ sơ có dữ liệu.
-- Tóm tắt dùng tháng hiện tại theo giờ Việt Nam của máy; fake chỉ có `HỌC PHÍ THÁNG 10`, nên chạy vào tháng khác sẽ thấy cảnh báo học phí ngay từ lần đầu.
+- Tóm tắt dùng tháng hiện tại theo giờ Việt Nam của máy; fake chỉ có `HỌC PHÍ THÁNG 10`, nên chạy vào tháng khác sẽ thấy cảnh báo học phí ngay từ lần đầu. Ảnh fake có `modified` 2026-10-01: từ tháng 4/2027 ảnh học phí là ảnh cũ (sửa lần cuối hơn 6 tháng), tóm tắt và tin nhắc ghi thêm "sửa lần cuối 01/10/2026".

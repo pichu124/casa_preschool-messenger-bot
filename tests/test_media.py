@@ -355,6 +355,27 @@ def test_fee_image_is_this_month_or_the_latest_month_before_it(google, months, t
     assert media.fee_image("quoc_te", today) is None
 
 
+# Thư mục "HỌC PHÍ THÁNG N" không ghi năm: trường quên đổi ảnh tháng 11/2026 thì tháng 11/2027 ảnh đó không được coi
+# là ảnh tháng này. Ảnh sửa lần cuối hơn 6 tháng trước là ảnh cũ (stale, bot nhắc trường).
+@pytest.mark.parametrize(
+    ("modified", "old_since"),
+    [
+        ("2026-11-01T02:00:00.000Z", date(2026, 11, 1)),
+        ("2027-04-20T02:00:00.000Z", date(2027, 4, 20)),
+        ("2027-05-10T02:00:00.000Z", None),
+        ("2027-10-30T09:00:00.000Z", None),
+        (None, None),
+    ],
+)
+def test_fee_image_last_changed_over_6_months_ago_is_stale(google, modified, old_since):
+    google.files = [drive_file("fee-11", "hp.png", SN, "HỌC PHÍ THÁNG 11", modified=modified)]
+    sync()
+
+    fee = media.fee_image("song_ngu", date(2027, 11, 3))
+
+    assert (fee.month, fee.stale, fee.old_since) == (11, old_since is not None, old_since)
+
+
 def test_timetable_image_by_age_and_the_default_group(google):
     sync()
 
@@ -468,6 +489,7 @@ def test_capnhatanh_syncs_now_and_reports_counts_to_the_admin_group(admin_group)
     for f in admin_group.files:
         if f["path"][-1] == "HỌC PHÍ THÁNG 10":
             f["path"] = [f["path"][0], f"HỌC PHÍ THÁNG {month}"]
+            f["modified"] = f"{today_vn():%Y-%m-%d}T00:00:00.000Z"
     admin_group.files.append(drive_file("stray", "logo.png", QT))
 
     resp = command("/capnhatanh@CasaBot")
@@ -489,12 +511,29 @@ def test_capnhatanh_syncs_now_and_reports_counts_to_the_admin_group(admin_group)
 def test_capnhatanh_warns_when_this_months_fee_image_is_missing(admin_group):
     month = today_vn().month
     previous = (month - 2) % 12 + 1
-    admin_group.files = [drive_file("fee-old", "hp.png", SN, f"HỌC PHÍ THÁNG {previous}")]
+    changed = f"{today_vn():%Y-%m-%d}T00:00:00.000Z"
+    admin_group.files = [drive_file("fee-old", "hp.png", SN, f"HỌC PHÍ THÁNG {previous}", modified=changed)]
 
     command()
 
     (sent,) = admin_group.telegram
     assert f"Chưa có học phí tháng {month}: Quốc tế, Song ngữ (Song ngữ đang dùng tháng {previous})" in sent["text"]
+
+
+def test_capnhatanh_warns_when_this_months_fee_image_is_last_years(admin_group):
+    month = today_vn().month
+    last_year = today_vn().replace(year=today_vn().year - 1, day=1)
+    admin_group.files = [
+        drive_file("fee-old", "hp.png", SN, f"HỌC PHÍ THÁNG {month}", modified=f"{last_year:%Y-%m-%d}T02:00:00.000Z")
+    ]
+
+    command()
+
+    (sent,) = admin_group.telegram
+    assert (
+        f"Chưa có học phí tháng {month}: Quốc tế, Song ngữ (Song ngữ đang dùng tháng {month} sửa lần cuối "
+        f"{last_year:%d/%m/%Y})" in sent["text"]
+    )
 
 
 def test_capnhatanh_reports_a_failed_sync_and_the_images_kept(admin_group):

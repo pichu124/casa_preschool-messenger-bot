@@ -264,6 +264,18 @@ def test_stale_fee_image_is_sent_and_the_school_is_reminded_once_a_day(parent, c
     assert len([t for t in parent.telegram if "HỌC PHÍ THÁNG 11" in t]) == 2
 
 
+def test_last_years_fee_image_of_this_month_is_sent_and_the_school_is_reminded(parent, catalog, today):
+    old = {**item("sn-fee-11", "hp.png", SN, "HỌC PHÍ THÁNG 11"), "modified": "2026-11-01T02:00:00.000Z"}
+    media._catalog["items"]["sn-fee-11"] = old
+    today[0] = date(2027, 11, 3)
+    known(kid_age="3 tuổi", interested_campus="Kim Mã")
+
+    assert parent.images(parent.say("học phí bao nhiêu ạ", extracted={"topics": ["Học phí"]})) == [url("sn-fee-11")]
+
+    (reminder,) = [t for t in parent.telegram if "HỌC PHÍ THÁNG 11" in t]
+    assert "Song ngữ" in reminder and "ảnh tháng 11 sửa lần cuối 01/11/2026" in reminder, reminder
+
+
 def test_fee_asked_again_in_the_same_month_does_not_send_next_month_unasked(parent, catalog, today):
     known(kid_age="3 tuổi", interested_campus="Kim Mã")
     assert parent.images(parent.say("học phí bao nhiêu ạ", extracted={"topics": ["Học phí"]})) == [url("sn-fee-10")]

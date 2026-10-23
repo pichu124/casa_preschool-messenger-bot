@@ -15,7 +15,7 @@ import json
 import logging
 import re
 import unicodedata
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from typing import NamedTuple
@@ -40,6 +40,8 @@ DOWNLOAD_URL = "https://drive.google.com/uc"
 MAX_SIDE = 1600
 JPEG_QUALITY = 85
 CATALOG_FILE = "catalog.json"
+# "HỌC PHÍ THÁNG N" has no year: a fee image last changed longer ago than this is taken for last year's.
+FEE_STALE_AFTER = timedelta(days=183)
 # Timetable sent when the kid's age is unknown: 3–5 years, else the group holding 48 months.
 DEFAULT_AGES = (36, 60)
 DEFAULT_AGE_MONTHS = 48
@@ -53,7 +55,8 @@ _DRIVE_ID = re.compile(r"[A-Za-z0-9_-]+")
 class FeeImage(NamedTuple):
     url: str
     month: int
-    stale: bool  # no image for this month: the latest month before it
+    stale: bool  # no image for this month (the latest month before it), or an old one
+    old_since: date | None = None  # its last change on Drive, when older than FEE_STALE_AFTER
 
 
 def fold(text: str) -> str:
@@ -329,15 +332,30 @@ def _items(kind: str, **match) -> list[dict]:
     return sorted(found, key=lambda i: (fold(i["name"]), i["id"]))
 
 
+def _changed_on(item: dict) -> date | None:
+    try:
+        return datetime.fromisoformat(item["modified"]).astimezone(VN_TZ).date()
+    except (TypeError, ValueError):
+        return None
+
+
 def fee_image(system: str, today_vn: date) -> FeeImage | None:
     """This month's fee image of "quoc_te"/"song_ngu" (or "Quốc tế", "hệ song ngữ"); none: the latest month
-    before it, stale=True (January looks at December first)."""
+    before it, stale=True (January looks at December first). Also stale: an image last changed on Drive longer
+    than FEE_STALE_AFTER ago (a month folder of last year left in place)."""
     for back in range(12):
         month = (today_vn.month - 1 - back) % 12 + 1
         found = _items("fee", system=_system(system), month=month)
         if found:
-            return FeeImage(public_url(found[0]), month, back > 0)
+            changed = _changed_on(found[0])
+            old_since = changed if changed and today_vn - changed > FEE_STALE_AFTER else None
+            return FeeImage(public_url(found[0]), month, back > 0 or old_since is not None, old_since)
     return None
+
+
+def fee_in_use(fee: FeeImage) -> str:
+    """The stale fee image parents get, for the admin group: "tháng 9", "tháng 11 sửa lần cuối 01/11/2026"."""
+    return f"tháng {fee.month}" + (f" sửa lần cuối {fee.old_since:%d/%m/%Y}" if fee.old_since else "")
 
 
 def menu_image(system: str) -> str | None:
@@ -430,7 +448,7 @@ def sync_summary(report: dict, today_vn: date) -> str:
         if not fee or fee.stale:
             missing.append(label)
         if fee and fee.stale:
-            older.append(f"{label} đang dùng tháng {fee.month}")
+            older.append(f"{label} đang dùng {fee_in_use(fee)}")
     if missing:
         note = f" ({', '.join(older)})" if older else ""
         lines.append(f"⚠️ Chưa có học phí tháng {today_vn.month}: {', '.join(missing)}{note}")

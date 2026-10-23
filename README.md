@@ -193,7 +193,7 @@ Quy uoc thu muc (ten so khong dau, khong phan biet hoa thuong, thua dau cach van
       ẢNH CƠ SỞ VẬT CHẤT/      anh co so vat chat
 ```
 
-- Sang thang moi: tao thu muc `HỌC PHÍ THÁNG 11` trong tung he va dat anh moi vao. Chua co thang hien tai thi bot dung thang gan nhat truoc do, va `/capnhatanh` canh bao.
+- Sang thang moi: tao thu muc `HỌC PHÍ THÁNG 11` trong tung he va dat anh moi vao. Chua co thang hien tai thi bot dung thang gan nhat truoc do, va `/capnhatanh` canh bao. Ten thu muc khong co nam: anh hoc phi sua lan cuoi tren Drive hon 6 thang truoc cung bi coi la anh cu (vd thu muc thang 11 nam ngoai con de lai), bot van gui va canh bao nhu tren; nen xoa hoac thay anh thu muc thang cu.
 - Ten anh thoi khoa bieu ghi nhom tuoi (`15 tháng - 3 tuổi`, `3-5 tuổi`, `3-6 tuổi`, ...). Khong doc duoc nhom tuoi thi anh bi bo qua.
 - Co so moi: tao thu muc `CƠ SỞ <TÊN>` trong he cua co so do (co hai thu muc con nhu tren). He cua 3 co so hien co co dinh trong code (Chua Lang, My Dinh: Quoc te; Kim Ma: Song ngu); co so moi lay he theo thu muc chua no.
 - Anh dat sai cho (vd thang trong thu muc he) bi bo qua va duoc liet ke trong tom tat `/capnhatanh`.

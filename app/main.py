@@ -774,15 +774,16 @@ _stale_fee_reminded: dict[str, date] = {}
 
 
 async def _remind_stale_fee(system: str, fee: media.FeeImage, today: date) -> None:
-    """Tell the admin group, at most once a day per system, that parents get the fee image of an earlier month.
-    Kept in memory: a restart may remind once more that day."""
+    """Tell the admin group, at most once a day per system, that parents get the fee image of an earlier month or
+    one last changed over 6 months ago. Kept in memory: a restart may remind once more that day."""
     if _stale_fee_reminded.get(system) == today:
         return
     _stale_fee_reminded[system] = today
     name = media.SYSTEM_NAMES[system]
     await _send_telegram(
-        f"⚠️ Chưa có ảnh học phí tháng {today.month} hệ {name}: bot đang gửi phụ huynh ảnh tháng {fee.month}. "
-        f'Trường thêm thư mục "HỌC PHÍ THÁNG {today.month}" trong "HỆ {name.upper()}" trên Drive rồi gõ /capnhatanh.'
+        f"⚠️ Chưa có ảnh học phí tháng {today.month} hệ {name}: bot đang gửi phụ huynh ảnh {media.fee_in_use(fee)}. "
+        f'Trường đặt ảnh tháng này vào thư mục "HỌC PHÍ THÁNG {today.month}" trong "HỆ {name.upper()}" trên Drive '
+        f"(thay ảnh cũ nếu có) rồi gõ /capnhatanh."
     )
 
 

@@ -2,6 +2,7 @@ import asyncio
 import hmac
 import logging
 import re
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,6 +29,7 @@ from app.messenger import (
     verify_webhook_signature,
 )
 from app.escalation import (
+    _send_telegram,
     ESCALATION_HEADER,
     ESCALATION_MESSAGE_ASK_PHONE,
     ESCALATION_MESSAGE_HAS_PHONE,
@@ -43,8 +45,9 @@ from app.escalation import (
 )
 from app import analytics
 from app import customer_memory
+from app import media
 from app.coverage import topics_in_reply
-from app.leads_sheet import post_topic_row
+from app.leads_sheet import VN_TZ, post_topic_row
 from app.topics import clean_topics
 from app.followup import HANDED_TO_CONSULTANT, run_followups
 
@@ -70,7 +73,21 @@ class _MaskSecretQuery(logging.Filter):
 logging.getLogger("uvicorn.access").addFilter(_MaskSecretQuery())
 
 APP_VERSION = "1.6.0"
-app = FastAPI(title="Preschool Messenger Bot", version=APP_VERSION)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Images from the school's Google Drive: synced in the background, startup does not wait for it.
+    media_task = media.start_sync_task()
+    yield
+    if media_task:
+        media_task.cancel()
+
+
+app = FastAPI(title="Preschool Messenger Bot", version=APP_VERSION, lifespan=lifespan)
+# Images synced from Google Drive (app/media.py), wherever MEDIA_DIR is; mounted before /static, which it is under.
+Path(settings.MEDIA_DIR).mkdir(parents=True, exist_ok=True)
+app.mount("/static/media", StaticFiles(directory=settings.MEDIA_DIR), name="media")
 # Public files (Q&A images such as the sample menu), referenced as "static/<file>" in qa_database.json.
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -879,9 +896,45 @@ def _rebuild_ai_context():
     ai_engine._providers.clear()
 
 
+def _seen_tg_message(tg_mid) -> bool:
+    """True if Telegram already delivered this message (it redelivers when the webhook is slow); records it."""
+    if tg_mid and tg_mid in _processed_tg_mids:
+        logger.info(f"Skipping duplicate TG message: {tg_mid}")
+        return True
+    if tg_mid:
+        _processed_tg_mids.add(tg_mid)
+        if len(_processed_tg_mids) > MAX_DEDUP_SIZE:
+            for _ in range(MAX_DEDUP_SIZE // 2):
+                _processed_tg_mids.pop()
+    return False
+
+
+MEDIA_COMMAND = "/capnhatanh"
+
+
+def _is_media_command(message: dict) -> bool:
+    """/capnhatanh (or /capnhatanh@<bot>) typed in the admin group, not as a reply."""
+    if not isinstance(message, dict) or not isinstance(message.get("text"), str):
+        return False
+    words = message["text"].split()
+    return (
+        bool(words)
+        and words[0].split("@", 1)[0] == MEDIA_COMMAND
+        and not message.get("reply_to_message")
+        and bool(settings.TELEGRAM_CHAT_ID)
+        and str((message.get("chat") or {}).get("id")) == settings.TELEGRAM_CHAT_ID
+    )
+
+
+async def _sync_media_and_report():
+    report = await media.sync_media()
+    await _send_telegram(media.sync_summary(report, datetime.now(VN_TZ).date()))
+
+
 @app.post("/telegram-webhook")
-async def handle_telegram_webhook(request: Request):
-    """Handle admin replies from Telegram group. Telegram sends the secret_token set by /setup-telegram-webhook."""
+async def handle_telegram_webhook(request: Request, background_tasks: BackgroundTasks):
+    """Handle admin replies and /capnhatanh from Telegram group. Telegram sends the secret_token set by
+    /setup-telegram-webhook."""
     if not _secret_matches(request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")):
         raise HTTPException(status_code=403, detail="Invalid secret")
 
@@ -892,6 +945,12 @@ async def handle_telegram_webhook(request: Request):
     if not isinstance(data, dict):
         return {"status": "ignored"}
     message = data.get("message", {})
+    if _is_media_command(message):
+        if _seen_tg_message(message.get("message_id", 0)):
+            return {"status": "duplicate"}
+        # A sync downloads images for a while: answer Telegram now (it redelivers slow updates), report when done.
+        background_tasks.add_task(_sync_media_and_report)
+        return {"status": "media_sync_started"}
 
     # Parse all variables before try block so they exist in except
     customer_id = None
@@ -905,16 +964,8 @@ async def handle_telegram_webhook(request: Request):
         if not reply:
             return {"status": "ignored"}
 
-        # Dedup: skip if already processed
-        tg_mid = message.get("message_id", 0)
-        if tg_mid and tg_mid in _processed_tg_mids:
-            logger.info(f"Skipping duplicate TG message: {tg_mid}")
+        if _seen_tg_message(message.get("message_id", 0)):
             return {"status": "duplicate"}
-        if tg_mid:
-            _processed_tg_mids.add(tg_mid)
-            if len(_processed_tg_mids) > MAX_DEDUP_SIZE:
-                for _ in range(MAX_DEDUP_SIZE // 2):
-                    _processed_tg_mids.pop()
 
         original_msg_id = reply.get("message_id")
         admin_text = message.get("text", "")
@@ -982,6 +1033,13 @@ async def handle_telegram_webhook(request: Request):
     except Exception as e:
         logger.error(f"Error handling admin reply: {e}", exc_info=True)
         return {"status": "error", "detail": str(e)}
+
+
+@app.get("/media")
+async def get_media(_: None = Depends(require_secret)):
+    """Images synced from Google Drive (app/media.py): counts, each image with its kind and public URL, files
+    skipped. Requires ?secret=."""
+    return media.catalog()
 
 
 @app.post("/setup-telegram-webhook")

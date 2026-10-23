@@ -9,6 +9,7 @@ import logging
 from datetime import date
 
 import pytest
+from fastapi.testclient import TestClient
 
 import app.main as main
 from app import customer_memory, escalation, media
@@ -464,3 +465,22 @@ def test_model_copying_the_sent_note_is_not_shown_to_the_parent(parent, catalog)
     sent = parent.say("dạ vâng", reply="Dạ vâng ạ. [đã gửi ảnh học phí hệ Song ngữ] Ba/Mẹ cần thêm gì không ạ?")
 
     assert sent == [("text", "Dạ vâng ạ. Ba/Mẹ cần thêm gì không ạ?", None)]
+
+
+# --- /test-chat giống tin Messenger thật ---
+
+
+def test_test_chat_tells_the_model_which_images_follow_like_messenger(parent, catalog, monkeypatch):
+    monkeypatch.setattr(settings, "TELEGRAM_WEBHOOK_SECRET", "tg-secret_media_replies")
+    known(kid_age="3 tuổi", interested_campus="Kim Mã")
+    parent.response = AIResponse(text=REPLY, should_escalate=False, model_used="fake-model")
+
+    resp = TestClient(main.app).post(
+        "/test-chat", params={"secret": "tg-secret_media_replies"},
+        json={"message": "học phí bao nhiêu ạ", "user_id": CUSTOMER_ID},
+    )
+
+    assert resp.status_code == 200
+    assert "[HỆ THỐNG] Nếu phụ huynh hỏi học phí/ưu đãi: sau câu trả lời hệ thống gửi ảnh học phí hệ Song ngữ" in (
+        parent.notes[-1]
+    )

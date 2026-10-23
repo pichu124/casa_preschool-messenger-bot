@@ -1041,24 +1041,27 @@ class TestMessage(BaseModel):
 
 @app.post("/test-chat")
 async def test_chat(body: TestMessage, _: None = Depends(require_secret)):
-    """Test AI response without Facebook (for development/debugging). Requires ?secret=."""
+    """Test AI response without Facebook (for development/debugging). Requires ?secret=. The model gets the same
+    [HỆ THỐNG] image lines as on Messenger; no image is sent."""
     # Load profile + persisted history (same as process_message)
     existing_profile = customer_memory.get_profile(body.user_id)
     customer_context = customer_memory.format_profile_for_prompt(existing_profile)
     history = customer_memory.get_conversation_history(body.user_id)
     gap_hours = customer_memory.get_last_seen_gap_hours(body.user_id)
+    last_bot_message = _last_bot_message(history)
 
     response = await ai_engine.get_response(
         user_message=body.message,
         conversation_history=history,
         customer_context=customer_context,
         gap_hours=gap_hours,
+        media_note=_media_note(existing_profile, body.message, last_bot_message, _today_vn()),
     )
 
     # Extract and save profile, cleaned as in process_message
     try:
         extracted = await ai_engine.extract_customer_info(
-            body.message, existing_profile, last_bot_message=_last_bot_message(history)
+            body.message, existing_profile, last_bot_message=last_bot_message
         )
         extracted = _clean_extracted(extracted, None, body.message)
         if response.text and not response.should_escalate:

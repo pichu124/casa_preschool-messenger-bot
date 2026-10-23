@@ -181,8 +181,8 @@ def lead_events(before: dict, extracted: dict) -> list[str]:
 
     Phones are compared after normalize_phone, everything else ignoring case and spacing, so the same value
     written another way is no event. "info_update": a parent who was already a lead (phone or visit request)
-    gives a new value for a LEAD_INFO field, and the message has no other event (_lead_update lists the info
-    changes with them).
+    changes what the card shows for a LEAD_INFO group (_info_changes, the lines of the 🔄 reply), and the message
+    has no other event (_lead_update lists the info changes with them).
     """
     events = []
     phone = normalize_phone(extracted.get("phone"))
@@ -195,10 +195,9 @@ def lead_events(before: dict, extracted: dict) -> list[str]:
     visit = _same_text(extracted.get("visit_request"))
     if visit and visit != _same_text(before.get("visit_request")):
         events.append("visit_request")
-    if not events and (before.get("phone") or before.get("visit_request")):
-        fields = [field for _, fields in LEAD_INFO for field in fields]
-        if any(_texts(extracted.get(field)).keys() - _texts(before.get(field)).keys() for field in fields):
-            events.append("info_update")
+    is_lead = before.get("phone") or before.get("visit_request")
+    if not events and is_lead and _info_changes(before, _merged(before, extracted)):
+        events.append("info_update")
     return events
 
 
@@ -236,6 +235,28 @@ def _info(profile: dict, fields: tuple[str, ...]) -> str:
     return _join(*{k: v for field in fields for k, v in _texts(profile.get(field)).items()}.values())
 
 
+def _merged(profile: dict, extracted: dict) -> dict:
+    """`profile` after customer_memory.update_profile merges `extracted` into it."""
+    merged = {**profile}
+    for key, value in extracted.items():
+        if value and str(value).strip():
+            old = merged.get(key, [])
+            if isinstance(value, list) and isinstance(old, list):
+                value = list(dict.fromkeys(old + value))  # dedup, preserve order
+            merged[key] = value
+    return merged
+
+
+def _info_changes(before: dict, profile: dict) -> list[str]:
+    """LEAD_INFO groups whose card text differs between the two profiles, as "label: old → new"."""
+    changes = []
+    for label, fields in LEAD_INFO:
+        old, new = _info(before, fields), _info(profile, fields)
+        if new and _same_text(new) != _same_text(old):
+            changes.append(f"{label}: {old} → {new}" if old else f"{label}: {new}")
+    return changes
+
+
 def _lead_update(kinds: list[str], customer_id: str, fb_name: str, before: dict, profile: dict) -> str:
     """Short reply to the parent's card: only what changed, old → new."""
     changes = []
@@ -247,10 +268,7 @@ def _lead_update(kinds: list[str], customer_id: str, fb_name: str, before: dict,
         elif kind == "visit_request":
             old = f"{before['visit_request']} → " if before.get("visit_request") else ""
             changes.append(f"Hẹn: {old}{profile.get('visit_request')}")
-    for label, fields in LEAD_INFO:
-        old, new = _info(before, fields), _info(profile, fields)
-        if new and _same_text(new) != _same_text(old):
-            changes.append(f"{label}: {old} → {new}" if old else f"{label}: {new}")
+    changes += _info_changes(before, profile)
     return f"🔄 {fb_name or customer_id}: {'; '.join(changes)}\n🕐 {datetime.now(VN_TZ).strftime('%d/%m/%Y %H:%M')}"
 
 

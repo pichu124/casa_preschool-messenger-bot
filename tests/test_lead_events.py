@@ -91,6 +91,9 @@ VN = timezone(timedelta(hours=7))
         ({"phone": PHONE, "kid_age": "2 tuổi"}, {"kid_age": " 2  Tuổi"}, []),
         ({"phone": PHONE, "interested_campus": "Kim Mã"}, {"interested_campus": "kim mã"}, []),
         ({"phone": PHONE, "concerns": ["học phí", "giờ đón"]}, {"concerns": ["Học phí"]}, []),
+        ({"phone": PHONE, "area": "Cầu Giấy"}, {"address": "Cầu Giấy"}, []),
+        ({"phone": PHONE, "area": "Cầu Giấy"}, {"area": "Cầu Giấy", "address": "cầu giấy"}, []),
+        ({"phone": PHONE, "interested_campus": "Kim Mã"}, {"interested_program": "kim mã"}, []),
         ({"phone": PHONE, "kid_age": "2 tuổi"}, {"kid_age": "", "expected_start": "  ", "area": None}, []),
         ({"phone": PHONE}, {"parent_name": FB_NAME, "topics_covered": ["menu"], "lead_source": "ads"}, []),
         ({"kid_age": "2 tuổi"}, {"kid_age": "3 tuổi", "area": "Cầu Giấy"}, []),
@@ -145,6 +148,9 @@ VN = timezone(timedelta(hours=7))
         "lead nói lại tuổi, khác hoa thường và khoảng trắng",
         "lead nói lại cơ sở, khác hoa thường",
         "lead nhắc lại mối quan tâm đã có",
+        "lead nói lại khu vực vào ô địa chỉ",
+        "lead nói lại khu vực vào cả hai ô",
+        "lead nói lại cơ sở vào ô hệ",
         "lead, trích xuất trả trường rỗng",
         "lead, chỉ có trường không hiện trên thẻ",
         "chưa là lead mà nói tuổi và khu vực",
@@ -685,6 +691,16 @@ def test_lead_repeating_known_info_publishes_nothing(chat, net):
         "Bé 2 tuổi, học Kim Mã, tầm tháng 12, học phí sao ạ",
         extracted={"kid_age": "2 Tuổi", "interested_campus": "kim  mã", "expected_start": " Tháng 12", "concerns": ["Học phí"]},
     )
+
+    assert chat.sent == [MODEL_TEXT]
+    assert (net.telegram, net.sheet) == ([], [])
+
+
+def test_lead_repeating_area_as_address_publishes_nothing(chat, net):
+    """Thẻ gộp khu vực với địa chỉ: cùng giá trị sang ô kia không phải thay đổi, không có tin 🔄 rỗng."""
+    known_customer(phone=PHONE, area="Cầu Giấy", lead_card_msg_id=7001)
+
+    chat.say("Nhà mình ở Cầu Giấy", extracted={"address": "Cầu Giấy"})
 
     assert chat.sent == [MODEL_TEXT]
     assert (net.telegram, net.sheet) == ([], [])

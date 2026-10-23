@@ -953,3 +953,24 @@ def test_docs_column_table_lists_every_script_column_in_order():
     rows = re.findall(r"^\| `(\w+)` \| ([^|]+) \|", table, re.M)
 
     assert [(key, title.strip()) for key, title in rows] == docs_columns()
+
+
+MERGE_CASES = [
+    ({}, {"area": "Cầu Giấy"}),
+    ({"area": "Cầu Giấy"}, {"area": None, "address": "  ", "kid_age": 0, "kid_name": ""}),
+    ({"concerns": ["học phí"]}, {"concerns": ["học phí", "giờ đón"]}),
+    ({"concerns": "học phí"}, {"concerns": ["giờ đón"]}),
+    ({"concerns": ["học phí"]}, {"concerns": "giờ đón"}),
+    ({}, {"concerns": [""]}),
+    ({"kid_age": "2 tuổi"}, {"kid_age": 3}),
+]
+
+
+@pytest.mark.parametrize("before,extracted", MERGE_CASES)
+def test_merged_matches_update_profile(before, extracted):
+    # lead_events đoán hồ sơ sau tin bằng escalation._merged: lệch với update_profile là tin 🔄 rỗng hoặc thiếu.
+    customer_memory._customers["9000000000000999"] = dict(before)
+    saved = asyncio.run(customer_memory.update_profile("9000000000000999", extracted))
+    for key in ("first_seen", "last_seen", "message_count"):
+        saved.pop(key, None)
+    assert saved == escalation._merged(before, extracted)

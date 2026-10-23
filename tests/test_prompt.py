@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from app import ai_engine
-from app.ai_engine import SYSTEM_PROMPT, AIEngine, AIProvider, strip_reasoning
+from app.ai_engine import SYSTEM_PROMPT, AIEngine, AIProvider, ImageNote, media_note, strip_reasoning
 from app.config import settings
 from app.messenger import QUICK_REPLIES
 
@@ -252,6 +252,9 @@ OUTDATED_INSTRUCTIONS = [
     "Oxford",
     "KHÔNG thêm CTA",
     "trừ khi phụ huynh đang bày tỏ lo lắng",
+    # Người vận hành 2026-10-23: bot gửi ảnh học phí từ Drive của trường (dòng [HỆ THỐNG]).
+    "gửi bảng phí trên chat",
+    "gửi bảng học phí trên chat",
 ]
 
 
@@ -328,8 +331,8 @@ def test_general_question_about_the_school_is_answered_not_escalated(monkeypatch
         assert ANSWER_GENERAL.search(text), text
     uncertain = [line for line in section.splitlines() if "không chắc" in line.lower()]
     assert uncertain and all("dữ kiện cụ thể" in line for line in uncertain), uncertain
-    # Các ca chuyển người khác giữ nguyên.
-    assert "ngoài lề" in section and "từ chối cho số" in section
+    # Các ca chuyển người khác giữ nguyên (ca từ chối số mà đòi học phí bỏ từ 2026-10-23, xem test bên dưới).
+    assert "ngoài lề" in section
     assert re.search(r"dữ kiện cụ thể[^\n]*không có trong Q&A", section, re.I), section
 
 
@@ -1167,17 +1170,80 @@ def test_prompt_never_teaches_lua_for_a_child():
 
 
 # Review 2026-10-22: phụ huynh hỏi học phí, gửi tuổi + cơ sở, bot xin số; phụ huynh không gửi, không từ chối rõ mà hỏi
-# lại "em cứ báo con số luôn đi". Extract chỉ đặt phone_declined khi từ chối rõ, nên ca này không phải ca "từ chối cho
-# số": bot không được nêu số, không được xin lại ngay, nên phải [ESCALATE] (main gửi câu chuyển kèm hotline).
-NO_PHONE_FEES = re.compile(r"không để lại số khi được xin hoặc từ chối cho số[^\n]*học phí")
+# lại "em cứ báo con số luôn đi" thì từng phải [ESCALATE]. Người vận hành 2026-10-23: không chuyển tư vấn viên nữa;
+# biết cơ sở thì bot gửi ảnh học phí của trường (dòng [HỆ THỐNG]), chưa biết thì hỏi cơ sở.
+NO_PHONE_FEES = re.compile(
+    r"không để lại số khi được xin hoặc từ chối cho số[^\n]*học phí[^\n]*KHÔNG \[ESCALATE\][^\n]*chưa biết cơ sở thì hỏi cơ sở",
+    re.I,
+)
 
 
-def test_parent_without_a_phone_still_asking_the_fees_is_escalated(monkeypatch):
+def test_parent_without_a_phone_still_asking_the_fees_is_not_escalated(monkeypatch):
     section = SYSTEM_PROMPT.split('KHI NÀO TRẢ LỜI ĐÚNG CHUỖI "[ESCALATE]"', 1)[1].split("KÈM HÌNH ẢNH", 1)[0]
-    assert NO_PHONE_FEES.search(section), section
+    assert "từ chối cho số" not in section and "học phí" not in section, section
+    fees = SYSTEM_PROMPT.split("2. Học phí:", 1)[1].split("3. Ưu đãi:", 1)[0]
+    assert NO_PHONE_FEES.search(fees), fees
     for reminder in _reminders(monkeypatch):
-        line = next(line for line in reminder.splitlines() if "BẮT BUỘC trả lời chính xác chuỗi [ESCALATE]" in line)
-        assert NO_PHONE_FEES.search(line.split("BẮT BUỘC", 1)[0]), line
+        lines = reminder.splitlines()
+        escalate = next(line for line in lines if "BẮT BUỘC trả lời chính xác chuỗi [ESCALATE]" in line)
+        assert "từ chối cho số" not in escalate and "học phí" not in escalate, escalate
+        assert NO_PHONE_FEES.search(next(line for line in lines if line.startswith("- Học phí/ưu đãi"))), reminder
+
+
+def test_fee_image_is_sent_only_by_the_system_line_and_never_as_a_figure():
+    fees = SYSTEM_PROMPT.split("2. Học phí:", 1)[1].split("3. Ưu đãi:", 1)[0]
+    assert "Không viết con số" in fees and "Ảnh học phí chỉ do hệ thống gửi (dòng [HỆ THỐNG])" in fees, fees
+    images = SYSTEM_PROMPT.split("KÈM HÌNH ẢNH", 1)[1].split("NÚT TRẢ LỜI NHANH", 1)[0]
+    assert "[HỆ THỐNG]" in images and "không thêm [IMAGES:]" in images, images
+
+
+def test_media_note_ends_the_reminders_only_when_given(monkeypatch):
+    note = media_note([ImageNote("fee", "học phí hệ Song ngữ (cơ sở Kim Mã)")])
+    _, with_note = model_input(monkeypatch, "học phí bao nhiêu", conversation_history=FOLLOW_UP, media_note=note)
+    _, without = model_input(monkeypatch, "học phí bao nhiêu", conversation_history=FOLLOW_UP)
+
+    assert _reminder(with_note).endswith("\n" + note)
+    assert not [line for line in _reminder(without).splitlines() if line.startswith("- [HỆ THỐNG]")]
+
+
+def test_media_note_says_which_images_follow_and_what_to_ask():
+    note = media_note(
+        [
+            ImageNote("fee", "học phí hệ Song ngữ (cơ sở Kim Mã)"),
+            ImageNote("timetable", "thời khoá biểu cơ sở Mỹ Đình", ("tuổi bé", "cơ sở Ba/Mẹ quan tâm"), if_asked=True),
+        ],
+        facilities_need_campus=True,
+    )
+    lines = note.splitlines()
+
+    assert lines[0].startswith("- [HỆ THỐNG]") and "không nêu con số" in lines[0] and "không [ESCALATE]" in lines[0]
+    assert "không nói không gửi được bảng phí" in lines[0]
+    assert lines[1] == "- [HỆ THỐNG] Sau câu trả lời này hệ thống gửi ảnh học phí hệ Song ngữ (cơ sở Kim Mã)."
+    assert lines[2] == (
+        "- [HỆ THỐNG] Nếu phụ huynh hỏi chương trình học/Cambridge/thời khoá biểu: sau câu trả lời hệ thống gửi ảnh "
+        "thời khoá biểu cơ sở Mỹ Đình, rồi hỏi tuổi bé và cơ sở Ba/Mẹ quan tâm."
+    )
+    assert "hỏi Ba/Mẹ quan tâm cơ sở nào" in lines[3] and "[QUICK:campus]" in lines[3]
+    assert media_note([]) == ""
+
+
+# Review 2026-10-23: "lịch chi tiết không có trong Q&A → [ESCALATE]" mâu thuẫn với luật gửi ảnh thời khoá biểu khi
+# tin có "lịch học". Có ảnh thời khoá biểu chắc chắn gửi thì trả lời chung + báo gửi, không [ESCALATE], không bịa giờ;
+# ảnh chỉ gửi nếu hỏi chương trình (dòng "Nếu…") thì câu hỏi giờ cụ thể vẫn theo luật cũ.
+def test_timetable_being_sent_answers_a_schedule_question_without_escalating(monkeypatch):
+    sure = media_note([ImageNote("timetable", "thời khoá biểu cơ sở Kim Mã")])
+    maybe = media_note([ImageNote("timetable", "thời khoá biểu cơ sở Kim Mã", if_asked=True)])
+    _, with_note = model_input(monkeypatch, "lịch học của bé thế nào ạ", conversation_history=FOLLOW_UP, media_note=sure)
+
+    line = _reminder(with_note).splitlines()[-1]
+    assert line.startswith("- [HỆ THỐNG] Sau câu trả lời này hệ thống gửi ảnh thời khoá biểu cơ sở Kim Mã."), line
+    assert re.search(r"lịch học[^.]*giờ[^.]*trả lời chung[^.]*KHÔNG \[ESCALATE\][^.]*không tự nêu giờ", line), line
+    # Chỉ lịch trong tuần: lịch hè, Tết, học bù không có trong thời khoá biểu nên vẫn chuyển tư vấn viên.
+    assert re.search(r"Lịch hè/Tết/học bù[^.]*vẫn \[ESCALATE\]", line), line
+    assert "ESCALATE" not in maybe.splitlines()[-1] and "lịch học" not in maybe.splitlines()[-1], maybe
+    assert "ESCALATE" not in media_note([ImageNote("fee", "học phí hệ Song ngữ (cơ sở Kim Mã)")]).splitlines()[-1]
+    escalate = next(l for l in _reminder(with_note).splitlines() if "BẮT BUỘC trả lời chính xác chuỗi [ESCALATE]" in l)
+    assert "lịch chi tiết" in escalate, escalate
 
 
 # Review 2026-10-22: "lịch học" trong danh sách câu hỏi chung mâu thuẫn với ca "lịch chi tiết không có trong Q&A →
@@ -1213,30 +1279,69 @@ class ScriptedProvider(FakeProvider):
 
 
 FEES_FIRST = "Dạ Casa chào Ba/Mẹ ạ 🌿 Cảm ơn Ba/Mẹ đã quan tâm đến Casa dei Bambini. Bé nhà mình được mấy tuổi rồi ạ? [QUICK:age]"
-FEES_ASK_PHONE = (
-    "Hệ Quốc tế Mỹ Đình có giáo viên nước ngoài cả ngày và cam kết không tăng học phí cơ bản suốt thời gian con học ạ. "
-    "Nếu tiện, Ba/Mẹ để lại SĐT/Zalo để tư vấn viên gửi bảng phí chi tiết nhé? [QUICK:phone]"
+FEES_IMAGE = (
+    "Hệ Quốc tế Mỹ Đình có cô nước ngoài cả ngày, em gửi Ba/Mẹ chính sách học phí tại cơ sở Mỹ Đình để gia đình tham "
+    "khảo nhé ạ. Ba/Mẹ có muốn đặt lịch qua xem lớp không ạ? [QUICK:visit_invite]"
 )
-EVASIVE = (
-    "Học phí tùy chương trình và kỳ đóng ạ. Không biết Ba/Mẹ có muốn ghé tham quan lớp một buổi không ạ? [QUICK:visit_invite]"
+FEES_NO_IMAGE = (
+    "Hệ Quốc tế Mỹ Đình có cô nước ngoài cả ngày ạ. Em không gửi bảng phí trên chat được, nếu tiện Ba/Mẹ để lại "
+    "SĐT/Zalo nhé? [QUICK:phone]"
+)
+FEES_AGAIN = (
+    "Dạ mức phí chi tiết nằm trong ảnh em vừa gửi phía trên ạ. Ba/Mẹ có muốn cho bé học thử 1 tuần miễn phí trước "
+    "không ạ? [QUICK:trial_invite]"
 )
 
 
-@pytest.mark.parametrize(("last_reply", "failures"), [("[ESCALATE]", 0), (EVASIVE, 1)], ids=["escalate", "vong-vo"])
-def test_eval_escalates_fees_asked_again_without_leaving_a_phone(monkeypatch, last_reply, failures):
+class RecordingScripted(ScriptedProvider):
+    def __init__(self, replies: list[str]):
+        super().__init__(replies)
+        self.user_messages, self.histories = [], []
+
+    async def generate(self, system_prompt, user_message, conversation_history, max_tokens=1024) -> str:
+        self.user_messages.append(user_message)
+        self.histories.append(list(conversation_history))
+        return await super().generate(system_prompt, user_message, conversation_history, max_tokens)
+
+
+@pytest.mark.parametrize(
+    ("replies", "failures"),
+    [
+        ([FEES_FIRST, FEES_IMAGE, FEES_AGAIN], 0),
+        ([FEES_FIRST, FEES_IMAGE, "[ESCALATE]"], 1),
+        ([FEES_FIRST, FEES_NO_IMAGE, FEES_AGAIN], 1),
+    ],
+    ids=["anh-hoc-phi", "escalate", "noi-khong-gui"],
+)
+def test_eval_fee_image_follows_age_and_campus_and_asking_again_is_no_escalation(monkeypatch, replies, failures):
     turns = eval_chat.SCENARIOS["hoc_phi_chua_de_so"]
     assert "học phí" in turns[0].message
     assert re.search(r"\d+ tuổi", turns[1].message) and "Mỹ Đình" in turns[1].message
-    assert turns[-1].expect_escalate is True and not turns[-1].known.get("phone")
-    assert not turns[-1].known.get("phone_declined")
-    assert all(t.expect_escalate is False for t in turns[:-1])
-    engine = make_engine(monkeypatch, fake=ScriptedProvider([FEES_FIRST, FEES_ASK_PHONE, last_reply]))
+    assert all(t.expect_escalate is False for t in turns) and not turns[-1].known.get("phone")
+    recorder = RecordingScripted(replies)
+    engine = make_engine(monkeypatch, fake=recorder)
 
     assert asyncio.run(eval_chat.run_scenario(engine, "hoc_phi_chua_de_so", turns)) == (failures, True)
-    # Lượt gửi tuổi + cơ sở phải xin số; không xin là lỗi.
-    no_ask = "Hệ Quốc tế Mỹ Đình có giáo viên nước ngoài cả ngày ạ. Không biết Ba/Mẹ có muốn ghé tham quan không ạ?"
-    assert eval_chat.check_turn(turns[1], False, False, FEES_ASK_PHONE, [t.message for t in turns[:2]]) == []
-    assert any("sđt" in p for p in eval_chat.check_turn(turns[1], False, False, no_ask, [turns[1].message]))
+    assert "- [HỆ THỐNG] Sau câu trả lời này hệ thống gửi ảnh học phí hệ Quốc tế (cơ sở Mỹ Đình)." in recorder.user_messages[1]
+    assert "- [HỆ THỐNG]" not in recorder.user_messages[2]
+    assert recorder.histories[2][-1]["content"].endswith(" [đã gửi ảnh học phí hệ Quốc tế (cơ sở Mỹ Đình)]")
+
+
+def test_eval_parent_refusing_the_phone_gets_the_fee_image_or_is_asked_the_campus():
+    (with_campus,) = eval_chat.SCENARIOS["tu_choi_so_doi_gia"]
+    (without_campus,) = eval_chat.SCENARIOS["tu_choi_so_chua_biet_co_so"]
+    assert with_campus.known["phone_declined"] and with_campus.known["interested_campus"]
+    assert without_campus.known["phone_declined"] and not without_campus.known.get("interested_campus")
+    assert [i.if_asked for i in with_campus.images] == [True] and not without_campus.images
+
+    image = "Dạ em gửi Ba/Mẹ chính sách học phí cơ sở Mỹ Đình để gia đình tham khảo ạ. Ba/Mẹ có muốn ghé xem lớp và học thử không ạ?"
+    assert eval_chat.check_turn(with_campus, False, False, image, [with_campus.message]) == []
+    assert eval_chat.check_turn(with_campus, False, True, "", [with_campus.message])
+    ask_phone = "Dạ em gửi Ba/Mẹ chính sách học phí ạ. Nếu tiện Ba/Mẹ để lại SĐT/Zalo để tư vấn viên gọi nhé?"
+    assert eval_chat.check_turn(with_campus, False, False, ask_phone, [with_campus.message])
+    campus = "Dạ học phí theo từng cơ sở ạ. Ba/Mẹ quan tâm cơ sở nào để em gửi đúng chính sách học phí ạ? [QUICK:campus]"
+    assert eval_chat.check_turn(without_campus, False, False, campus, [without_campus.message]) == []
+    assert eval_chat.check_turn(without_campus, False, True, "", [without_campus.message])
 
 
 def test_eval_age_question_after_the_phone_is_specific():

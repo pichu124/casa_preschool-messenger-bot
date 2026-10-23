@@ -59,7 +59,7 @@ sys.path.insert(0, str(ROOT))
 # load_dotenv() không đè biến đã có.
 os.environ["GITHUB_TOKEN"] = ""
 
-from app.ai_engine import API_KEY_MAP, SYSTEM_PROMPT, AIEngine
+from app.ai_engine import API_KEY_MAP, SYSTEM_PROMPT, AIEngine, ImageNote, media_note
 from app.config import settings
 from app.customer_memory import format_profile_for_prompt
 from app.messenger import QUICK_REPLIES
@@ -120,6 +120,8 @@ class Turn:
     agreed: bool = False  # phụ huynh đã đồng ý học thử/tham quan: bot mới được hỏi tuần/buổi
     prior_history: list[dict] = field(default_factory=list)  # lịch sử cũ nạp từ hồ sơ; chỉ đọc ở lượt đầu kịch bản
     gap_hours: float = 0.0  # số giờ từ lần nhắn trước (khách cũ quay lại)
+    # Ảnh Drive app/main.py báo model qua dòng [HỆ THỐNG] ở lượt này (ảnh không if_asked coi như đã gửi, ghi vào lịch sử)
+    images: tuple[ImageNote, ...] = ()
 
 
 # Tên Facebook giả trong hồ sơ: bot không được suy ra "anh"/"chị" từ tên.
@@ -134,6 +136,8 @@ OLD_HISTORY = [
     {"role": "user", "content": "cho mình hỏi học phí"},
     {"role": "assistant", "content": "Học phí tùy độ tuổi của bé và cơ sở Ba/Mẹ chọn ạ. Ba/Mẹ cho em xin tuổi bé nhé?"},
 ]
+FEE_MD = ImageNote("fee", "học phí hệ Quốc tế (cơ sở Mỹ Đình)")
+NO_FEE_IMAGE = ("không gửi bảng", "không gửi được", "không thể gửi", "không gửi học phí")
 SCHOOL_INFO = ("montessori", "cambridge", "giáo viên nước ngoài", "3 cơ sở", "huỳnh thúc kháng", "phạm hùng", "kim mã")
 ASKS_AGE_OR_CAMPUS = (
     "tuổi bé", "mấy tuổi", "bao nhiêu tuổi", "mấy tháng", "bao nhiêu tháng", "cơ sở nào", "khu vực nào",
@@ -157,12 +161,36 @@ SCENARIOS: dict[str, list[Turn]] = {
             none_of=("kim mã", "tối ưu chi phí"),
         ),
     ],
-    # Review 2026-10-22: chưa để số, chưa từ chối rõ (extract không đặt phone_declined) mà hỏi lại học phí: bot không
-    # được nêu số, không xin lại ngay, nên [ESCALATE]; main gửi câu chuyển kèm hotline (ESCALATION_MESSAGE_ASK_PHONE).
+    # Người vận hành 2026-10-23: hỏi học phí rồi cho tuổi + cơ sở thì bot gửi ảnh học phí của hệ (dòng [HỆ THỐNG]);
+    # model báo là em gửi, không nêu số, không nói không gửi bảng phí. Hỏi lại con số khi chưa để số: không [ESCALATE]
+    # nữa (trước 2026-10-23 thì có), nhắc ảnh đã gửi.
     "hoc_phi_chua_de_so": [
         Turn("cho mình hỏi học phí ạ", known=FB_NAME),
-        Turn("bé nhà mình 3 tuổi, mình quan tâm cơ sở Mỹ Đình", known=FB_NAME, any_of=[ASKS_PHONE]),
-        Turn("em cứ báo con số luôn đi", known=VISIT_MD, expect_escalate=True),
+        Turn(
+            "bé nhà mình 3 tuổi, mình quan tâm cơ sở Mỹ Đình",
+            known=FB_NAME,
+            images=(FEE_MD,),
+            any_of=[("gửi",)],
+            none_of=NO_FEE_IMAGE,
+        ),
+        Turn("em cứ báo con số luôn đi", known=VISIT_MD, any_of=[("gửi", "ảnh")], none_of=NO_FEE_IMAGE),
+    ],
+    "tu_choi_so_doi_gia": [
+        Turn(
+            "thôi mình chưa muốn để số đâu, em cứ báo học phí đi",
+            known={**FB_NAME, "interested_campus": "Mỹ Đình", "phone_declined": True},
+            images=(FEE_MD._replace(if_asked=True),),
+            any_of=[("gửi",)],
+            none_of=NO_FEE_IMAGE + ASKS_PHONE,
+        ),
+    ],
+    "tu_choi_so_chua_biet_co_so": [
+        Turn(
+            "thôi mình chưa muốn để số đâu, em cứ báo học phí đi",
+            known={**FB_NAME, "kid_age": "3 tuổi", "phone_declined": True},
+            any_of=[("cơ sở",)],
+            none_of=ASKS_PHONE,
+        ),
     ],
     "uu_dai_tu_choi": [
         Turn("trường đang có ưu đãi gì không ạ", any_of=[ASKS_PHONE], none_of=("%",)),
@@ -502,7 +530,11 @@ async def run_scenario(engine: AIEngine, name: str, turns: list[Turn]) -> tuple[
     for turn in turns:
         context = format_profile_for_prompt(turn.known)
         resp = await engine.get_response(
-            turn.message, conversation_history=history, customer_context=context, gap_hours=turn.gap_hours
+            turn.message,
+            conversation_history=history,
+            customer_context=context,
+            gap_hours=turn.gap_hours,
+            media_note=media_note(list(turn.images)),
         )
         if resp.model_used == "none":
             print(f"PH: {turn.message}\n  ! mọi model đều lỗi")
@@ -515,7 +547,8 @@ async def run_scenario(engine: AIEngine, name: str, turns: list[Turn]) -> tuple[
         for problem in problems:
             print(f"  ✘ {problem}")
         failures += bool(problems)
-        history += [{"role": "user", "content": turn.message}, {"role": "assistant", "content": resp.text}]
+        sent = "".join(f" [đã gửi ảnh {i.label}]" for i in turn.images if not i.if_asked and not resp.should_escalate)
+        history += [{"role": "user", "content": turn.message}, {"role": "assistant", "content": resp.text + sent}]
     return failures, True
 
 

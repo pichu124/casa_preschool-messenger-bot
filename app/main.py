@@ -2,9 +2,11 @@ import asyncio
 import hmac
 import logging
 import re
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
+from typing import NamedTuple
 
 from fastapi import FastAPI, Request, HTTPException, Query, BackgroundTasks, Depends
 from fastapi.responses import PlainTextResponse
@@ -12,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.qa_database import QADatabase
-from app.ai_engine import AIEngine
+from app.ai_engine import AIEngine, ImageNote, media_note
 from app.messenger import (
     BOT_MESSAGE_METADATA,
     GET_STARTED_PAYLOAD,
@@ -28,6 +30,7 @@ from app.messenger import (
     verify_webhook_signature,
 )
 from app.escalation import (
+    _send_telegram,
     ESCALATION_HEADER,
     ESCALATION_MESSAGE_ASK_PHONE,
     ESCALATION_MESSAGE_HAS_PHONE,
@@ -43,8 +46,9 @@ from app.escalation import (
 )
 from app import analytics
 from app import customer_memory
+from app import media
 from app.coverage import topics_in_reply
-from app.leads_sheet import post_topic_row
+from app.leads_sheet import VN_TZ, post_topic_row
 from app.topics import clean_topics
 from app.followup import HANDED_TO_CONSULTANT, run_followups
 
@@ -70,7 +74,32 @@ class _MaskSecretQuery(logging.Filter):
 logging.getLogger("uvicorn.access").addFilter(_MaskSecretQuery())
 
 APP_VERSION = "1.6.0"
-app = FastAPI(title="Preschool Messenger Bot", version=APP_VERSION)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Images from the school's Google Drive: synced in the background, startup does not wait for it.
+    media_task = media.start_sync_task()
+    yield
+    if media_task:
+        media_task.cancel()
+
+
+app = FastAPI(title="Preschool Messenger Bot", version=APP_VERSION, lifespan=lifespan)
+
+
+class _ImagesOnly(StaticFiles):
+    """Serves only the synced .jpg images: MEDIA_DIR also holds catalog.json (Drive paths and ids), kept private."""
+
+    async def get_response(self, path, scope):
+        if not path.endswith(".jpg"):
+            raise HTTPException(status_code=404)
+        return await super().get_response(path, scope)
+
+
+# Images synced from Google Drive (app/media.py), wherever MEDIA_DIR is; mounted before /static, which it is under.
+Path(settings.MEDIA_DIR).mkdir(parents=True, exist_ok=True)
+app.mount("/static/media", _ImagesOnly(directory=settings.MEDIA_DIR), name="media")
 # Public files (Q&A images such as the sample menu), referenced as "static/<file>" in qa_database.json.
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -615,6 +644,191 @@ async def publish_topics(customer_id: str, topics: list[str], escalated: bool, t
         logger.warning(f"Topic row for customer {customer_id} not sent: {type(e).__name__}")
 
 
+# --- Drive images sent after the reply (app/media.py), as docs/quyet-dinh-noi-dung.md decides ("Ảnh gửi phụ huynh") ---
+
+FEE_TOPICS = ("Học phí", "Ưu đãi")
+PROGRAMME_TOPIC = "Chương trình/phương pháp"
+FACILITIES_TOPIC = "Cơ sở vật chất"
+MENU_TOPIC = "Ăn uống/thực đơn"
+TOPICS_OF_IMAGE = {"fee": FEE_TOPICS, "timetable": (PROGRAMME_TOPIC,), "facilities": (FACILITIES_TOPIC,), "menu": (MENU_TOPIC,)}
+# A message naming the timetable or Cambridge (as media.fold writes it) asks for the timetable whatever its topics:
+# the extraction tags Cambridge as "Tiếng Anh/GV nước ngoài" and a timetable as "Giờ học/…". "lịch học thử" is the
+# trial week.
+TIMETABLE_WORDS = re.compile(r"\bcambridge\b|\bthoi (?:khoa|gian) bieu\b|\btkb\b|\blich hoc\b(?! thu)")
+# Timetable sent while the campus is unknown: the campus of the system the parent wants, else Mỹ Đình.
+DEFAULT_TIMETABLE_CAMPUS = {"quoc_te": "Mỹ Đình", "song_ngu": "Kim Mã"}
+FACILITY_IMAGES = 4
+MAX_IMAGES = 5
+# The sample menu of the Q&A (data/qa_database.json): sent only while Drive has no menu image.
+QA_MENU_IMAGE = "static/thuc-don-mau.jpg"
+# A kid age read from the message text itself, never a fee period ("đóng 12 tháng", "3 tháng").
+SAID_AGE_MONTHS = range(15, 85)
+ASKS_PHONE = ("sđt", "zalo", "số điện thoại")
+# What the history tells the model it sent; a model copying it into a reply must not show it to the parent.
+SENT_NOTE = re.compile(r"\s*\[đã gửi ảnh[^\]]*\]")
+
+
+class Offer(NamedTuple):
+    kind: str  # a key of TOPICS_OF_IMAGE
+    key: str  # its key in the profile's media_sent once sent
+    urls: list[str]
+    label: str
+    ask: tuple[str, ...] = ()
+    stale: media.FeeImage | None = None  # a fee image of an earlier month
+
+
+def _today_vn() -> date:
+    return datetime.now(VN_TZ).date()
+
+
+def _image_id(url: str) -> str:
+    return url.rsplit("/", 1)[-1].removesuffix(".jpg")
+
+
+def _plan_images(
+    profile: dict, extracted: dict, text: str, topics, qa_images: list[str], last_bot_message: str, today: date
+) -> tuple[list[str], list[Offer], dict]:
+    """Images to send after the reply to `text`: the Q&A ones the model gave (`qa_images`), without the old sample
+    menu when Drive has a menu; the Drive offers in sending order; the profile flags of questions waiting for what is
+    missing: fee_asked (the kid's age and the campus), facilities_asked (the campus). `extracted`: what the model
+    extracted from `text`, {} before it is known; a campus and an age named in `text` count as well."""
+    if not settings.MEDIA_SYNC_ENABLED:
+        return qa_images, [], {}
+    topics, sent = set(topics), profile.get("media_sent") or {}
+    campus = (
+        media.campus_in(extracted.get("interested_campus"))
+        or media.campus_in(text)
+        or media.campus_in(profile.get("interested_campus"))
+    )
+    if extracted.get("kid_age"):
+        age = str(extracted["kid_age"])
+    elif media.age_months(text) in SAID_AGE_MONTHS:
+        age = text
+    else:
+        age = str(profile.get("kid_age") or "")
+    system = media.system_of(campus) if campus else None
+    program = media.fold(profile.get("interested_program") or "")
+    wanted_system = next((s for s, name in media.SYSTEM_NAMES.items() if media.fold(name) in program), None)
+    offers = []
+
+    asked_fee = bool(topics & set(FEE_TOPICS))
+    fee_key = f"fee:{system}:{today:%Y-%m}"
+    wants_fee = bool(asked_fee or profile.get("fee_asked")) and fee_key not in sent
+    has_phone = profile.get("phone") or extracted.get("phone") or _find_phone(text)
+    asked_phone = any(word in last_bot_message.lower() for word in ASKS_PHONE)
+    refused = not has_phone and (profile.get("phone_declined") or extracted.get("phone_declined") or asked_phone)
+    fee_ready = bool(system and (age or (refused and asked_fee)))
+    fee = media.fee_image(system, today) if wants_fee and fee_ready else None
+    if fee:
+        label = f"học phí hệ {media.SYSTEM_NAMES[system]} (cơ sở {campus})"
+        offers.append(Offer("fee", fee_key, [fee.url], label, stale=fee if fee.stale else None))
+
+    if PROGRAMME_TOPIC in topics or TIMETABLE_WORDS.search(media.fold(text)):
+        timetable_campus = campus or DEFAULT_TIMETABLE_CAMPUS[wanted_system or "quoc_te"]
+        timetable = media.timetable_image(timetable_campus, media.age_months(age) if age else None)
+        if timetable and f"timetable:{_image_id(timetable)}" not in sent:
+            ask = ("tuổi bé",) * (not age) + ("cơ sở Ba/Mẹ quan tâm",) * (not campus)
+            label = f"thời khoá biểu cơ sở {timetable_campus}" + ("" if age else " (lớp mẫu giáo, để tham khảo)")
+            offers.append(Offer("timetable", f"timetable:{_image_id(timetable)}", [timetable], label, ask))
+
+    menu_system = system or wanted_system or "quoc_te"
+    menu = media.menu_image(menu_system)
+    if menu:
+        if QA_MENU_IMAGE in qa_images:
+            topics.add(MENU_TOPIC)
+            qa_images = [u for u in qa_images if u != QA_MENU_IMAGE]
+        if MENU_TOPIC in topics and f"menu:{_image_id(menu)}" not in sent:
+            label = f"thực đơn hệ {media.SYSTEM_NAMES[menu_system]}"
+            offers.append(Offer("menu", f"menu:{_image_id(menu)}", [menu], label))
+
+    wants_facilities = bool(FACILITIES_TOPIC in topics or profile.get("facilities_asked"))
+    facilities = media.facility_images(campus, FACILITY_IMAGES) if wants_facilities and campus else []
+    facilities_offered = bool(facilities) and f"facilities:{campus}" not in sent
+    if facilities_offered:
+        offers.append(Offer("facilities", f"facilities:{campus}", facilities, f"cơ sở vật chất cơ sở {campus}"))
+
+    # Waiting only for what is missing, or for an offer not delivered yet: never for an image already sent or absent
+    waiting = {
+        "fee_asked": wants_fee and (not fee_ready or bool(fee)),
+        "facilities_asked": wants_facilities and (not campus or facilities_offered),
+    }
+    return qa_images, offers, waiting
+
+
+def _media_note(profile: dict, text: str, last_bot_message: str, today: date) -> str:
+    """The [HỆ THỐNG] lines for the reply to `text`, written before its extraction is known: the images sent whatever
+    the message asks, and those sent if it asks about their topic."""
+    if not settings.MEDIA_SYNC_ENABLED:
+        return ""
+    _, sure, _ = _plan_images(profile, {}, text, [], [], last_bot_message, today)
+    every_topic = [topic for topics in TOPICS_OF_IMAGE.values() for topic in topics]
+    _, offers, _ = _plan_images(profile, {}, text, every_topic, [], last_bot_message, today)
+    sure_keys = {o.key for o in sure}
+    images = [ImageNote(o.kind, o.label, o.ask, if_asked=o.key not in sure_keys) for o in offers]
+    campus = media.campus_in(text) or media.campus_in(profile.get("interested_campus"))
+    need_campus = not campus and any(media.facility_images(c, 1) for c in media.CAMPUSES)
+    return media_note(images, facilities_need_campus=need_campus)
+
+
+_stale_fee_reminded: dict[str, date] = {}
+
+
+async def _remind_stale_fee(system: str, fee: media.FeeImage, today: date) -> None:
+    """Tell the admin group, at most once a day per system, that parents get the fee image of an earlier month or
+    one last changed over media.FEE_STALE_AFTER (300 days) ago. Kept in memory: a restart may remind once more that day."""
+    if _stale_fee_reminded.get(system) == today:
+        return
+    _stale_fee_reminded[system] = today
+    name = media.SYSTEM_NAMES[system]
+    await _send_telegram(
+        f"⚠️ Chưa có ảnh học phí mới tháng {today.month} hệ {name}: bot đang gửi phụ huynh ảnh {media.fee_in_use(fee)}. "
+        f'Trường đặt ảnh tháng này vào thư mục "HỌC PHÍ THÁNG {today.month}" trong "HỆ {name.upper()}" trên Drive '
+        f"(thay ảnh cũ nếu có) rồi gõ /capnhatanh."
+        + (" Ảnh phải tải lên lại: đổi tên hay chuyển thư mục không tính là ảnh mới." if fee.old_since else "")
+    )
+
+
+async def _send_reply_with_images(
+    sender_id: str, text: str, quick_replies: list[dict] | None, qa_images: list[str], offers: list[Offer]
+) -> list[Offer]:
+    """The reply, then the images (at most MAX_IMAGES; an offer that does not fit waits for another turn), the quick
+    replies on the last message sent. Returns the offers delivered; an image Messenger refuses is logged, skipped."""
+    qa_images = qa_images[:MAX_IMAGES]
+    chosen, room = [], MAX_IMAGES - len(qa_images)
+    for offer in offers:
+        if len(offer.urls) <= room:
+            chosen.append(offer)
+            room -= len(offer.urls)
+    images = [(None, _public_image_url(u)) for u in qa_images] + [(o, u) for o in chosen for u in o.urls]
+    if text:
+        await send_message(sender_id, text, quick_replies=None if images else quick_replies)
+    delivered = set()
+    for n, (offer, image_url) in enumerate(images, 1):
+        try:
+            await send_image(sender_id, image_url, quick_replies=quick_replies if n == len(images) else None)
+        except Exception as e:
+            logger.warning(f"Image {offer.key if offer else image_url} not sent to {sender_id}: {type(e).__name__}")
+            continue
+        if offer:
+            delivered.add(offer.key)
+    return [o for o in chosen if o.key in delivered]
+
+
+def _record_images(sender_id: str, profile: dict, delivered: list[Offer], waiting: dict) -> None:
+    """media_sent gets the offers delivered; fee_asked and facilities_asked stay true only while still waiting."""
+    kinds = {o.kind for o in delivered}
+    fields = {
+        "fee_asked": waiting.get("fee_asked", False) and "fee" not in kinds,
+        "facilities_asked": waiting.get("facilities_asked", False) and "facilities" not in kinds,
+    }
+    fields = {k: v for k, v in fields.items() if bool(profile.get(k)) != v}
+    if delivered:
+        sent_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        fields["media_sent"] = {**(profile.get("media_sent") or {}), **{o.key: sent_at for o in delivered}}
+    if fields:
+        customer_memory.set_fields(sender_id, fields)
+
+
 # sender_id -> lock held while one message of that parent is answered. Parents often send two short messages in a
 # row and Facebook posts each to /webhook on its own; answered at the same time, both read the history from before
 # either, so both got the first-message greeting and the second did not know what the first said.
@@ -655,6 +869,7 @@ async def _answer_message(sender_id: str, text: str, attribution: dict | None, p
         gap_hours = customer_memory.get_last_seen_gap_hours(sender_id)
         had_phone = bool(existing_profile.get("phone"))
         last_bot_message = _last_bot_message(history)
+        today = _today_vn()
 
         # Extract customer info alongside the reply, so a phone number sent in this message is known before replying
         response, extracted = await asyncio.gather(
@@ -663,6 +878,7 @@ async def _answer_message(sender_id: str, text: str, attribution: dict | None, p
                 conversation_history=history,
                 customer_context=customer_context,
                 gap_hours=gap_hours,
+                media_note=_media_note(existing_profile, text, last_bot_message, today),
             ),
             ai_engine.extract_customer_info(text, existing_profile, last_bot_message=last_bot_message),
         )
@@ -701,25 +917,26 @@ async def _answer_message(sender_id: str, text: str, attribution: dict | None, p
                 reply_text = ESCALATION_MESSAGE_ASK_PHONE
             await send_message(sender_id, reply_text)
         else:
-            # History keeps the [IMAGES:] and [QUICK:] tokens so the model knows what it already sent
+            # History keeps the [IMAGES:] and [QUICK:] tokens, and a note per Drive image sent, so the model knows
+            # what it already sent
             reply_text = response.text
-            clean_text, image_urls = _extract_images(response.text)
+            clean_text, image_urls = _extract_images(SENT_NOTE.sub("", response.text))
             clean_text, quick_key = _extract_quick_reply(clean_text)
             quick_replies = build_quick_replies(quick_key)
             covered = topics_in_reply(response.text)
+            image_urls, offers, waiting = _plan_images(
+                existing_profile, extracted, text, topics, image_urls, last_bot_message, today
+            )
 
             # Messenger shows quick replies only under the latest message: they go on the last one sent
-            if clean_text:
-                await send_message(sender_id, clean_text, quick_replies=None if image_urls else quick_replies)
-            for n, img_url in enumerate(image_urls, 1):
-                try:
-                    await send_image(
-                        sender_id,
-                        _public_image_url(img_url),
-                        quick_replies=quick_replies if n == len(image_urls) else None,
-                    )
-                except Exception as img_err:
-                    logger.error(f"Failed to send image {img_url}: {img_err}")
+            delivered = await _send_reply_with_images(sender_id, clean_text, quick_replies, image_urls, offers)
+            _record_images(sender_id, existing_profile, delivered, waiting)
+            if delivered:
+                logger.info(f"Drive images sent to {sender_id}: {[o.key for o in delivered]}")
+                reply_text += "".join(f" [đã gửi ảnh {o.label}]" for o in delivered)
+            for offer in delivered:
+                if offer.stale:
+                    await _remind_stale_fee(offer.key.split(":")[1], offer.stale, today)
 
         # Log analytics
         try:
@@ -825,24 +1042,27 @@ class TestMessage(BaseModel):
 
 @app.post("/test-chat")
 async def test_chat(body: TestMessage, _: None = Depends(require_secret)):
-    """Test AI response without Facebook (for development/debugging). Requires ?secret=."""
+    """Test AI response without Facebook (for development/debugging). Requires ?secret=. The model gets the same
+    [HỆ THỐNG] image lines as on Messenger; no image is sent."""
     # Load profile + persisted history (same as process_message)
     existing_profile = customer_memory.get_profile(body.user_id)
     customer_context = customer_memory.format_profile_for_prompt(existing_profile)
     history = customer_memory.get_conversation_history(body.user_id)
     gap_hours = customer_memory.get_last_seen_gap_hours(body.user_id)
+    last_bot_message = _last_bot_message(history)
 
     response = await ai_engine.get_response(
         user_message=body.message,
         conversation_history=history,
         customer_context=customer_context,
         gap_hours=gap_hours,
+        media_note=_media_note(existing_profile, body.message, last_bot_message, _today_vn()),
     )
 
     # Extract and save profile, cleaned as in process_message
     try:
         extracted = await ai_engine.extract_customer_info(
-            body.message, existing_profile, last_bot_message=_last_bot_message(history)
+            body.message, existing_profile, last_bot_message=last_bot_message
         )
         extracted = _clean_extracted(extracted, None, body.message)
         if response.text and not response.should_escalate:
@@ -879,9 +1099,45 @@ def _rebuild_ai_context():
     ai_engine._providers.clear()
 
 
+def _seen_tg_message(tg_mid) -> bool:
+    """True if Telegram already delivered this message (it redelivers when the webhook is slow); records it."""
+    if tg_mid and tg_mid in _processed_tg_mids:
+        logger.info(f"Skipping duplicate TG message: {tg_mid}")
+        return True
+    if tg_mid:
+        _processed_tg_mids.add(tg_mid)
+        if len(_processed_tg_mids) > MAX_DEDUP_SIZE:
+            for _ in range(MAX_DEDUP_SIZE // 2):
+                _processed_tg_mids.pop()
+    return False
+
+
+MEDIA_COMMAND = "/capnhatanh"
+
+
+def _is_media_command(message: dict) -> bool:
+    """/capnhatanh (or /capnhatanh@<bot>) typed in the admin group, not as a reply."""
+    if not isinstance(message, dict) or not isinstance(message.get("text"), str):
+        return False
+    words = message["text"].split()
+    return (
+        bool(words)
+        and words[0].split("@", 1)[0] == MEDIA_COMMAND
+        and not message.get("reply_to_message")
+        and bool(settings.TELEGRAM_CHAT_ID)
+        and str((message.get("chat") or {}).get("id")) == settings.TELEGRAM_CHAT_ID
+    )
+
+
+async def _sync_media_and_report():
+    report = await media.sync_media()
+    await _send_telegram(media.sync_summary(report, datetime.now(VN_TZ).date()))
+
+
 @app.post("/telegram-webhook")
-async def handle_telegram_webhook(request: Request):
-    """Handle admin replies from Telegram group. Telegram sends the secret_token set by /setup-telegram-webhook."""
+async def handle_telegram_webhook(request: Request, background_tasks: BackgroundTasks):
+    """Handle admin replies and /capnhatanh from Telegram group. Telegram sends the secret_token set by
+    /setup-telegram-webhook."""
     if not _secret_matches(request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")):
         raise HTTPException(status_code=403, detail="Invalid secret")
 
@@ -892,6 +1148,12 @@ async def handle_telegram_webhook(request: Request):
     if not isinstance(data, dict):
         return {"status": "ignored"}
     message = data.get("message", {})
+    if _is_media_command(message):
+        if _seen_tg_message(message.get("message_id", 0)):
+            return {"status": "duplicate"}
+        # A sync downloads images for a while: answer Telegram now (it redelivers slow updates), report when done.
+        background_tasks.add_task(_sync_media_and_report)
+        return {"status": "media_sync_started"}
 
     # Parse all variables before try block so they exist in except
     customer_id = None
@@ -905,16 +1167,8 @@ async def handle_telegram_webhook(request: Request):
         if not reply:
             return {"status": "ignored"}
 
-        # Dedup: skip if already processed
-        tg_mid = message.get("message_id", 0)
-        if tg_mid and tg_mid in _processed_tg_mids:
-            logger.info(f"Skipping duplicate TG message: {tg_mid}")
+        if _seen_tg_message(message.get("message_id", 0)):
             return {"status": "duplicate"}
-        if tg_mid:
-            _processed_tg_mids.add(tg_mid)
-            if len(_processed_tg_mids) > MAX_DEDUP_SIZE:
-                for _ in range(MAX_DEDUP_SIZE // 2):
-                    _processed_tg_mids.pop()
 
         original_msg_id = reply.get("message_id")
         admin_text = message.get("text", "")
@@ -982,6 +1236,13 @@ async def handle_telegram_webhook(request: Request):
     except Exception as e:
         logger.error(f"Error handling admin reply: {e}", exc_info=True)
         return {"status": "error", "detail": str(e)}
+
+
+@app.get("/media")
+async def get_media(_: None = Depends(require_secret)):
+    """Images synced from Google Drive (app/media.py): counts, each image with its kind and public URL, files
+    skipped. Requires ?secret=."""
+    return media.catalog()
 
 
 @app.post("/setup-telegram-webhook")

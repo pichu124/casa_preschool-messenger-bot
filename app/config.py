@@ -22,6 +22,12 @@ class Settings:
     # One "Chủ đề" Sheet row per message with topics, same web app; off unless set to "true", and set it only
     # after the script with the "Chủ đề" tab is deployed (the older one writes any body into the Leads tab)
     TOPICS_SHEET_ENABLED: bool = os.getenv("TOPICS_SHEET_ENABLED", "").strip().lower() == "true"
+    # Images from the school's Google Drive folder through the same web app (app/media.py); off unless "true", and
+    # set it only after the script with type "media" is deployed (the one before "Chủ đề" writes any body as a lead)
+    MEDIA_SYNC_ENABLED: bool = os.getenv("MEDIA_SYNC_ENABLED", "").strip().lower() == "true"
+    MEDIA_SYNC_MINUTES: int = int(os.getenv("MEDIA_SYNC_MINUTES", "").strip() or 30)
+    # Resized images and their catalog.json, served at PUBLIC_BASE_URL/static/media/
+    MEDIA_DIR: str = os.getenv("MEDIA_DIR", "").strip() or "static/media"
 
     # Follow-up message to parents who went quiet (app/followup.py); off unless set to "true"
     FOLLOWUP_ENABLED: bool = os.getenv("FOLLOWUP_ENABLED", "").strip().lower() == "true"

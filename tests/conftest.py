@@ -18,7 +18,7 @@ import pytest
 os.environ["GITHUB_TOKEN"] = ""
 
 import app.main as main
-from app import analytics, customer_memory, escalation, github_sync
+from app import analytics, customer_memory, escalation, github_sync, media
 from app.config import settings
 
 # isolate() thay hàm này bằng stub cấm gọi; fixture github_main dùng lại bản thật trước GitHub giả.
@@ -38,6 +38,11 @@ def isolate(monkeypatch, tmp_path):
         monkeypatch.setattr(settings, name, "")
     monkeypatch.setattr(settings, "FOLLOWUP_ENABLED", False)
     monkeypatch.setattr(settings, "TOPICS_SHEET_ENABLED", False)
+    monkeypatch.setattr(settings, "MEDIA_SYNC_ENABLED", False)
+    monkeypatch.setattr(settings, "MEDIA_DIR", str(tmp_path / "media"))
+    monkeypatch.setattr(media, "_catalog", media.load_catalog())
+    monkeypatch.setattr(media, "_lock", asyncio.Lock())
+    monkeypatch.setattr(media, "_off_warned", False)
     monkeypatch.setattr(settings, "AI_MODEL_ORDER", [])
     monkeypatch.setattr(settings, "ANALYTICS_LOG_PATH", str(tmp_path / "analytics.jsonl"))
 

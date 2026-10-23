@@ -8,6 +8,7 @@
     python3 send_event.py echo PSID "staff text" [--bot]             # Page inbox echo (--bot: the bot's own)
     python3 send_event.py raw FILE.json                              # one messaging event or a whole body
     python3 send_event.py tg-reply "admin answer" [--to TG_MSG_ID] [--quote ORIGINAL_TEXT]
+    python3 send_event.py tg-command /capnhatanh [--chat-id ID]    # message in the admin group, not a reply
 
 Webhook bodies are signed with the run's FB_APP_SECRET like Facebook does (--bad-signature / --no-signature to
 test the refusal). --mid reuses a message id (dedup). Output: the HTTP answer, then one line per outbound request
@@ -84,7 +85,9 @@ def last_escalation(state: dict) -> tuple[int, str]:
 
 
 def post_telegram(state: dict, a):
-    if a.to:
+    if a.cmd == "tg-command":
+        to, quote = None, ""
+    elif a.to:
         to, quote = a.to, a.quote or ""
     else:
         to, quote = last_escalation(state)
@@ -100,6 +103,9 @@ def post_telegram(state: dict, a):
             "reply_to_message": {"message_id": to, "text": quote, "from": {"id": 1, "is_bot": True}},
         },
     }
+    if a.cmd == "tg-command":
+        del update["message"]["reply_to_message"]
+        update["message"]["chat"]["id"] = int(a.chat_id or state["telegram_chat_id"])
     secret = "wrong-secret" if a.bad_secret else state["secret"]
     raw = json.dumps(update, ensure_ascii=False).encode("utf-8")
     headers = {"content-type": "application/json", "X-Telegram-Bot-Api-Secret-Token": secret}
@@ -118,9 +124,9 @@ def main():
         sp.add_argument("--slug", default=argparse.SUPPRESS)
         for arg in positional:
             sp.add_argument(arg)
-        if name not in ("tg-reply", "raw"):
+        if name not in ("tg-reply", "tg-command", "raw"):
             sp.add_argument("--mid")
-        if name != "tg-reply":
+        if name not in ("tg-reply", "tg-command"):
             sp.add_argument("--bad-signature", action="store_true")
             sp.add_argument("--no-signature", action="store_true")
         return sp
@@ -142,11 +148,15 @@ def main():
     tg.add_argument("--quote", help="text of the replied-to message (default: that escalation's text)")
     tg.add_argument("--message-id", type=int, help="this reply's message_id (reuse to test dedup)")
     tg.add_argument("--bad-secret", action="store_true")
+    cmd = add("tg-command", "text")
+    cmd.add_argument("--chat-id", help="group the message comes from (default: the run's TELEGRAM_CHAT_ID)")
+    cmd.add_argument("--message-id", type=int, help="reuse to test dedup")
+    cmd.add_argument("--bad-secret", action="store_true")
     a = p.parse_args()
 
     state = load_state(a.slug or os.environ.get("CASA_VERIFY_SLUG", "default"))
     start = len(outbox(state))
-    if a.cmd == "tg-reply":
+    if a.cmd in ("tg-reply", "tg-command"):
         code, body = post_telegram(state, a)
     elif a.cmd == "raw":
         data = json.loads(Path(a.file).read_text(encoding="utf-8"))

@@ -1,6 +1,6 @@
 """Read back what a run did: what went out, what was stored, what the app logged.
 
-    python3 read_back.py [--slug S] outbox [--host fb|tg|sheet|gh|ai] [--since SEQ] [--full]
+    python3 read_back.py [--slug S] outbox [--host fb|tg|sheet|gh|drive|ai] [--since SEQ] [--full]
     python3 read_back.py [--slug S] profile PSID [--fields phone,kid_age] [--disk]
     python3 read_back.py [--slug S] log [--grep TEXT] [--tail N]
 
@@ -16,10 +16,11 @@ from pathlib import Path
 from _common import http, load_state, outbox, summarize
 
 HOSTS = {
-    "fb": "graph.facebook.com",
-    "tg": "api.telegram.org",
-    "sheet": "script.google.com",
-    "gh": "api.github.com",
+    "fb": ("graph.facebook.com",),
+    "tg": ("api.telegram.org",),
+    "sheet": ("script.google.com",),
+    "gh": ("api.github.com",),
+    "drive": ("drive.google.com", "drive.usercontent.google.com"),
     "ai": None,  # every model call (OpenAI-style or Gemini): the records the fake gave a `kind`
 }
 
@@ -28,7 +29,7 @@ def cmd_outbox(state, a):
     for rec in outbox(state):
         if rec["seq"] <= a.since:
             continue
-        if a.host and (not rec.get("kind") if a.host == "ai" else rec["host"] != HOSTS[a.host]):
+        if a.host and (not rec.get("kind") if a.host == "ai" else rec["host"] not in HOSTS[a.host]):
             continue
         line = json.dumps(rec, ensure_ascii=False) if a.full else summarize(rec)
         if line:

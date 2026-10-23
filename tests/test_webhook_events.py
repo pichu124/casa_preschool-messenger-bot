@@ -328,7 +328,7 @@ def bot(monkeypatch):
         first_name, last_name = FB_NAME.split()
         return {"first_name": first_name, "last_name": last_name}
 
-    async def get_response(user_message, conversation_history=None, customer_context="", gap_hours=0.0):
+    async def get_response(user_message, conversation_history=None, customer_context="", gap_hours=0.0, media_note=""):
         bot.contexts.append(customer_context)
         return bot.response
 

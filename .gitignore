@@ -11,3 +11,6 @@ data/escalation_log.json
 
 # Bằng chứng của verifier (Agents-Team-coding)
 artifacts/
+
+# Ảnh tải từ Google Drive của trường (app/media.py)
+static/media/

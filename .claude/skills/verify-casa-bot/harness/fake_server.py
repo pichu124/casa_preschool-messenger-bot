@@ -12,7 +12,9 @@ import hashlib
 import itertools
 import json
 import re
+import struct
 import threading
+import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -31,6 +33,30 @@ AI_DEFAULTS = {
     "classify": {"category": "Khác", "keywords": ["kiểm chứng"], "similar_questions": []},
     "summarize": "Phụ huynh hỏi thông tin chung về trường.",
 }
+
+# The school's Drive folder "Ảnh cho Chatbot" as the Apps Script lists it (type "media"); scenario "media_files"
+# replaces it. Facility photo names are made up (the school did not name them).
+QT, SN = "HỆ QUỐC TẾ", "HỆ SONG NGỮ"
+TKB, CSVC = "THỜI KHÓA BIỂU", "ẢNH CƠ SỞ VẬT CHẤT"
+_MEDIA_TREE = [
+    ("qt-fee-10", "7.png", [QT, "HỌC PHÍ THÁNG 10"]),
+    ("qt-menu", "Thực đơn mẫu.jpg", [QT, "THỰC ĐƠN"]),
+    *[(f"cl-tkb-{i}", n, [QT, "CƠ SỞ CHÙA LÁNG", TKB])
+      for i, n in enumerate(("TKB 15 tháng - 3 tuổi.jpg", "TKB 3-5 tuổi.jpg", "TKB 5-6 tuổi.jpg"), 1)],
+    *[(f"cl-csvc-{i}", f"IMG_{i:02}.jpg", [QT, "CƠ SỞ CHÙA LÁNG", CSVC]) for i in range(1, 7)],
+    *[(f"md-tkb-{i}", n, [QT, "CƠ SỞ MỸ ĐÌNH", TKB])
+      for i, n in enumerate(("TKB 15 tháng - 3 tuổi.png", "TKB 3-5 tuổi.png", "TKB 5-6 tuổi.png"), 1)],
+    *[(f"md-csvc-{i}", f"IMG_{i:02}.jpg", [QT, "CƠ SỞ MỸ ĐÌNH", CSVC]) for i in range(1, 8)],
+    ("sn-fee-10", "Học phí Kim Mã - Tháng 10.png", [SN, "HỌC PHÍ THÁNG 10"]),
+    ("sn-menu", "Thực đơn Kim Mã.png", [SN, "THỰC ĐƠN"]),
+    *[(f"km-tkb-{i}", n, [SN, "CƠ SỞ KIM MÃ", TKB]) for i, n in enumerate(("TKB 15 tháng  -3 tuổi.png", "TKB 3-6 tuổi.png"), 1)],
+    *[(f"km-csvc-{i}", f"IMG_{i:02}.jpg", [SN, "CƠ SỞ KIM MÃ", CSVC]) for i in range(1, 6)],
+]
+MEDIA_FILES = [
+    {"id": i, "name": n, "mimeType": "image/png" if n.endswith(".png") else "image/jpeg",
+     "modified": "2026-10-01T02:00:00.000Z", "path": p}
+    for i, n, p in _MEDIA_TREE
+]
 
 args = None
 lock = threading.Lock()
@@ -138,7 +164,20 @@ def github(method: str, path: str, accept: str, body) -> tuple[int, object]:
     return 200, {"sha": _sha(stored), "encoding": "base64", "content": base64.encodebytes(stored).decode()}
 
 
-def route(method: str, host: str, path: str, headers, body) -> tuple[int, object, dict]:
+def tiny_png(seed: str) -> bytes:
+    """A 64x48 PNG of one colour derived from `seed` (stdlib only), what the Drive download link serves."""
+    width, height = 64, 48
+    rgb = hashlib.sha1(seed.encode()).digest()[:3]
+    raw = b"".join(b"\x00" + rgb * width for _ in range(height))
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
+
+
+def route(method: str, host: str, path: str, headers, body, query: dict | None = None) -> tuple[int, object, dict]:
     """(status, response body: dict or bytes, extra fields for the outbox record)."""
     sc = scenario()
     fail = sc.get("fail") or {}
@@ -174,6 +213,22 @@ def route(method: str, host: str, path: str, headers, body) -> tuple[int, object
                 return 400, {"ok": False, "error_code": 400, "description": "Bad Request: message to be replied not found"}, {}
             return 200, {"ok": True, "result": {"message_id": next(msg_ids)}}, {}
         return 200, {"ok": True, "result": True, "description": "fake"}, {}
+    if host == "script.google.com" and isinstance(body, dict) and body.get("type") == "media":
+        mode = fail.get("media", "ok")
+        if mode == "false":
+            return 200, {"ok": False}, {}
+        if mode == "500":
+            return 500, b"<html>fake Apps Script error</html>", {}
+        files = sc.get("media_files")
+        return 200, {"ok": True, "files": MEDIA_FILES if files is None else files}, {}
+    if host == "drive.google.com" and path == "/uc":  # like Drive: redirect to the download host
+        file_id = (query or {}).get("id", "")
+        location = f"http://127.0.0.1:{args.port}/drive.usercontent.google.com/download?id={file_id}&export=download"
+        return 303, {}, {"location": location}
+    if host == "drive.usercontent.google.com" and path == "/download":
+        if fail.get("drive"):
+            return 500, b"<html>fake Drive error</html>", {}
+        return 200, tiny_png((query or {}).get("id", "")), {}
     if host == "script.google.com":
         mode = fail.get("sheet", "ok")
         if mode == "false":
@@ -231,28 +286,39 @@ class Handler(BaseHTTPRequestHandler):
         host, _, rest = parts.path.lstrip("/").partition("/")
         path = "/" + rest
         headers = {k.lower(): v for k, v in self.headers.items()}
-        code, out, extra = route(self.command, host, path, headers, body)
+        query = {k: v[0] for k, v in parse_qs(parts.query).items()}
+        code, out, extra = route(self.command, host, path, headers, body, query)
+        if isinstance(out, bytes) and out.startswith(b"\x89PNG"):
+            response = f"<image/png, {len(out)} bytes>"
+        else:
+            response = out if isinstance(out, dict) else out.decode("utf-8", "replace")
         rec = {
             "method": self.command,
             "host": host,
             "path": path,
-            "query": {k: v[0] for k, v in parse_qs(parts.query).items()},
+            "query": query,
             "authorization": headers.get("authorization"),
             "body": _for_outbox(body),
             "status": code,
-            "response": out if isinstance(out, dict) else out.decode("utf-8", "replace"),
+            "response": response,
             **extra,
         }
         with lock:
             rec = {"seq": next(seq), **rec}
             with open(args.outbox, "a", encoding="utf-8") as f:
                 f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-        self._send(code, out)
+        self._send(code, out, extra.get("location"))
 
-    def _send(self, code, out):
+    def _send(self, code, out, location=None):
         data = out if isinstance(out, bytes) else json.dumps(out, ensure_ascii=False).encode("utf-8")
+        if not isinstance(out, bytes):
+            kind = "application/json"
+        else:
+            kind = "image/png" if out.startswith(b"\x89PNG") else "text/html"
         self.send_response(code)
-        self.send_header("content-type", "application/json" if not isinstance(out, bytes) else "text/html")
+        self.send_header("content-type", kind)
+        if location:
+            self.send_header("location", location)
         self.send_header("content-length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)

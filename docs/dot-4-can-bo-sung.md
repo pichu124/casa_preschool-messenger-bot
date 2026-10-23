@@ -30,6 +30,7 @@ Bảo mật:
 2. [ ] **Bật tin nhắc lại** khi nào? (Hiện TẮT.) Trước khi bật: đăng ký `message_echoes` và tắt Instant Reply/Away message của Page.
 3. [x] ~~SĐT nước ngoài viết kèm số 0 sau mã nước~~ (vd "+886 0912 345 678"): đã sửa, bot lưu nguyên số nước ngoài, không còn nhận nhầm thành số Việt Nam.
 4. [x] ~~SĐT theo đầu số cũ~~: không cần, phụ huynh đã dùng đầu số mới; bot giữ nguyên, chỉ nhận đầu số hiện hành.
+5. [ ] **"Mối quan tâm" có báo Telegram không?** Hiện phụ huynh đã là lead mà hỏi sang chủ đề mới (học phí, giờ đón…) thì bot gửi một tin 🔄 "Mối quan tâm: học phí → học phí, giờ đón" và ghi Sheet "Cập nhật thông tin" (Sheet không có cột này). Agent đề xuất bỏ khỏi danh sách báo (`LEAD_INFO` trong `app/escalation.py`, một dòng) để nhóm Telegram bớt nhiễu; người vận hành đang cân nhắc, tạm giữ.
 
 ## D. Dữ kiện cần trường xác nhận
 

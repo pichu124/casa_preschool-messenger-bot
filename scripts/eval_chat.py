@@ -26,6 +26,7 @@ hoặc sai tên kịch bản.
 """
 import asyncio
 import logging
+import os
 import re
 import sys
 import unicodedata
@@ -36,6 +37,9 @@ from pathlib import Path
 # Chạy thẳng file này thì sys.path[0] là scripts/, nên thêm gốc repo trước khi import app.
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+# Chấm bản data/qa_database.json đang sửa: có GITHUB_TOKEN thì QADatabase kéo main về ghi đè nó.
+# load_dotenv() không đè biến đã có.
+os.environ["GITHUB_TOKEN"] = ""
 
 from app.ai_engine import API_KEY_MAP, SYSTEM_PROMPT, AIEngine
 from app.config import settings

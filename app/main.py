@@ -734,7 +734,7 @@ async def process_message(
 @app.post("/reload-qa")
 async def reload_qa(_: None = Depends(require_secret)):
     """Reload Q&A database (call after updating qa_database.json). Requires ?secret=."""
-    qa_db.reload()
+    await asyncio.to_thread(qa_db.reload)  # pulls GitHub main: keep the event loop free
     _rebuild_ai_context()
     return {"status": "reloaded", "qa_pairs": len(qa_db.qa_pairs)}
 

@@ -1,6 +1,5 @@
 """Admin reply một escalation trên Telegram: khách nhận câu trả lời, bot học ngay, escalation được đóng."""
 
-import base64
 import json
 from datetime import datetime
 from pathlib import Path
@@ -15,8 +14,6 @@ from app.config import settings
 from app.qa_database import QADatabase
 
 client = TestClient(main.app)
-# conftest thay hàm này bằng stub cấm gọi; giữ bản thật cho test khởi động lại (GitHub giả ở tầng httpx).
-REAL_PUSH_QA_TO_GITHUB = github_sync.push_qa_to_github
 
 ESCALATION_MSG_ID = 4242
 CUSTOMER_ID = "9000000000000001"
@@ -104,9 +101,9 @@ def assert_reply_applied(resp, sent):
 def test_admin_reply_reaches_customer_is_learned_and_resolves_escalation(monkeypatch, sent):
     pushed = []
 
-    async def fake_push_qa_to_github(qa_pairs):
+    def fake_push_qa_to_github(qa_pairs, sha):
         pushed.append(qa_pairs[-1]["answer"])
-        return True
+        return "sha-after-push"
 
     monkeypatch.setattr(github_sync, "push_qa_to_github", fake_push_qa_to_github)
 
@@ -117,7 +114,7 @@ def test_admin_reply_reaches_customer_is_learned_and_resolves_escalation(monkeyp
 
 
 def test_admin_reply_still_applied_when_github_sync_fails(monkeypatch, sent):
-    async def failing_push_qa_to_github(qa_pairs):
+    def failing_push_qa_to_github(qa_pairs, sha):
         raise httpx.ConnectTimeout("timed out")
 
     monkeypatch.setattr(github_sync, "push_qa_to_github", failing_push_qa_to_github)
@@ -132,9 +129,9 @@ def test_admin_reply_still_applied_when_github_sync_fails(monkeypatch, sent):
 def test_admin_taught_pair_listed_in_qa_learned_and_survives_save_load(monkeypatch, known_qa, sent):
     pushed = []
 
-    async def fake_push_qa_to_github(qa_pairs):
+    def fake_push_qa_to_github(qa_pairs, sha):
         pushed.append(qa_pairs[-1])
-        return True
+        return "sha-after-push"
 
     monkeypatch.setattr(github_sync, "push_qa_to_github", fake_push_qa_to_github)
 
@@ -168,28 +165,11 @@ def test_qa_learned_still_lists_legacy_pairs_by_category(monkeypatch, known_qa):
     assert body == {"total": 2, "learned_pairs": [EARLIER_ADMIN_PAIR, legacy]}
 
 
-def test_admin_taught_pair_survives_restart_without_deploy(monkeypatch, sent):
+def test_admin_taught_pair_survives_restart_without_deploy(github_main, sent):
     """Render khởi động lại mà không deploy: đĩa quay về bản trong image, cặp vừa học chỉ còn trên GitHub main."""
     image = json.dumps({"qa_pairs": [REGULAR_PAIR, EARLIER_ADMIN_PAIR]}, ensure_ascii=False).encode()
-    Path(main.qa_db.path).write_bytes(image)
+    github_main.commit([REGULAR_PAIR, EARLIER_ADMIN_PAIR])
     main.qa_db.load()
-    github_main = {"content": image}
-    qa_api = "https://api.github.com/repos/pichu124/casa_preschool-messenger-bot/contents/data/qa_database.json"
-
-    async def fake_github_push(self, request):
-        assert str(request.url).startswith(qa_api)
-        if request.method == "PUT":
-            github_main["content"] = base64.b64decode(json.loads(request.content)["content"])
-        return httpx.Response(200, json={"sha": "abc123"})
-
-    def fake_github_pull(self, request):
-        assert str(request.url) == f"{qa_api}?ref=main"
-        return httpx.Response(200, content=github_main["content"])
-
-    monkeypatch.setattr(settings, "GITHUB_TOKEN", "ghp_fake_token")
-    monkeypatch.setattr(github_sync, "push_qa_to_github", REAL_PUSH_QA_TO_GITHUB)
-    monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", fake_github_push)
-    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", fake_github_pull)
 
     resp = client.post("/telegram-webhook", json=telegram_reply_update(ADMIN_TEXT), headers=TELEGRAM_HEADERS)
     assert_reply_applied(resp, sent)

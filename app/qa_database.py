@@ -1,57 +1,125 @@
+import asyncio
 import json
 import logging
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
 import openpyxl
 
-from app.github_sync import pull_qa_from_github
+from app import github_sync
 
 logger = logging.getLogger(__name__)
 
 
+def _key(pair: dict) -> tuple:
+    return tuple(pair.get("questions") or []), pair.get("answer")
+
+
+def _reason(e: Exception) -> str:
+    """What went wrong, without str(e): httpx/h11 errors can quote the request, Authorization header included."""
+    status = getattr(e, "status_code", None)
+    return f"{type(e).__name__} {status}" if status else type(e).__name__
+
+
 class QADatabase:
+    """Q&A pairs. With GITHUB_TOKEN the copy on GitHub main is the real one: the disk only has the copy baked into
+    the last deploy, and admins teach pairs since (pushed to main with [skip deploy])."""
+
     def __init__(self, path: str = "data/qa_database.json"):
         self.path = path
         self.qa_pairs: list[dict] = []
+        # Blob sha of the file on main as last pulled or pushed. None: main not read yet, so never push (a stale
+        # disk copy would overwrite the pairs learned on main).
+        self._base_sha: str | None = None
+        # Pairs taught here that main is not known to have: merged into every pull, kept until a push succeeds.
+        self._unpushed: list[dict] = []
+        # Load, reload and push run in worker threads (asyncio.to_thread) and may overlap.
+        self._lock = threading.RLock()
         self.load()
 
     def load(self):
-        """Load Q&A pairs. With GITHUB_TOKEN, the copy on GitHub main wins over the disk copy (the one baked into
-        the last deploy, which misses the pairs admins taught since: those are pushed with [skip deploy]) and is
-        written to disk. If the pull fails, the disk copy is used and pushing stays off until the next successful
-        load, so the possibly stale disk copy never overwrites the pairs learned on main."""
-        try:
-            remote = pull_qa_from_github()
-        except Exception as e:
-            remote = None
-            self._pull_failed = True
-            logger.error(
-                f"Failed to load Q&A from GitHub ({type(e).__name__}: {e}): using the disk copy, "
-                "GitHub sync for Q&A is OFF until the next successful load (restart or /reload-qa)"
-            )
-        else:
-            self._pull_failed = False
-        if remote is not None:
-            self.qa_pairs = remote
-            self.save()
-            logger.info(f"Loaded {len(self.qa_pairs)} Q&A pairs from GitHub")
-            return
-        try:
-            with open(self.path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            self.qa_pairs = data.get("qa_pairs", [])
-            logger.info(f"Loaded {len(self.qa_pairs)} Q&A pairs from disk ({self.path})")
-        except FileNotFoundError:
-            logger.warning(f"Q&A database not found at {self.path}, starting empty")
-            self.qa_pairs = []
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON in {self.path}: {e}")
-            self.qa_pairs = []
+        """Pull main (plus the pairs not pushed yet) and write it to disk, then push those pairs if any. If the pull
+        fails: a process that has pulled before keeps its memory (main as it was then, plus what it learned); one that
+        never has uses the disk copy, and pushes nothing until a pull succeeds. Without GITHUB_TOKEN: the disk copy."""
+        with self._lock:
+            pulled = self._pull()
+            if pulled:
+                self._push()
+            elif pulled is None or self._base_sha is None:
+                self._read_disk()
+                if pulled is False:
+                    logger.error("Using the disk copy of Q&A: taught pairs are not pushed to GitHub until a pull succeeds")
+            else:
+                logger.error(f"Keeping the {len(self.qa_pairs)} Q&A pairs in memory (GitHub main as last pulled)")
 
     def reload(self):
         """Reload database, from GitHub as in load() (useful for hot-reload)."""
         self.load()
+
+    def _merged(self, pairs: list[dict]) -> list[dict]:
+        known = {_key(p) for p in pairs}
+        return pairs + [p for p in self._unpushed if _key(p) not in known]
+
+    def _pull(self) -> bool | None:
+        """qa_pairs = main plus the unpushed pairs main lacks, saved to disk. True on success, None without
+        GITHUB_TOKEN, False if the pull failed (logged)."""
+        try:
+            pulled = github_sync.pull_qa_from_github()
+        except Exception as e:
+            logger.error(f"Failed to load Q&A from GitHub ({_reason(e)})")
+            return False
+        if pulled is None:
+            return None
+        remote, self._base_sha = pulled
+        known = {_key(p) for p in remote}
+        self._unpushed = [p for p in self._unpushed if _key(p) not in known]
+        self.qa_pairs = self._merged(remote)
+        self.save()
+        logger.info(f"Loaded {len(remote)} Q&A pairs from GitHub ({len(self._unpushed)} taught here not pushed yet)")
+        return True
+
+    def _read_disk(self):
+        try:
+            with open(self.path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            pairs = data.get("qa_pairs", [])
+            logger.info(f"Loaded {len(pairs)} Q&A pairs from disk ({self.path})")
+        except FileNotFoundError:
+            logger.warning(f"Q&A database not found at {self.path}, starting empty")
+            pairs = []
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in {self.path}: {e}")
+            pairs = []
+        self.qa_pairs = self._merged(pairs)
+
+    def _push(self):
+        """Commit qa_pairs to main if it holds unpushed pairs. Main moved on since the last pull (a manual commit,
+        another instance during a deploy): pull, merge the unpushed pairs into it and retry once."""
+        for attempt in range(2):
+            if attempt or self._base_sha is None:
+                pulled = self._pull()
+                if pulled is None:
+                    logger.warning("GITHUB_TOKEN not set: Q&A kept on local disk only")
+                    return
+                if not pulled:
+                    break
+            if not self._unpushed:
+                return
+            try:
+                self._base_sha = github_sync.push_qa_to_github(self.qa_pairs, self._base_sha)
+            except github_sync.StaleShaError:
+                continue
+            except Exception as e:
+                logger.error(f"Failed to push Q&A to GitHub ({_reason(e)})")
+                break
+            self._unpushed = []
+            logger.info(f"Q&A database pushed to GitHub ({len(self.qa_pairs)} pairs)")
+            return
+        logger.error(
+            f"{len(self._unpushed)} taught Q&A pairs not pushed to GitHub: kept in memory and on disk, "
+            "retried on the next taught pair or /reload-qa (lost on restart until then)"
+        )
 
     def import_from_excel(self, excel_path: str):
         """Import Q&A pairs from Excel file.
@@ -106,7 +174,7 @@ class QADatabase:
         keywords: list[str] | None = None,
         source: str | None = None,
     ):
-        """Add a new Q&A pair, save locally, and sync to GitHub.
+        """Add a new Q&A pair, save locally, and push it to GitHub main (in a worker thread).
 
         source (vd "admin") đánh dấu nguồn của cặp, kèm learned_at theo UTC.
         """
@@ -121,20 +189,15 @@ class QADatabase:
         if source:
             pair["source"] = source
             pair["learned_at"] = datetime.now(timezone.utc).isoformat()
-        self.qa_pairs.append(pair)
-        self.save()
-
-        # Sync to GitHub so data persists across deploys and restarts
-        from app.github_sync import push_qa_to_github
-        if self._pull_failed:
-            logger.error("Skipping GitHub sync for Q&A: loading from GitHub failed (restart or /reload-qa to retry)")
-        else:
-            try:
-                await push_qa_to_github(self.qa_pairs)
-            except Exception as e:
-                logger.warning(f"GitHub sync failed but local save succeeded: {e}")
-
+        await asyncio.to_thread(self._add, pair)
         logger.info(f"Added new Q&A: [{category}] {' / '.join(questions)[:50]}...")
+
+    def _add(self, pair: dict):
+        with self._lock:
+            self.qa_pairs.append(pair)
+            self._unpushed.append(pair)
+            self.save()
+            self._push()
 
     def build_context(self) -> str:
         """Build a context string from all Q&A pairs for the AI prompt."""

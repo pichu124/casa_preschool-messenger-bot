@@ -80,7 +80,7 @@ Prompt trích xuất hồ sơ (`extract_customer_info`, dòng 645–646 → 641�
 |---|---|---|---|---|---|
 | C1 | Nút: tên 3 cơ sở, nhóm tuổi (Dưới 2, 2-3, 3-5, 5-6 tuổi, trường duyệt đợt 3b), "học thử 1 tuần" | `app/messenger.py:13–50` | #2, #5 | Không | Giữ trong code (test chống lệch kiểm tên cơ sở và số tuần) |
 | C2 | Ice breakers | `app/messenger.py:58–63` | – (câu hỏi trường duyệt đợt 3a) | Không | Giữ trong code |
-| C3 | Hotline 0989 059 838 và câu chuyển tư vấn viên | `app/escalation.py:42–70` | Không có | Không | Giữ trong code (nguyên văn mục 2g.1; một hằng số `HOTLINE`) |
+| C3 | Hotline 0989 059 838 và câu chuyển tư vấn viên | `app/escalation.py:42–70` | Cặp hotline (cuối file) | Không | Giữ trong code (nguyên văn mục 2g.1; một hằng số `HOTLINE`); Q&A có cặp hotline cùng số, test khoá |
 | C4 | Mẫu tin nhắc lại | `app/followup.py:52–70` | – | Không | Giữ nguyên văn |
 | C5 | Regex nhận diện câu bot gửi đã nói tới trường: huỳnh thúc kháng, hong kong, phạm hùng, flc, ngõ 294, "3 cơ sở" | `app/coverage.py:16` | #2 | Không | Giữ trong code. Trường đổi địa chỉ thì sửa cả regex này |
 | C6 | Kỳ vọng của bộ chấm: địa chỉ trong `SCHOOL_INFO` và kịch bản "truong_o_dau" | `scripts/eval_chat.py:137, 149` | #2 | Không | Giữ; model vẫn thấy địa chỉ qua Q&A |
@@ -98,4 +98,4 @@ Prompt trích xuất hồ sơ (`extract_customer_info`, dòng 645–646 → 641�
 
 - Ví dụ CARE (`:105`) và luật kể giá trị (`:40`) nêu "giáo viên nước ngoài cả ngày (hệ Quốc tế)" khi chưa biết cơ sở. Khối NHẮC NHỞ (`:547`) lại dặn: chưa biết cơ sở thì không tự kể khác biệt giữa các hệ, kể cả giáo viên nước ngoài.
 - Mục 2 (`:39`) "Chưa biết tuổi bé VÀ cơ sở quan tâm thì KHÔNG nói con số" có thể được hiểu là biết rồi thì được nói. CỐT LÕI (`:30`) và quyết định mục 3 thì không bao giờ nêu con số. Q&A không có con số nên rủi ro thấp.
-- Q&A không có cặp hotline. Phụ huynh hỏi số hotline thì model không có dữ kiện, sẽ [ESCALATE], và câu chuyển tư vấn viên có hotline. Thêm cặp hay không là quyết định nội dung.
+- ~~Q&A không có cặp hotline~~: đã thêm cặp hotline (0d3b55f), số khớp `HOTLINE` trong app/escalation.py (test_hotline_is_in_qa_and_matches_the_handover_message).

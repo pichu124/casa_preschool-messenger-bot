@@ -146,7 +146,7 @@ SCENARIOS: dict[str, list[Turn]] = {
         Turn("cho hỏi học phí bao nhiêu 1 tháng ạ", any_of=[("tuổi", "tháng")]),
     ],
     "truong_o_dau": [
-        Turn("trường ở đâu vậy ạ", any_of=[("huỳnh thúc kháng", "phạm hùng", "kim mã")]),
+        Turn("trường ở đâu vậy ạ", any_of=[("huỳnh thúc kháng", "phạm hùng", "ngõ 294")]),
     ],
     "che_dat": [
         Turn("bé nhà mình 4 tuổi, nhà ở Cầu Giấy"),

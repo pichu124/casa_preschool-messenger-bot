@@ -655,7 +655,8 @@ TOPICS_OF_IMAGE = {"fee": FEE_TOPICS, "timetable": (PROGRAMME_TOPIC,), "faciliti
 # the extraction tags Cambridge as "Tiếng Anh/GV nước ngoài" and a timetable as "Giờ học/…". "lịch học thử" is the
 # trial week.
 TIMETABLE_WORDS = re.compile(r"\bcambridge\b|\bthoi khoa bieu\b|\btkb\b|\blich hoc\b(?! thu)")
-DEFAULT_TIMETABLE_CAMPUS = "Mỹ Đình"
+# Timetable sent while the campus is unknown: the campus of the system the parent wants, else Mỹ Đình.
+DEFAULT_TIMETABLE_CAMPUS = {"quoc_te": "Mỹ Đình", "song_ngu": "Kim Mã"}
 FACILITY_IMAGES = 4
 MAX_IMAGES = 5
 # The sample menu of the Q&A (data/qa_database.json): sent only while Drive has no menu image.
@@ -706,6 +707,8 @@ def _plan_images(
     else:
         age = str(profile.get("kid_age") or "")
     system = media.system_of(campus) if campus else None
+    program = media.fold(profile.get("interested_program") or "")
+    wanted_system = next((s for s, name in media.SYSTEM_NAMES.items() if media.fold(name) in program), None)
     offers = []
 
     asked_fee = bool(topics & set(FEE_TOPICS))
@@ -721,15 +724,14 @@ def _plan_images(
         offers.append(Offer("fee", fee_key, [fee.url], label, stale=fee if fee.stale else None))
 
     if PROGRAMME_TOPIC in topics or TIMETABLE_WORDS.search(media.fold(text)):
-        timetable_campus = campus or DEFAULT_TIMETABLE_CAMPUS
+        timetable_campus = campus or DEFAULT_TIMETABLE_CAMPUS[wanted_system or "quoc_te"]
         timetable = media.timetable_image(timetable_campus, media.age_months(age) if age else None)
         if timetable and f"timetable:{_image_id(timetable)}" not in sent:
             ask = ("tuổi bé",) * (not age) + ("cơ sở Ba/Mẹ quan tâm",) * (not campus)
             label = f"thời khoá biểu cơ sở {timetable_campus}" + ("" if age else " (lớp mẫu giáo, để tham khảo)")
             offers.append(Offer("timetable", f"timetable:{_image_id(timetable)}", [timetable], label, ask))
 
-    program = media.fold(profile.get("interested_program") or "")
-    menu_system = system or next((s for s, name in media.SYSTEM_NAMES.items() if media.fold(name) in program), "quoc_te")
+    menu_system = system or wanted_system or "quoc_te"
     menu = media.menu_image(menu_system)
     if menu:
         if QA_MENU_IMAGE in qa_images:

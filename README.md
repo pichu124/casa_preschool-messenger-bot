@@ -195,7 +195,7 @@ Quy uoc thu muc (ten so khong dau, khong phan biet hoa thuong, thua dau cach van
 
 - Sang thang moi: tao thu muc `HỌC PHÍ THÁNG 11` trong tung he va dat anh moi vao. Chua co thang hien tai thi bot dung thang gan nhat truoc do, va `/capnhatanh` canh bao.
 - Ten anh thoi khoa bieu ghi nhom tuoi (`15 tháng - 3 tuổi`, `3-5 tuổi`, `3-6 tuổi`, ...). Khong doc duoc nhom tuoi thi anh bi bo qua.
-- Co so moi: tao thu muc `CƠ SỞ <TÊN>` trong he cua co so do (co hai thu muc con nhu tren).
+- Co so moi: tao thu muc `CƠ SỞ <TÊN>` trong he cua co so do (co hai thu muc con nhu tren). He cua 3 co so hien co co dinh trong code (Chua Lang, My Dinh: Quoc te; Kim Ma: Song ngu); co so moi lay he theo thu muc chua no.
 - Anh dat sai cho (vd thang trong thu muc he) bi bo qua va duoc liet ke trong tom tat `/capnhatanh`.
 
 ## Chay ung dung

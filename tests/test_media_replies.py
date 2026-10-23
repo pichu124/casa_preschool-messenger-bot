@@ -194,6 +194,17 @@ def test_fee_image_waits_for_age_and_campus_then_goes_once_a_month(parent, catal
     assert parent.images(sent) == [url("sn-fee-10")]
 
 
+def test_kim_ma_parent_gets_the_bilingual_fee_even_without_a_kim_ma_folder_on_drive(parent, catalog, monkeypatch):
+    items = {i["id"]: dict(i) for i in CATALOG if not i["id"].startswith("km-")}
+    monkeypatch.setattr(media, "_catalog", {**media._empty(), "items": items})
+    known(kid_age="3 tuổi", interested_campus="Kim Mã")
+
+    sent = parent.say("học phí bao nhiêu ạ", extracted={"topics": ["Học phí"]})
+
+    assert parent.images(sent) == [url("sn-fee-10")]
+    assert not customer_memory.get_profile(CUSTOMER_ID).get("fee_asked")
+
+
 def test_fee_question_with_age_and_campus_known_is_announced_to_the_model(parent, catalog):
     known(kid_age="20 tháng", interested_campus="Mỹ Đình")
 
@@ -297,6 +308,21 @@ def test_cambridge_question_gets_the_timetable_of_the_kids_age_and_campus(parent
 
     assert parent.images(sent) == [url("km-tkb-15-36")]
     assert "[HỆ THỐNG] Sau câu trả lời này hệ thống gửi ảnh thời khoá biểu cơ sở Kim Mã" in parent.notes[-1]
+
+
+@pytest.mark.parametrize(
+    ("program", "timetable", "campus"),
+    [("song ngữ", "km-tkb-36-72", "Kim Mã"), ("Hệ Song Ngữ", "km-tkb-36-72", "Kim Mã"),
+     ("quốc tế", "md-tkb-36-60", "Mỹ Đình"), (None, "md-tkb-36-60", "Mỹ Đình")],
+)
+def test_timetable_without_a_campus_follows_the_programme_the_parent_wants(parent, catalog, program, timetable, campus):
+    if program:
+        known(interested_program=program)
+
+    sent = parent.say("Trường dạy chương trình gì ạ?", extracted={"topics": ["Chương trình/phương pháp"]})
+
+    assert parent.images(sent) == [url(timetable)]
+    assert f"thời khoá biểu cơ sở {campus}" in parent.notes[-1]
 
 
 def test_trial_week_schedule_is_not_a_timetable_question(parent, catalog):

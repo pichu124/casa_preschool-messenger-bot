@@ -33,6 +33,8 @@ SYSTEMS = {"he quoc te": "quoc_te", "he song ngu": "song_ngu"}
 SYSTEM_NAMES = {"quoc_te": "Quốc tế", "song_ngu": "Song ngữ"}
 # Campus keys as parent profiles store interested_campus (the campus buttons); a new campus folder keeps its own name.
 CAMPUSES = tuple(title for title, _ in QUICK_REPLIES["campus"])
+# The system of each campus (docs/quyet-dinh-noi-dung.md, mục 4), whatever Drive holds; a new campus: its Drive folder.
+CAMPUS_SYSTEMS = {"Chùa Láng": "quoc_te", "Mỹ Đình": "quoc_te", "Kim Mã": "song_ngu"}
 KINDS = ("fee", "menu", "timetable", "facilities")
 DOWNLOAD_URL = "https://drive.google.com/uc"
 MAX_SIDE = 1600
@@ -314,8 +316,12 @@ def _system(value: str) -> str | None:
     return SYSTEMS.get(f"he {folded}")
 
 
+def _campus_named(name: str, campus: str) -> bool:
+    return fold(name) == fold(campus).removeprefix("co so ").strip()
+
+
 def _same_campus(item: dict, campus: str) -> bool:
-    return bool(item["campus"]) and fold(item["campus"]) == fold(campus).removeprefix("co so ").strip()
+    return bool(item["campus"]) and _campus_named(item["campus"], campus)
 
 
 def _items(kind: str, **match) -> list[dict]:
@@ -358,7 +364,8 @@ def facility_images(campus: str, limit: int = 5) -> list[str]:
 
 
 def system_of(campus: str) -> str | None:
-    return next((i["system"] for i in _catalog["items"].values() if _same_campus(i, campus)), None)
+    fixed = next((s for c, s in CAMPUS_SYSTEMS.items() if _campus_named(c, campus)), None)
+    return fixed or next((i["system"] for i in _catalog["items"].values() if _same_campus(i, campus)), None)
 
 
 # --- admin views ---

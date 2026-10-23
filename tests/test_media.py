@@ -383,6 +383,23 @@ def test_facility_images_and_system_of_campus(google):
     assert media.system_of("Cầu Giấy") is None
 
 
+# Hệ của 3 cơ sở theo bảng cố định của trường: Drive thiếu thư mục một cơ sở thì phụ huynh cơ sở đó vẫn nhận đúng
+# ảnh học phí của hệ. Cơ sở mới (ngoài bảng) lấy hệ theo thư mục chứa nó trên Drive.
+def test_system_of_the_three_campuses_is_fixed_and_a_new_campus_follows_its_drive_folder(google):
+    google.files = [
+        drive_file("sn-fee-10", "hp.png", SN, "HỌC PHÍ THÁNG 10"),
+        drive_file("cg-csvc-1", "a.jpg", SN, "CƠ SỞ CẦU GIẤY", CSVC),
+        drive_file("km-in-qt", "a.jpg", QT, KM, CSVC),
+    ]
+    sync()
+
+    assert [media.system_of(c) for c in ("Chùa Láng", "mỹ đình", "Kim Mã", "Cơ sở Kim Mã")] == [
+        "quoc_te", "quoc_te", "song_ngu", "song_ngu"
+    ]
+    assert media.system_of("Cầu Giấy") == "song_ngu"
+    assert media.system_of("Hoàn Kiếm") is None
+
+
 # --- tắt khi chưa cấu hình ---
 
 

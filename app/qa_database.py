@@ -12,8 +12,9 @@ from app import github_sync
 logger = logging.getLogger(__name__)
 
 
-def _key(pair: dict) -> tuple:
-    return tuple(pair.get("questions") or []), pair.get("answer")
+def _key(pair: dict) -> str:
+    # JSON, not a tuple: a hand-edited pair with a list/dict answer must not crash startup on an unhashable key.
+    return json.dumps([pair.get("questions") or [], pair.get("answer")], sort_keys=True, ensure_ascii=False)
 
 
 def _reason(e: Exception) -> str:

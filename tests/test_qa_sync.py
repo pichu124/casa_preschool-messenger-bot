@@ -316,3 +316,12 @@ def test_eval_chat_never_syncs_qa_with_github():
     out = subprocess.run([sys.executable, "-c", code], env=env, cwd=ROOT, capture_output=True, text=True, check=True).stdout
 
     assert out.strip() == repr("")
+
+
+def test_merge_key_accepts_hand_edited_pairs_with_list_answers():
+    # Một cặp sửa tay có answer dạng list không được làm load() lúc khởi động ném TypeError.
+    from app.qa_database import _key
+
+    odd = {"questions": ["Hỏi?", {"x": 1}], "answer": ["Đáp 1", "Đáp 2"]}
+    assert {_key(odd), _key(dict(odd))} == {_key(odd)}
+    assert _key({"questions": ["Q"], "answer": "A"}) != _key({"questions": ["Q"], "answer": "B"})

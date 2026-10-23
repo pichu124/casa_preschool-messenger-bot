@@ -417,6 +417,44 @@ def test_history_and_analytics_match_what_parent_received(bot, reply, escalate, 
     assert len(bot.escalations()) == int(escalated)
 
 
+@pytest.mark.parametrize(
+    ("reply", "escalate", "given", "topics"),
+    [
+        (MODEL_TEXT, False, ["học phí", "Giá vé máy bay", "Học phí"], ["Học phí"]),
+        (MODEL_TEXT, False, [], []),
+        ("", True, [], ["Khác"]),
+        ("[ESCALATE]", True, ["Xe đưa đón"], ["Xe đưa đón"]),
+    ],
+    ids=["trả lời thường", "không có chủ đề", "chuyển tư vấn viên, không có chủ đề", "chuyển tư vấn viên, có chủ đề"],
+)
+def test_analytics_records_the_topics_and_the_question_without_phone(bot, reply, escalate, given, topics):
+    bot.say(f"{QUESTION} Zalo mình {PHONE}", reply=reply, escalate=escalate, extracted={"topics": given})
+
+    record = last_analytics_record()
+    assert record["topics"] == topics
+    assert record["question"] == f"{QUESTION} Zalo mình [SĐT]"
+    assert "category" not in record
+
+
+def test_dashboard_stats_count_topics_and_list_escalated_questions_without_phone(bot, monkeypatch):
+    monkeypatch.setattr(settings, "TELEGRAM_WEBHOOK_SECRET", WEBHOOK_SECRET)
+    bot.say("Học phí bao nhiêu ạ?", extracted={"topics": ["Học phí"]})
+    bot.say(f"Có xe đưa đón không, số mình {PHONE}", reply="", escalate=True, extracted={"topics": ["Xe đưa đón"]})
+    bot.say("Cô chủ nhiệm tên gì?", reply="", escalate=True)
+
+    stats = client.get("/analytics/stats", params={"secret": WEBHOOK_SECRET}).json()
+
+    assert stats["top_topics_7d"] == [
+        {"topic": "Học phí", "count": 1},
+        {"topic": "Xe đưa đón", "count": 1},
+        {"topic": "Khác", "count": 1},
+    ]
+    assert [(e["question"], e["topics"]) for e in stats["recent_escalations"]] == [
+        ("Cô chủ nhiệm tên gì?", ["Khác"]),
+        ("Có xe đưa đón không, số mình [SĐT]", ["Xe đưa đón"]),
+    ]
+
+
 def test_returning_customer_without_new_info_updates_last_seen_and_count(bot):
     customer_memory._customers[CUSTOMER_ID] = {
         "kid_age": "3 tuổi",

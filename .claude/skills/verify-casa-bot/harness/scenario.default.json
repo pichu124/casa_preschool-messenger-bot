@@ -22,7 +22,8 @@
     {"kind": "extract", "contains": "Em muốn đặt lịch tham quan trường", "reply": {"visit_request": "tham quan trường"}},
     {"kind": "extract", "contains": "Bé nhà em 2-3 tuổi", "reply": {"kid_age": "2-3 tuổi"}},
     {"kind": "extract", "contains": "TOUR_CAMPUS", "reply": {"interested_campus": "Mỹ Đình"}},
-    {"kind": "extract", "contains": "DECLINE", "reply": {"phone_declined": true}}
+    {"kind": "extract", "contains": "DECLINE", "reply": {"phone_declined": true}},
+    {"kind": "extract", "contains": "HOC_PHI", "reply": {"topics": ["Học phí"]}}
   ],
   "defaults": {
     "chat": "Dạ Casa chào Ba/Mẹ ạ, em hỗ trợ ngay ạ.",

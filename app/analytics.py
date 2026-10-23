@@ -20,9 +20,10 @@ def log_message(
     question: str,
     model_used: str,
     escalated: bool,
-    category: str = "",
+    topics: list[str] | None = None,
 ):
-    """Append a message record to analytics log (JSONL format)."""
+    """Append a message record to analytics log (JSONL format). topics: what the message asks about
+    (app/topics.py). question is stored as given: the caller masks phone numbers (mask_phones in app/main.py)."""
     path = Path(ANALYTICS_PATH)
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -40,7 +41,7 @@ def log_message(
         "question": question[:500],  # Truncate long questions
         "model_used": model_used,
         "escalated": escalated,
-        "category": category,
+        "topics": topics or [],
     }
 
     try:
@@ -124,24 +125,16 @@ def get_stats() -> dict:
     today_messages = len(today_records)
     today_users = len(set(r.get("user_id", "") for r in today_records))
 
-    # Top categories (excluding empty and escalated)
-    categories = Counter(
-        r.get("category", "Khác") for r in records
-        if r.get("category") and not r.get("escalated")
-    )
-    top_categories = [
-        {"category": cat, "count": count}
-        for cat, count in categories.most_common(10)
-    ]
-
-    # Messages per day (last 7 days)
+    # Messages per day and topics asked about, escalated messages included (last 7 days)
     daily_counts: dict[str, int] = defaultdict(int)
+    topics_7d = Counter()
     for r in records:
         try:
             ts = datetime.fromisoformat(r["timestamp"])
             if ts >= week_ago:
                 date_str = ts.date().isoformat()
                 daily_counts[date_str] += 1
+                topics_7d.update(r.get("topics") or [])
         except Exception:
             continue
 
@@ -161,7 +154,12 @@ def get_stats() -> dict:
         "unique_users": unique_users,
         "today_messages": today_messages,
         "today_users": today_users,
-        "top_categories": top_categories,
+        "top_topics_7d": [{"topic": topic, "count": count} for topic, count in topics_7d.most_common()],
+        "recent_escalations": [
+            {"timestamp": r.get("timestamp"), "question": r.get("question", ""), "topics": r.get("topics") or []}
+            for r in reversed(records)
+            if r.get("escalated")
+        ][:10],
         "daily_series": daily_series,
         "models": dict(models),
         "funnel": funnel_stats(customer_memory.get_all_profiles()),

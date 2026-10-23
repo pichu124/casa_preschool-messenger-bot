@@ -157,6 +157,23 @@ def test_extract_prompt_keeps_a_specific_booking_over_a_vaguer_one(monkeypatch):
     assert re.search(r"Thông tin đã biết[^\n]*cụ thể hơn \(buổi/tuần\)[^\n]*KHÔNG ghi lại bản chung chung hơn", rule), rule
 
 
+def test_extract_prompt_asks_for_topics_of_this_message_from_the_fixed_list(monkeypatch):
+    from app.topics import TOPICS
+
+    recorder = RecordingProvider('{"topics": ["Học phí", "Xe đưa đón"], "kid_age": "3 tuổi"}')
+    engine = make_engine(monkeypatch, fake=recorder)
+
+    info = asyncio.run(engine.extract_customer_info("Bé 3 tuổi, học phí và xe đưa đón thế nào ạ?"))
+
+    assert info == {"topics": ["Học phí", "Xe đưa đón"], "kid_age": "3 tuổi"}
+    rule = next(line for line in recorder.system_prompt.splitlines() if '"topics"' in line)
+    for topic in TOPICS:
+        assert f'"{topic}"' in rule, topic
+    assert "TIN NÀY" in rule
+    # Tin chỉ trả lời hồ sơ (SĐT, tuổi bé, bấm chọn buổi/cơ sở) không phải câu hỏi về chủ đề nào
+    assert re.search(r"SĐT[^\n]*tuổi bé[^\n]*buổi[^\n]*cơ sở[^\n]*\"topics\": \[\]", rule), rule
+
+
 def test_classify_qa_parses_json_after_reasoning(monkeypatch):
     payload = {"category": "Xe đưa đón", "keywords": ["xe bus"], "similar_questions": ["Có xe đón không?"]}
     engine = make_engine(monkeypatch, r1=FakeProvider(f"<think>Phân loại.</think>{json.dumps(payload, ensure_ascii=False)}"))

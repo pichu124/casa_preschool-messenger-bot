@@ -43,6 +43,8 @@ from app.escalation import (
 from app import analytics
 from app import customer_memory
 from app.coverage import topics_in_reply
+from app.leads_sheet import post_topic_row
+from app.topics import clean_topics
 from app.followup import run_followups
 
 logging.basicConfig(
@@ -438,6 +440,31 @@ def _find_phone(value) -> str | None:
     return None
 
 
+PHONE_MASK = "[SĐT]"
+
+
+def mask_phones(text: str, known: tuple = ()) -> str:
+    """`text` with each DIGIT_RUN holding a phone number (as _find_phone sees it, parentheses read as spaces)
+    replaced by PHONE_MASK, so a question can be stored without the parent's number. `known`: the parent's
+    numbers, also masked however they are written ("0912,345,678", "0912345678 125 Trung Kính", "+84 912…")."""
+    spaced = re.sub(r"[()]", " ", text)
+    parts, end = [], 0
+    for run in DIGIT_RUN.finditer(spaced):
+        if _phone_in_run(run.group()):
+            parts += [text[end : run.start()], PHONE_MASK]
+            end = run.end()
+    text = "".join(parts) + text[end:]
+    for phone in known:
+        digits = re.sub(r"\D", "", str(phone or ""))
+        if len(digits) < 8:
+            continue
+        local = digits[1:] if digits.startswith("0") else digits[2:] if digits.startswith("84") else digits
+        sep = r"[\s.,/\-–—()]*"
+        body = sep.join(local)
+        text = re.sub(rf"(?<!\d)(?:(?:\+|00)?84{sep}|0{sep})?{body}(?!\d)", PHONE_MASK, text)
+    return text
+
+
 def _staff_reply(echo: dict) -> StaffReply | None:
     """A message echo (sender: the Page, recipient: the parent) of a message the bot did not send; None for the
     bot's own messages."""
@@ -541,9 +568,11 @@ def _clean_extracted(extracted: dict, phone_from_qr: str | None, text: str) -> d
     otherwise phone is the first phone number in what the model gave ("0912345678, 0987654321" keeps the
     first), else the first one in `text` itself, so a number the parent typed is kept even when every model
     fails; it then also drops phone_declined. phone_declined is kept only as JSON true (models also return
-    "false"); topics_covered is only ever what the bot replied with (topics_in_reply)."""
+    "false"); topics_covered is only ever what the bot replied with (topics_in_reply); topics are statistics of
+    one message (app/topics.py), not profile data."""
     extracted = dict(extracted)
     extracted.pop("topics_covered", None)
+    extracted.pop("topics", None)
     phone = phone_from_qr or _find_phone(extracted.pop("phone", None))
     if not phone:
         phone = _find_phone(text)
@@ -556,45 +585,30 @@ def _clean_extracted(extracted: dict, phone_from_qr: str | None, text: str) -> d
     return extracted
 
 
-def _guess_category(question: str, answer: str = "") -> str:
-    """Guess the Q&A category by matching the user's question against keywords + questions in database.
+TOPIC_QUESTION_MAX = 300
 
-    Returns the best matching category, or empty string if no match.
-    """
-    if not question:
-        return ""
 
-    q_lower = question.lower()
-    best_score = 0
-    best_category = ""
-
-    for pair in qa_db.qa_pairs:
-        category = pair.get("category", "")
-        if not category:
-            continue
-        score = 0
-
-        # Match against keywords (each match = 2 points)
-        for kw in pair.get("keywords", []):
-            if kw and kw.lower() in q_lower:
-                score += 2
-
-        # Match against stored questions (substring match = 3 points)
-        for stored_q in pair.get("questions", []):
-            if not stored_q:
-                continue
-            stored_lower = stored_q.lower()
-            # Count common significant words (length > 3)
-            q_words = set(w for w in q_lower.split() if len(w) > 3)
-            stored_words = set(w for w in stored_lower.split() if len(w) > 3)
-            common = q_words & stored_words
-            score += len(common)
-
-        if score > best_score:
-            best_score = score
-            best_category = category
-
-    return best_category if best_score >= 2 else ""
+async def publish_topics(customer_id: str, topics: list[str], escalated: bool, text: str) -> None:
+    """One "Chủ đề" Sheet row for the parent message `text` (post_topic_row: only when TOPICS_SHEET_ENABLED), with
+    the profile as it is after the message; no Facebook name, the question cut and without phone numbers.
+    Never raises; logs carry no message text."""
+    try:
+        profile = customer_memory.get_profile(customer_id)
+        await post_topic_row(
+            {
+                "customer_id": customer_id,
+                "ad_title": str(profile.get("ad_title") or ""),
+                "campus": ", ".join(
+                    str(v) for v in (profile.get("interested_campus"), profile.get("interested_program")) if v
+                ),
+                "kid_age": str(profile.get("kid_age") or ""),
+                "topics": ", ".join(topics),
+                "escalated": "Có" if escalated else "Không",
+                "question": mask_phones(text, (profile.get("phone"),))[:TOPIC_QUESTION_MAX],
+            }
+        )
+    except Exception as e:
+        logger.warning(f"Topic row for customer {customer_id} not sent: {type(e).__name__}")
 
 
 async def process_message(
@@ -636,6 +650,7 @@ async def process_message(
             ),
             ai_engine.extract_customer_info(text, existing_profile, last_bot_message=last_bot_message),
         )
+        topics_given = extracted.get("topics")
         extracted = _clean_extracted(extracted, phone_from_qr, text)
 
         logger.info(
@@ -645,7 +660,7 @@ async def process_message(
         )
 
         escalated = response.should_escalate or not response.text
-        category = ""
+        topics = clean_topics(topics_given, escalated=escalated)
         covered = []
         if escalated:
             await escalate_to_admin(
@@ -666,7 +681,6 @@ async def process_message(
             clean_text, image_urls = _extract_images(response.text)
             clean_text, quick_key = _extract_quick_reply(clean_text)
             quick_replies = build_quick_replies(quick_key)
-            category = _guess_category(text)
             covered = topics_in_reply(response.text)
 
             # Messenger shows quick replies only under the latest message: they go on the last one sent
@@ -687,10 +701,10 @@ async def process_message(
             analytics.log_message(
                 user_id=sender_id,
                 user_name=full_name or user_name,
-                question=text,
+                question=mask_phones(text, (existing_profile.get("phone"), extracted.get("phone"), phone_from_qr)),
                 model_used=response.model_used,
                 escalated=escalated,
-                category=category,
+                topics=topics,
             )
         except Exception as log_err:
             logger.warning(f"Analytics logging failed: {log_err}")
@@ -718,7 +732,11 @@ async def process_message(
         except Exception as hist_err:
             logger.warning(f"Failed to persist conversation history: {hist_err}")
 
+        # Profiles first: a slow Sheet must not hold back the copy that survives a restart.
         await customer_memory.sync_to_github()
+
+        if topics:
+            await publish_topics(sender_id, topics, escalated, text)
 
     except Exception as e:
         logger.error(f"Error processing message from {sender_id}: {e}", exc_info=True)

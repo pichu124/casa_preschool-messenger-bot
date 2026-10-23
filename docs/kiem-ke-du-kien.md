@@ -10,13 +10,11 @@ Cách đọc: dòng ghi `trước → sau`, "trước" là commit 058f73c. Q&A �
 
 ## Mâu thuẫn cần trường xác nhận
 
-1. **Cam kết không tăng: "học phí" hay "học phí cơ bản"?**
-   - Ghi "không tăng học phí": prompt `app/ai_engine.py:44 → 40` (kể giá trị trước khi nói học phí), câu ví dụ CARE `:109 → 105`, Q&A #56 "Học phí của trường như thế nào ạ?", Q&A #57 "Ưu đãi học phí như thế nào ạ?", `docs/quyet-dinh-noi-dung.md` mục 4 và mục 5.2.
-   - Ghi "không tăng học phí cơ bản": Q&A #61 "Casa có cam kết ổn định học phí không?".
-   - Câu hỏi cho trường: cam kết chỉ áp cho học phí cơ bản, hay cả tiền ăn và các khoản phí khác? Chưa sửa bên nào.
+Hiện không còn mục nào.
 
 ## Mâu thuẫn đã sửa theo quyết định mới nhất
 
+- **Cam kết không tăng là học phí cơ bản** (trường xác nhận 2026-10-23): tiền ăn và các khoản phí khác vẫn điều chỉnh bình thường. Đã sửa prompt (kể giá trị, ví dụ CARE), Q&A #56, #57 (thêm "cơ bản"), #61 (thêm câu tiền ăn và phí khác điều chỉnh theo năm học) và `docs/quyet-dinh-noi-dung.md`; `tests/test_prompt.py::test_fee_commitment_is_only_the_base_tuition` chặn câu "không tăng học phí" thiếu "cơ bản".
 - **Nhóm tuổi nhỏ nhất.** Q&A #97 "Các hoạt động ngoại khóa có phù hợp với từng độ tuổi không?" và Q&A #103 "Các bé nhỏ có được tham gia dã ngoại không?" ghi "18–36 tháng"; prompt (`:39 → 35`) và các cặp chương trình ghi "15 tháng–3 tuổi". Quyết định đợt 1 (`docs/quyet-dinh-noi-dung.md`, mục 1 ý 1 và mục 3) là nhận bé từ 15 tháng. "18–36 tháng" sót lại từ tuổi nhận cũ 18 tháng (test đã cấm "18 tháng–6 tuổi"), và bỏ sót bé 15–18 tháng. Đã sửa cả hai thành "15 tháng–3 tuổi"; `tests/test_knowledge.py::test_admission_age_is_15_months_walking_steadily` cấm "18–36 tháng".
 
 ## Bảng kiểm kê

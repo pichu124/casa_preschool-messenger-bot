@@ -289,6 +289,29 @@ UPSET_CASES = [
 ]
 
 
+# Câu chuyển tư vấn viên trước 9694fb8 (chưa có hotline), nguyên văn: phụ huynh được chuyển trước khi deploy bản mới
+# vẫn có câu này là tin cuối của bot.
+OLD_HANDOVERS = {
+    "có SĐT": (
+        "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, "
+        "tư vấn viên sẽ liên hệ và trả lời Ba/Mẹ trong thời gian sớm nhất ạ."
+    ),
+    "xin SĐT": (
+        "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, bộ phận sẽ phản "
+        "hồi Ba/Mẹ sớm nhất ạ. Nếu tiện, Ba/Mẹ để lại SĐT hoặc Zalo để tư vấn viên hỗ trợ Ba/Mẹ nhanh hơn nhé ạ."
+    ),
+    "từ chối SĐT": (
+        "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, "
+        "nhân viên tư vấn sẽ trả lời Ba/Mẹ trực tiếp tại đây sớm nhất ạ."
+    ),
+}
+
+
+@pytest.mark.parametrize("text", OLD_HANDOVERS.values(), ids=OLD_HANDOVERS.keys())
+def test_parent_handed_over_before_the_hotline_wording_gets_no_followup(text):
+    assert followup.due_followups({CID: profile(kid_age="3 tuổi", bot_text=text)}, NOW) == []
+
+
 @pytest.mark.parametrize(("customer", "template_key"), [c[1:] for c in UPSET_CASES], ids=[c[0] for c in UPSET_CASES])
 def test_parent_upset_in_this_conversation_gets_no_followup(customer, template_key):
     expected = [(CID, template_key)] if template_key else []

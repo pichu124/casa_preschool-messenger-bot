@@ -35,6 +35,13 @@ HANDED_TO_CONSULTANT = (
     ESCALATION_MESSAGE_ASK_PHONE,
     ESCALATION_MESSAGE_PHONE_DECLINED,
     ESCALATION_MESSAGE_UPSET,
+    # Before 9694fb8 (no hotline): still the last bot message of parents handed over before that deploy
+    "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, "
+    "tư vấn viên sẽ liên hệ và trả lời Ba/Mẹ trong thời gian sớm nhất ạ.",
+    "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, bộ phận sẽ phản "
+    "hồi Ba/Mẹ sớm nhất ạ. Nếu tiện, Ba/Mẹ để lại SĐT hoặc Zalo để tư vấn viên hỗ trợ Ba/Mẹ nhanh hơn nhé ạ.",
+    "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, "
+    "nhân viên tư vấn sẽ trả lời Ba/Mẹ trực tiếp tại đây sớm nhất ạ.",
 )
 
 # The school's wording, verbatim, under the school's labels (_template_key picks one).

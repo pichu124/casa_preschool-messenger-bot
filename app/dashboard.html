@@ -125,9 +125,24 @@ tr:hover td { background: #f7fafc; }
 <div class="chart-wrapper"><canvas id="dailyChart"></canvas></div>
 </div>
 <div class="chart-card">
-<h3>🏷️ Top danh mục câu hỏi</h3>
-<div class="chart-wrapper"><canvas id="categoryChart"></canvas></div>
+<h3>🏷️ Chủ đề phụ huynh hỏi (7 ngày)</h3>
+<div class="chart-wrapper"><canvas id="topicChart"></canvas></div>
 </div>
+</div>
+<p class="note">Chủ đề và câu chuyển tư vấn viên tính từ lần khởi động gần nhất của bot (analytics.jsonl mất khi Render khởi động lại hoặc deploy). Số liệu đầy đủ xem ở tab "Chủ đề" trên Google Sheet.</p>
+
+<div class="messages-table funnel-stages">
+<h3>🙋 Câu chuyển tư vấn viên gần đây</h3>
+<table>
+<thead>
+<tr>
+<th>Thời gian</th>
+<th>Câu hỏi</th>
+<th>Chủ đề</th>
+</tr>
+</thead>
+<tbody id="escalations-body"></tbody>
+</table>
 </div>
 
 <div class="messages-table">
@@ -138,7 +153,7 @@ tr:hover td { background: #f7fafc; }
 <th>Thời gian</th>
 <th>Người dùng</th>
 <th>Câu hỏi</th>
-<th>Danh mục</th>
+<th>Chủ đề</th>
 <th>Trạng thái</th>
 </tr>
 </thead>
@@ -151,7 +166,7 @@ tr:hover td { background: #f7fafc; }
 </div>
 
 <script>
-let dailyChart, categoryChart;
+let dailyChart, topicChart;
 const SECRET = new URLSearchParams(location.search).get('secret') || '';
 const q = SECRET ? `?secret=${encodeURIComponent(SECRET)}` : '';
 
@@ -176,7 +191,8 @@ async function loadData() {
 
     renderFunnel(stats.funnel);
     renderDailyChart(stats.daily_series);
-    renderCategoryChart(stats.top_categories);
+    renderTopicChart(stats.top_topics_7d);
+    renderEscalations(stats.recent_escalations);
     renderMessages(messages);
 
     document.getElementById('last-update').textContent = new Date().toLocaleTimeString('vi-VN');
@@ -232,9 +248,9 @@ function renderDailyChart(data) {
   });
 }
 
-function renderCategoryChart(data) {
-  const ctx = document.getElementById('categoryChart').getContext('2d');
-  if (categoryChart) categoryChart.destroy();
+function renderTopicChart(data) {
+  const ctx = document.getElementById('topicChart').getContext('2d');
+  if (topicChart) topicChart.destroy();
   if (!data.length) {
     ctx.fillStyle = '#a0aec0';
     ctx.textAlign = 'center';
@@ -243,10 +259,10 @@ function renderCategoryChart(data) {
     return;
   }
   const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a', '#fee140', '#30cfd0', '#a8edea', '#ff9a9e'];
-  categoryChart = new Chart(ctx, {
+  topicChart = new Chart(ctx, {
     type: 'doughnut',
     data: {
-      labels: data.map(d => d.category),
+      labels: data.map(d => d.topic),
       datasets: [{
         data: data.map(d => d.count),
         backgroundColor: colors.slice(0, data.length),
@@ -267,7 +283,7 @@ function renderMessages(messages) {
     return;
   }
   tbody.innerHTML = messages.map(m => {
-    const time = new Date(m.timestamp).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
+    const time = formatTime(m.timestamp);
     const badge = m.escalated
       ? '<span class="badge badge-escalated">Escalated</span>'
       : '<span class="badge badge-ok">Trả lời</span>';
@@ -276,10 +292,31 @@ function renderMessages(messages) {
       <td>${time}</td>
       <td>${m.user_name || 'Ẩn danh'}</td>
       <td>${escapeHtml(question)}</td>
-      <td>${m.category || '-'}</td>
+      <td>${escapeHtml(topicsText(m.topics))}</td>
       <td>${badge}</td>
     </tr>`;
   }).join('');
+}
+
+function formatTime(timestamp) {
+  return new Date(timestamp).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
+}
+
+function topicsText(topics) {
+  return (topics || []).join(', ') || '-';
+}
+
+function renderEscalations(escalations) {
+  const tbody = document.getElementById('escalations-body');
+  if (!escalations.length) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#a0aec0;">Chưa có câu nào</td></tr>';
+    return;
+  }
+  tbody.innerHTML = escalations.map(e => `<tr>
+      <td>${formatTime(e.timestamp)}</td>
+      <td>${escapeHtml(e.question)}</td>
+      <td>${escapeHtml(topicsText(e.topics))}</td>
+    </tr>`).join('');
 }
 
 function escapeHtml(s) {

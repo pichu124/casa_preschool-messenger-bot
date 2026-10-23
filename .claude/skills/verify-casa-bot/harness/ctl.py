@@ -134,6 +134,7 @@ def app_env(state: dict, overrides: dict) -> dict:
         "LEADS_SHEET_WEBHOOK_URL": "https://script.google.com/macros/s/FAKE/exec",
         "LEADS_SHEET_TOKEN": f"fake-sheet-token-{rid}",
         "FOLLOWUP_ENABLED": "false",
+        "TOPICS_SHEET_ENABLED": "false",
         "GITHUB_TOKEN": f"fake-github-token-{rid}",
         "CUSTOMERS_GITHUB_REPO": "fake-owner/fake-private-customers",
         "OPENAI_API_KEY": f"fake-openai-key-{rid}",

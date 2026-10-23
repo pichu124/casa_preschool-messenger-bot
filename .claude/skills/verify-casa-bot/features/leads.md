@@ -14,6 +14,7 @@ Khi một tin của phụ huynh đem lại SĐT mới, SĐT khác số cũ, lị
 - `phone-clean` SĐT model trích xuất được lọc: lấy số Việt Nam đầu tiên (`"0912345678, 0987654321"` → số đầu), bỏ khi không có số (`"không có"`).
 - `sheet-row` body Sheet: `fb_name, customer_id, phone, kid_name, kid_age, campus, area, expected_start, visit_request, ad_title, stage, last_message` + `token` (`LEADS_SHEET_TOKEN`), `event`, `time` (giờ Việt Nam).
 - `sheet-failure` web app trả `{"ok": false}` hoặc HTTP 500 → log `Sheet written=False`, Telegram vẫn gửi, phụ huynh vẫn nhận trả lời.
+- `topic-row` chỉ khi `TOPICS_SHEET_ENABLED=true` (harness mặc định `false`): mỗi tin có chủ đề (`topics` của extract lọc theo `app/topics.py`; tin chuyển tư vấn viên không có chủ đề là `Khác`) thêm một POST sau khi bot trả lời: `type: "topic"`, `customer_id`, `ad_title`, `campus`, `kid_age` (hồ sơ sau tin), `topics` (nối bằng `, `), `escalated` (`Có`/`Không`), `question` (SĐT thay bằng `[SĐT]`, tối đa 300 ký tự), `token`, `time`; không có `fb_name`, không có `event`. Tin không có chủ đề không POST. `publish_topics` trong `app/main.py`, `post_topic_row` trong `app/leads_sheet.py`.
 
 ## How to get to it (user POV)
 
@@ -38,6 +39,8 @@ Preconditions:
 - **Thẻ bị xoá.** PSID mới, `send phone 9000000000000013 0912000222` (thẻ), rồi kịch bản có `"fail": {"telegram_reply": true}` và `send text 9000000000000013 "VISIT_AM"` → một dòng `TG` status `400` có `reply_to=<thẻ cũ>`, rồi một thẻ đầy đủ mới `header='📅 KHÁCH HẸN THAM QUAN/HỌC THỬ'` không `reply_to`; `read profile 9000000000000013 --fields lead_card_msg_id` → id thẻ mới; `read log --grep "not replied to"` có `Lead card <thẻ cũ> of customer 9000000000000013 not replied to, sending a new card`.
 - **Sheet hỏng.** Kịch bản có `"fail": {"sheet": "false"}` (hoặc `"500"`), PSID mới, `send phone <psid> 0912000111` → dòng `SHEET` có status `200` (hoặc `500`), `TG` vẫn có, phụ huynh vẫn nhận trả lời FB. `read log --grep "Google Sheet"` có `Lead new_phone rejected by Google Sheet web app (HTTP 200)` (với `false`) hoặc `Lead new_phone not written to Google Sheet: JSONDecodeError` (với `500`), và `read log --grep "Sheet written=False"` có dòng. Các dòng đó không chứa URL Sheet hay SĐT.
 - **Bằng chứng.** Transcript qua `tee`; `outbox.jsonl` có body đầy đủ của Sheet và Telegram.
+
+- **Dòng chủ đề.** `ctl up --slug <slug> --env TOPICS_SHEET_ENABLED=true`, rồi `send text 9000000000000021 "HOC_PHI cho em hỏi học phí, zalo 0912345678"` → `SHEET {"event": "new_phone", …}` rồi `SHEET {"type": "topic", "customer_id": "9000000000000021", "topics": "Học phí", "escalated": "Không", "question": "HOC_PHI cho em hỏi học phí, zalo [SĐT]", …}` sau dòng FB; `send text 9000000000000022 HARD_QUESTION` → dòng topic `"topics": "Khác", "escalated": "Có"`; `send text 9000000000000023 "Chào trường ạ"` → không có dòng SHEET. `read outbox --host sheet --full` cho body đủ khoá. Không `--env` thì không có dòng topic nào.
 
 ## Gotchas
 

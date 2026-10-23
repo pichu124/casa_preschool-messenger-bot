@@ -15,6 +15,8 @@ Mỗi sự kiện lead, bot báo vào nhóm Telegram đang dùng và cùng lúc 
 
 Bot POST JSON tới một web app Google Apps Script gắn với Sheet (`app/leads_sheet.py`). Sheet lỗi hoặc chưa cấu hình thì phụ huynh vẫn nhận trả lời và Telegram vẫn nhận tin; log Render chỉ ghi loại sự kiện và customer_id, không ghi SĐT hay URL web app.
 
+Cùng web app đó ghi tab **Chủ đề** (khi bật `TOPICS_SHEET_ENABLED`, mục 6): mỗi tin phụ huynh có chủ đề là một dòng mới, để trường biết phụ huynh hỏi gì nhiều, theo quảng cáo nào, và tối ưu content, quảng cáo. Chủ đề do model trích xuất gắn, chỉ trong danh sách cố định của `app/topics.py` (Học phí, Ưu đãi, Chương trình/phương pháp, Tiếng Anh/GV nước ngoài, Giáo viên/tỷ lệ cô trò, Cơ sở vật chất, Ăn uống/thực đơn, An toàn/sức khoẻ/camera, Giờ học/đón trả/trông muộn, Xe đưa đón, Độ tuổi/nhập học/hồ sơ, Học thử/tham quan, Thích nghi/tâm lý bé, So sánh trường khác, Khác). Tin chỉ là thông tin hồ sơ (SĐT, tuổi bé, bấm chọn buổi hay cơ sở) hoặc chỉ chào hỏi thì không có chủ đề, không có dòng; tin chuyển tư vấn viên luôn có dòng (không có chủ đề nào thì là "Khác"). Bot gửi dòng sau khi đã trả lời phụ huynh; Sheet lỗi không ảnh hưởng gì tới phụ huynh, log không ghi nội dung tin.
+
 ## Cột
 
 Bot gửi các khóa dưới đây (cùng `token`), trừ hai cột cuối do script tự điền từ `time`. Script ghi đúng thứ tự này, hàng 1 là tiêu đề, tìm hàng của phụ huynh theo `customer_id`. Cần thêm cột thì chỉ thêm vào cuối `COLUMNS`, để các hàng cũ không lệch cột.
@@ -38,6 +40,19 @@ Bot gửi các khóa dưới đây (cùng `token`), trừ hai cột cuối do sc
 | `first_contact` | Lần đầu liên hệ | Script điền: giờ Việt Nam của lead đầu tiên, không đổi khi hàng được cập nhật |
 | `updated_at` | Cập nhật lúc | Script điền: giờ Việt Nam của lần cập nhật này |
 
+Tab **Chủ đề**: bot gửi `type` là `topic` cùng các khóa dưới đây (và `token`). Script thêm một dòng cuối tab mỗi lần, không cập nhật dòng cũ; tab và hàng tiêu đề tự tạo ở dòng đầu tiên.
+
+| Khóa | Cột tab Chủ đề | Nội dung |
+|---|---|---|
+| `time` | Thời gian | Giờ Việt Nam lúc bot gửi, `YYYY-MM-DD HH:MM:SS` |
+| `customer_id` | Customer ID | ID Messenger của khách (PSID); không gửi tên Facebook |
+| `ad_title` | Quảng cáo | Tên quảng cáo khách bấm vào (nếu có) |
+| `campus` | Cơ sở/hệ | Cơ sở quan tâm, hệ quan tâm (hồ sơ sau tin này) |
+| `kid_age` | Tuổi bé | Hồ sơ sau tin này |
+| `topics` | Chủ đề | Các chủ đề của tin, nối bằng `, ` |
+| `escalated` | Chuyển tư vấn viên | `Có` / `Không` |
+| `question` | Câu hỏi | Tin của phụ huynh, mọi SĐT thay bằng `[SĐT]`, tối đa 300 ký tự |
+
 Sheet chứa dữ liệu cá nhân của phụ huynh và trẻ: chỉ chia sẻ cho người tư vấn.
 
 ## 1. Tạo Sheet và script
@@ -49,7 +64,9 @@ Sheet chứa dữ liệu cá nhân của phụ huynh và trẻ: chỉ chia sẻ 
 
 ```javascript
 // Nhận lead từ bot Messenger Casa (app/leads_sheet.py) vào tab Leads: mỗi phụ huynh (Customer ID) một hàng.
+// Body có "type": "topic" là một dòng của tab Chủ đề (mỗi tin có chủ đề một dòng).
 const SHEET_NAME = 'Leads';
+const TOPIC_SHEET_NAME = 'Chủ đề';
 // [khóa, tiêu đề cột]. Thứ tự này là thứ tự cột: chỉ thêm cột mới vào cuối.
 // Hai cột cuối script tự điền từ `time` của bot, các cột khác là khóa trong JSON bot gửi.
 const COLUMNS = [
@@ -70,6 +87,17 @@ const COLUMNS = [
   ['first_contact', 'Lần đầu liên hệ'],
   ['updated_at', 'Cập nhật lúc'],
 ];
+// [khóa, tiêu đề cột] của tab Chủ đề; chỉ thêm cột mới vào cuối.
+const TOPIC_COLUMNS = [
+  ['time', 'Thời gian'],
+  ['customer_id', 'Customer ID'],
+  ['ad_title', 'Quảng cáo'],
+  ['campus', 'Cơ sở/hệ'],
+  ['kid_age', 'Tuổi bé'],
+  ['topics', 'Chủ đề'],
+  ['escalated', 'Chuyển tư vấn viên'],
+  ['question', 'Câu hỏi'],
+];
 const EVENT_LABELS = {
   new_phone: 'SĐT mới',
   phone_changed: 'Đổi SĐT',
@@ -89,6 +117,10 @@ function doPost(e) {
   if (!token || !data || data.token !== token) {
     return reply(false);
   }
+  // Không có "type": lead (như mọi bản bot trước). "topic": dòng tab Chủ đề. Loại khác: không ghi gì.
+  if (data.type !== undefined && data.type !== 'topic') {
+    return reply(false);
+  }
   data.first_contact = data.time;
   data.updated_at = data.time;
 
@@ -98,6 +130,10 @@ function doPost(e) {
     return reply(false);
   }
   try {
+    if (data.type === 'topic') {
+      topicsSheet().appendRow(TOPIC_COLUMNS.map(([key]) => cell(key, data[key])));
+      return reply(true);
+    }
     const sheet = leadsSheet();
     const values = COLUMNS.map(([key]) => cell(key, data[key]));
     const row = findRow(sheet, String(data.customer_id || ''));
@@ -154,6 +190,17 @@ function leadsSheet() {
   return sheet;
 }
 
+// Tab Chủ đề, tạo cùng hàng tiêu đề khi chưa có.
+function topicsSheet() {
+  const book = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = book.getSheetByName(TOPIC_SHEET_NAME) || book.insertSheet(TOPIC_SHEET_NAME);
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(TOPIC_COLUMNS.map(([, title]) => title));
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
 // Số hàng (từ 2) của phụ huynh `customerId`, 0 khi chưa có. Sheet cũ có nhiều hàng một phụ huynh: lấy hàng dưới cùng.
 function findRow(sheet, customerId) {
   const last = sheet.getLastRow();
@@ -193,7 +240,7 @@ function reply(ok, error) {
 }
 ```
 
-Script trả `{"ok":true}` khi đã thêm hoặc cập nhật hàng, `{"ok":false}` khi body không phải JSON, sai token hoặc không lấy được khóa, `{"ok":false,"error":"…"}` (không ghi gì) khi ô tiêu đề O1 hoặc P1 đã có chữ khác "Lần đầu liên hệ"/"Cập nhật lúc" (vd cột người tư vấn tự thêm). Bot chỉ coi là thành công khi nhận đúng `{"ok":true}`.
+Script trả `{"ok":true}` khi đã thêm hoặc cập nhật hàng (hoặc thêm dòng tab Chủ đề), `{"ok":false}` khi body không phải JSON, sai token, `type` lạ hoặc không lấy được khóa, `{"ok":false,"error":"…"}` (không ghi gì) khi ô tiêu đề O1 hoặc P1 đã có chữ khác "Lần đầu liên hệ"/"Cập nhật lúc" (vd cột người tư vấn tự thêm). Bot chỉ coi là thành công khi nhận đúng `{"ok":true}`.
 
 ## 2. Deploy web app
 
@@ -236,6 +283,7 @@ curl -sL -H 'Content-Type: application/json' \
 - Gửi lại lệnh trên với `"event":"visit_request","time":"2026-01-01 08:05:00","visit_request":"tham quan buổi sáng"` (cùng `customer_id`) → vẫn **một** hàng: "Sự kiện" là Hẹn tham quan/học thử, "Cập nhật lúc" 08:05, "Lần đầu liên hệ" vẫn 08:00 → xong. Xóa hàng thử.
 - Đổi token sai → `{"ok":false}`, không có hàng mới.
 - In ra trang HTML: URL sai, hoặc "Who has access" chưa là Anyone, hoặc script lỗi (xem **Executions** trong Apps Script).
+- Tab Chủ đề (script từ 2026-10-23): chạy lệnh curl trên với `-d '{"token":"<LEADS_TOKEN>","type":"topic","time":"2026-01-01 08:00:00","customer_id":"0000000000000000","topics":"Học phí, Xe đưa đón","escalated":"Không","question":"thử kết nối"}'` → `{"ok":true}`, tab **Chủ đề** có tiêu đề và một dòng mới, tab **Leads** không đổi. Xóa dòng thử.
 
 `-L` là bắt buộc: web app trả 302 sang `script.googleusercontent.com`, kết quả nằm ở đó (bot cũng theo redirect như vậy).
 
@@ -252,3 +300,14 @@ Sheet tạo theo bản cũ của trang này ghi thêm một hàng mỗi sự ki�
 5. Thử như bước 4 (hai lệnh curl, cùng `customer_id`) → một hàng, rồi xoá hàng thử.
 
 Lead đầu tiên sau khi cập nhật, script tự thêm tiêu đề "Lần đầu liên hệ" và "Cập nhật lúc" vào hai cột cuối; các hàng cũ không lệch cột. Phụ huynh đã có nhiều hàng từ trước thì script cập nhật hàng dưới cùng của Customer ID đó (lấy "Thời gian" cũ của hàng làm "Lần đầu liên hệ"); các hàng trên của cùng Customer ID có thể xoá tay nếu muốn.
+
+## 6. Bật tab Chủ đề (2026-10-23)
+
+Script đang chạy trước ngày này coi mọi body là lead: nhận dòng chủ đề nó sẽ thêm hoặc ghi đè hàng trong tab **Leads**. Vì vậy bot chỉ gửi dòng chủ đề khi biến `TOPICS_SHEET_ENABLED` là `true` (mặc định tắt), và người vận hành làm đúng thứ tự:
+
+1. Mở Sheet → **Tiện ích mở rộng → Apps Script**. Trong `Code.gs`, xoá hết code cũ, dán toàn bộ script ở bước 1 → **Lưu**.
+2. **Deploy → Manage deployments** → chọn deployment đang dùng → biểu tượng bút chì (**Edit**) → Version: **New version** → **Deploy**. URL web app giữ nguyên, `LEADS_TOKEN` giữ nguyên. Đừng bấm **New deployment**.
+3. Thử dòng chủ đề như bước 4 (lệnh curl với `"type":"topic"`) → `{"ok":true}`, tab **Chủ đề** tự tạo, tab **Leads** không đổi. Xoá dòng thử.
+4. Trên Render → service của bot → **Environment**: thêm `TOPICS_SHEET_ENABLED` = `true` → Save (Render deploy lại để bot nhận biến). Bot dùng chung `LEADS_SHEET_WEBHOOK_URL` và `LEADS_SHEET_TOKEN`, không cần biến nào khác.
+
+Tắt: xoá `TOPICS_SHEET_ENABLED` hoặc đặt khác `true`. Dòng chủ đề không có tên Facebook, SĐT trong câu hỏi đã thay bằng `[SĐT]`; tab vẫn có Customer ID, tuổi bé: chỉ chia sẻ như tab Leads. Dashboard (`/dashboard`) cũng đếm chủ đề 7 ngày, nhưng chỉ từ lần bot khởi động gần nhất; số liệu đầy đủ là tab này.

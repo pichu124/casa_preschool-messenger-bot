@@ -408,6 +408,22 @@ def test_3_to_6_programme_is_told_in_general_until_the_campus_is_known(monkeypat
     assert "Mỹ Đình" in english[0] and "Kim Mã" not in english[1], english
 
 
+# Phản hồi của trường (đợt 7): trường làm việc thứ 2–6, cuối tuần phải sắp xếp riêng một cô. Bot từng trả lời "Em báo
+# tư vấn viên xếp mẹ ghé thứ 7 ạ…". Khéo mời qua giờ hành chính thứ 2–6, không bao giờ hứa cuối tuần; phụ huynh không
+# sắp xếp được thì báo tư vấn viên sắp xếp và liên hệ xác nhận, xin SĐT nếu chưa có.
+WEEKEND = re.compile(
+    r"thứ 2–6[^\n]*thứ 7/Chủ nhật[^\n]*KHÔNG hứa[^\n]*giờ hành chính thứ 2–6[^\n]*tư vấn viên[^\n]*sắp xếp[^\n]*xác nhận"
+)
+
+
+def test_weekend_visit_is_never_promised_and_weekdays_are_offered(monkeypatch):
+    assert WEEKEND.search(SYSTEM_PROMPT)
+    for reminder in _reminders(monkeypatch):
+        (line,) = [line for line in reminder.splitlines() if "thứ 7/Chủ nhật" in line]
+        assert WEEKEND.search(line), line
+        assert re.search(r"chưa có SĐT[^\n]*xin SĐT/Zalo", line), line
+
+
 def test_system_prompt_instructions_stay_compact():
     instructions = SYSTEM_PROMPT.replace("{qa_context}", "")
     assert len(instructions) <= 10_000, len(instructions)
@@ -1166,8 +1182,42 @@ def test_eval_age_question_after_the_phone_is_specific():
     assert any("đi học từ" in p for p in eval_chat.check_turn(turn, False, False, starts, [turn.message]))
 
 
-# Phản hồi của trường (đợt 7): hỏi thời lượng Cambridge (hệ Quốc tế), bot trả lời giờ tiếng Anh chung mà không nhắc Cambridge.
+# Kịch bản eval cho phản hồi đợt 7: tham quan cuối tuần.
+WEEKEND_ASK = "Mẹ qua thứ 7 được k nhỉ"
 
+
+def _turn(scenario: str, message: str):
+    (turn,) = [t for t in eval_chat.SCENARIOS[scenario] if t.message == message]
+    return turn
+
+
+def test_eval_flags_promising_a_weekend_visit_and_accepts_inviting_on_weekdays():
+    turn = _turn("tham_quan_cuoi_tuan", WEEKEND_ASK)
+    production = "Dạ được ạ, em báo tư vấn viên xếp mẹ ghé thứ 7 rồi gọi xác nhận giờ ạ."
+    problems = eval_chat.check_turn(turn, False, False, production, [turn.message])
+    assert any("được ạ" in p for p in problems) and any("thứ 2" in p for p in problems), problems
+    weekdays = (
+        "Dạ cuối tuần trường phải sắp xếp riêng nên em chưa dám hẹn trước ạ. Mẹ có thể qua từ thứ 2 đến thứ 6 trong "
+        "giờ hành chính không ạ?"
+    )
+    assert eval_chat.check_turn(turn, False, False, weekdays, [turn.message]) == []
+
+
+def test_eval_parent_who_cannot_come_on_weekdays_is_passed_to_a_consultant():
+    turns = eval_chat.SCENARIOS["tham_quan_cuoi_tuan"]
+    turn = turns[-1]
+    assert turns[-2].message == WEEKEND_ASK and not turn.known.get("phone")
+    messages = [t.message for t in turns]
+    promised = "Dạ được ạ, thứ 7 em xếp cho Mẹ ghé nhé."
+    assert eval_chat.check_turn(turn, False, False, promised, messages)
+    noted = (
+        "Dạ vậy em báo tư vấn viên sắp xếp rồi liên hệ xác nhận với Mẹ ạ. Nếu tiện, Mẹ để lại SĐT/Zalo để tư vấn viên "
+        "gọi nhé? [QUICK:phone]"
+    )
+    assert eval_chat.check_turn(turn, False, False, noted, messages) == []
+
+
+# Phản hồi của trường (đợt 7): hỏi thời lượng Cambridge (hệ Quốc tế), bot trả lời giờ tiếng Anh chung mà không nhắc Cambridge.
 def test_eval_cambridge_hours_must_name_cambridge_for_the_international_system():
     (turn,) = eval_chat.SCENARIOS["cambridge_thoi_luong"]
     assert turn.known.get("interested_campus") in ("Mỹ Đình", "Chùa Láng")

@@ -264,6 +264,27 @@ SCENARIOS: dict[str, list[Turn]] = {
             agreed=True,
         ),
     ],
+    # Phản hồi của trường (đợt 7): trường làm việc thứ 2–6, cuối tuần phải sắp xếp riêng. Bot từng hứa "Em báo tư vấn
+    # viên xếp mẹ ghé thứ 7 ạ…": không hứa cuối tuần, mời qua thứ 2–6; không qua được thì tư vấn viên sắp xếp, xin số.
+    "tham_quan_cuoi_tuan": [
+        Turn("bé nhà mình 3 tuổi, mình quan tâm cơ sở Mỹ Đình", known=FB_NAME),
+        Turn(
+            "Mẹ qua thứ 7 được k nhỉ",
+            known=VISIT_MD,
+            any_of=[("thứ 2", "thứ hai", "trong tuần")],
+            none_of=PROMISES_SLOT + ("xếp mẹ ghé thứ 7",),
+            next_step=False,
+            agreed=True,
+        ),
+        Turn(
+            "trong tuần mẹ bận lắm, không qua được",
+            known={**VISIT_MD, "visit_request": "tham quan thứ 7"},
+            any_of=[("tư vấn viên",), ("sắp xếp", "xếp"), ("xác nhận", "liên hệ", "gọi"), ASKS_PHONE],
+            none_of=PROMISES_SLOT,
+            next_step=False,
+            agreed=True,
+        ),
+    ],
     # Phản hồi của trường (đợt 7): hỏi thời gian học từng môn, bot trả lời giờ tiếng Anh chung mà không nhắc Cambridge.
     "cambridge_thoi_luong": [
         Turn(

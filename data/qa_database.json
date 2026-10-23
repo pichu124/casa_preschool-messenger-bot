@@ -106,6 +106,22 @@
     {
       "category": "Cơ sở & tuyển sinh",
       "questions": [
+        "Thứ 7, Chủ nhật có tham quan trường được không?",
+        "Cuối tuần em qua xem trường được không?",
+        "Thứ 7 cho bé qua học thử được không?"
+      ],
+      "answer": "Casa làm việc từ thứ 2 đến thứ 6, nên Nhà trường mời Ba/Mẹ đưa bé qua tham quan hoặc học thử trong giờ hành chính các ngày này, khi các con đang học và sinh hoạt ở lớp. Cuối tuần cần sắp xếp riêng người đón tiếp nên không hẹn trước được; nếu Ba/Mẹ không sắp xếp được ngày trong tuần, em sẽ báo tư vấn viên sắp xếp và liên hệ xác nhận lại với Ba/Mẹ.",
+      "keywords": [
+        "tham quan",
+        "thứ 7",
+        "chủ nhật",
+        "cuối tuần",
+        "giờ hành chính"
+      ]
+    },
+    {
+      "category": "Cơ sở & tuyển sinh",
+      "questions": [
         "Có xem được đánh giá/feedback từ phụ huynh khác không ạ?",
         "Phụ huynh khác đánh giá trường thế nào?",
         "Trường có uy tín không?",

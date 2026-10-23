@@ -550,3 +550,13 @@ def test_cambridge_hours_answer_is_the_schools_wording_for_the_international_sys
     assert answer.index("quốc tế") < answer.index(CAMBRIDGE_HOURS), answer
     kim_ma = [s for s in _full_sentences(answer) if "kim mã" in s]
     assert kim_ma and all("english" in s and "tư vấn viên" in s and not re.search(r"\d+ ?(giờ|phút)", s) for s in kim_ma)
+
+
+# Trường làm việc thứ 2–6; cuối tuần phải sắp xếp riêng một cô, nên không hứa trước.
+@pytest.mark.parametrize("question", ["Thứ 7, Chủ nhật có tham quan trường được không?", "Cuối tuần em qua xem trường được không?"])
+def test_weekend_visit_answer_offers_weekdays_and_promises_nothing(question):
+    answer = _norm(_pair_with_question(question)["answer"])
+
+    assert "thứ 2 đến thứ 6" in answer and "giờ hành chính" in answer, answer
+    assert re.search(r"tư vấn viên[^.]*sắp xếp[^.]*xác nhận", answer), answer
+    assert "được ạ" not in answer

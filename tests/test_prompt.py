@@ -353,11 +353,6 @@ def test_care_resolves_with_value_and_trial_not_a_cheaper_campus(monkeypatch):
 
 REQUIRED_KNOWLEDGE = [
     "15 tháng",
-    "185 Huỳnh Thúc Kháng",
-    "36 Phạm Hùng",
-    "294 Kim Mã",
-    "05/09",
-    "17h30",
     "Connect",
     "Acknowledge",
     "Resolve",
@@ -383,6 +378,72 @@ def test_system_prompt_carries_required_knowledge(monkeypatch, phrase):
 
 def test_system_prompt_only_teaches_known_quick_reply_keys():
     assert set(re.findall(r"\[QUICK:([^\]]*)\]", SYSTEM_PROMPT)) == QUICK_KEYS
+
+
+# Người vận hành 2026-10-23 (docs/kiem-ke-du-kien.md): dữ kiện chi tiết chỉ nằm ở Q&A, để trường sửa thông tin một
+# chỗ; prompt chỉ giữ tóm tắt những điều không được sai, và tóm tắt đó phải khớp Q&A.
+QA_DB = Path(__file__).resolve().parent.parent / "data" / "qa_database.json"
+QA_PAIRS = json.loads(QA_DB.read_text(encoding="utf-8"))["qa_pairs"]
+QA_ANSWERS = "\n".join(p["answer"] for p in QA_PAIRS)
+CORE = SYSTEM_PROMPT.split("THÔNG TIN CỐT LÕI", 1)[1].split("\nCÁCH TƯ VẤN", 1)[0]
+MOVED_TO_QA = ["185 Huỳnh Thúc Kháng", "36 Phạm Hùng", "294 Kim Mã", "Hongkong Tower", "05/09", "17h30", "8h30–17h00"]
+
+
+def _qa_answer(question: str) -> str:
+    return next(p["answer"] for p in QA_PAIRS if question in p["questions"])
+
+
+@pytest.mark.parametrize("fact", MOVED_TO_QA)
+def test_detailed_facts_reach_the_model_from_qa_only(fact):
+    from app.qa_database import QADatabase
+
+    assert fact not in SYSTEM_PROMPT
+    assert fact in SYSTEM_PROMPT.format(qa_context=QADatabase(str(QA_DB)).build_context())
+
+
+def _campus_systems(text: str) -> dict[str, str]:
+    return {campus: system.lower() for system, campus in re.findall(r"[Hh]ệ (Quốc tế|Song ngữ) (Chùa Láng|Mỹ Đình|Kim Mã)", text)}
+
+
+def test_campuses_and_systems_in_the_prompt_match_qa():
+    qa = _campus_systems(_qa_answer("Địa chỉ trường ở đâu?"))
+    assert len(qa) == 3, qa
+    assert "3 cơ sở" in CORE and _campus_systems(CORE) == qa, CORE
+    assert {title for title, _ in QUICK_REPLIES["campus"]} == set(qa)
+
+
+def test_admission_age_in_the_prompt_matches_qa():
+    youngest = re.search(r"nhận bé từ (\d+) tháng", _qa_answer("Trường nhận bé từ bao nhiêu tháng tuổi?")).group(1)
+    oldest = re.search(r"từ \d+ tháng \(đã đi vững\) đến (\d+) tuổi", _qa_answer("Trường mình dạy những độ tuổi nào?")).group(1)
+    assert re.search(rf"Nhận bé từ {youngest} tháng \(đã đi vững\) đến {oldest} tuổi", CORE), CORE
+    assert f"có con {youngest} tháng–{oldest} tuổi" in SYSTEM_PROMPT.split("\n", 1)[0]
+    # Mọi chỗ prompt nói tuổi nhận (luật bé dưới 15 tháng, câu ví dụ) dùng cùng một con số.
+    assert set(re.findall(r"(?:nhận|dưới) (?:bé )?(?:từ )?(\d+) tháng", SYSTEM_PROMPT, re.I)) == {youngest}
+
+
+def test_free_trial_length_in_prompt_and_buttons_matches_qa(monkeypatch):
+    weeks = re.search(r"(\d+) tuần học thử hoàn toàn miễn phí", _qa_answer("Có cho con học thử được không ạ?")).group(1)
+    assert f"{weeks} tuần học thử miễn phí" in CORE, CORE
+    buttons = [meaning for _, meaning in QUICK_REPLIES["trial_invite"]]
+    for text in [SYSTEM_PROMPT, *_reminders(monkeypatch), *buttons]:
+        assert set(re.findall(r"(\d+) tuần học thử|học thử (\d+) tuần", text)) <= {(weeks, ""), ("", weeks)}, text
+
+
+def test_working_days_in_the_prompt_match_qa(monkeypatch):
+    weekend = _qa_answer("Thứ 7, Chủ nhật có tham quan trường được không?")
+    for text in [SYSTEM_PROMPT] + _reminders(monkeypatch):
+        days = re.findall(r"thứ (\d)–(\d)", text)
+        assert days and all(f"từ thứ {first} đến thứ {last}" in weekend for first, last in days), (days, weekend)
+
+
+# Giờ hay ngày còn trong prompt (hoặc ai đó thêm lại) phải đúng con số của Q&A.
+CLOCK_OR_DATE = re.compile(r"\b\d{1,2}h\d{0,2}\b|\b\d{1,2}:\d{2}\b|\b\d{1,2}/\d{1,2}\b")
+
+
+def test_times_and_dates_left_in_the_prompt_are_the_qa_ones(monkeypatch):
+    for text in [SYSTEM_PROMPT] + _reminders(monkeypatch):
+        for token in CLOCK_OR_DATE.findall(text):
+            assert token in QA_ANSWERS, token
 
 
 def test_prompt_never_puts_kim_ma_with_the_full_cambridge_programme():
@@ -1153,7 +1214,7 @@ class ScriptedProvider(FakeProvider):
 
 FEES_FIRST = "Dạ Casa chào Ba/Mẹ ạ 🌿 Cảm ơn Ba/Mẹ đã quan tâm đến Casa dei Bambini. Bé nhà mình được mấy tuổi rồi ạ? [QUICK:age]"
 FEES_ASK_PHONE = (
-    "Hệ Quốc tế Mỹ Đình có giáo viên nước ngoài cả ngày và cam kết không tăng học phí suốt thời gian con học ạ. "
+    "Hệ Quốc tế Mỹ Đình có giáo viên nước ngoài cả ngày và cam kết không tăng học phí cơ bản suốt thời gian con học ạ. "
     "Nếu tiện, Ba/Mẹ để lại SĐT/Zalo để tư vấn viên gửi bảng phí chi tiết nhé? [QUICK:phone]"
 )
 EVASIVE = (
@@ -1238,3 +1299,16 @@ def test_eval_cambridge_hours_must_name_cambridge_for_the_international_system()
         "Let's Explore. Không biết Ba/Mẹ có muốn ghé tham quan lớp một buổi không ạ? [QUICK:visit_invite]"
     )
     assert eval_chat.check_turn(turn, False, False, cambridge, [turn.message]) == []
+
+
+def test_fee_commitment_is_only_the_base_tuition():
+    # Trường xác nhận 2026-10-23: cam kết không tăng chỉ áp cho học phí cơ bản; tiền ăn, phí khác vẫn điều chỉnh.
+    import json as _json
+    from pathlib import Path as _Path
+
+    pairs = _json.loads((_Path(__file__).resolve().parent.parent / "data" / "qa_database.json").read_text("utf-8"))["qa_pairs"]
+    texts = [SYSTEM_PROMPT] + [p["answer"] for p in pairs]
+    for text in texts:
+        for m in re.finditer(r"(?:không tăng học phí|học phí[^.]{0,20}không tăng)(?! cơ bản)", text):
+            window = text[max(0, m.start() - 15) : m.end() + 10]
+            assert "cơ bản" in window, window

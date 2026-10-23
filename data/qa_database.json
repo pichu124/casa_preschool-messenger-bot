@@ -877,7 +877,7 @@
         "Học phí hệ Quốc tế bao nhiêu?",
         "Học phí cơ sở Kim Mã bao nhiêu?"
       ],
-      "answer": "Học phí khác nhau theo hệ/cơ sở (hệ Quốc tế Chùa Láng, Mỹ Đình; hệ Song ngữ Kim Mã) và độ tuổi của bé (nhóm 15 tháng–3 tuổi, nhóm 3–6 tuổi), nên cần biết tuổi bé và cơ sở gia đình quan tâm để báo đúng mức phí. Học phí đi kèm các giá trị: giáo viên nước ngoài toàn thời gian ở hệ Quốc tế, chương trình Cambridge Early Years cho trẻ 3–6 tuổi kết hợp Montessori, cam kết không tăng học phí trong suốt thời gian con theo học. Bảng phí chi tiết do tư vấn viên gửi khi phụ huynh để lại SĐT/Zalo.",
+      "answer": "Học phí khác nhau theo hệ/cơ sở (hệ Quốc tế Chùa Láng, Mỹ Đình; hệ Song ngữ Kim Mã) và độ tuổi của bé (nhóm 15 tháng–3 tuổi, nhóm 3–6 tuổi), nên cần biết tuổi bé và cơ sở gia đình quan tâm để báo đúng mức phí. Học phí đi kèm các giá trị: giáo viên nước ngoài toàn thời gian ở hệ Quốc tế, chương trình Cambridge Early Years cho trẻ 3–6 tuổi kết hợp Montessori, cam kết không tăng học phí cơ bản trong suốt thời gian con theo học. Bảng phí chi tiết do tư vấn viên gửi khi phụ huynh để lại SĐT/Zalo.",
       "keywords": [
         "học phí",
         "bảng phí",
@@ -895,7 +895,7 @@
         "Đóng học phí 6 tháng hoặc 1 năm có được giảm không?",
         "Trường đang có khuyến mãi gì không?"
       ],
-      "answer": "Casa có ưu đãi hấp dẫn khi đóng học phí theo kỳ (6 tháng hoặc 12 tháng) và các đợt ưu đãi riêng theo thời điểm; mức ưu đãi tùy từng chương trình/đợt nên tư vấn viên sẽ báo cụ thể khi phụ huynh để lại SĐT/Zalo. Ngoài ra có ưu đãi anh chị em ruột và cư dân tòa nhà (tùy cơ sở), chính sách Đại sứ Casa khi giới thiệu gia đình mới, 1 tuần học thử miễn phí và cam kết không tăng học phí trong suốt thời gian con theo học.",
+      "answer": "Casa có ưu đãi hấp dẫn khi đóng học phí theo kỳ (6 tháng hoặc 12 tháng) và các đợt ưu đãi riêng theo thời điểm; mức ưu đãi tùy từng chương trình/đợt nên tư vấn viên sẽ báo cụ thể khi phụ huynh để lại SĐT/Zalo. Ngoài ra có ưu đãi anh chị em ruột và cư dân tòa nhà (tùy cơ sở), chính sách Đại sứ Casa khi giới thiệu gia đình mới, 1 tuần học thử miễn phí và cam kết không tăng học phí cơ bản trong suốt thời gian con theo học.",
       "keywords": [
         "ưu đãi",
         "khuyến mãi",
@@ -958,7 +958,7 @@
         "Casa có cam kết ổn định học phí không?",
         "Học phí có tăng hằng năm không?"
       ],
-      "answer": "Có. Casa cam kết không tăng học phí cơ bản trong suốt thời gian con theo học, giúp gia đình chủ động kế hoạch tài chính dài hạn cho con.",
+      "answer": "Có. Casa cam kết không tăng học phí cơ bản trong suốt thời gian con theo học, giúp gia đình chủ động kế hoạch tài chính dài hạn cho con. Tiền ăn và các khoản phí khác được điều chỉnh theo từng năm học.",
       "keywords": [
         "cam kết",
         "không tăng học phí",
@@ -1497,7 +1497,7 @@
       "questions": [
         "Các hoạt động ngoại khóa có phù hợp với từng độ tuổi không?"
       ],
-      "answer": "Có. Một chủ đề có thể giống nhau nhưng cách tổ chức cho trẻ 18–36 tháng khác với trẻ 3–5 tuổi hoặc nhóm 5–6 tuổi. Thời lượng, dụng cụ, mức độ thử thách, yêu cầu tự lập và mức hỗ trợ của giáo viên đều được điều chỉnh theo độ tuổi để trẻ học điều mới mà không quá sức.",
+      "answer": "Có. Một chủ đề có thể giống nhau nhưng cách tổ chức cho trẻ 15 tháng–3 tuổi khác với trẻ 3–5 tuổi hoặc nhóm 5–6 tuổi. Thời lượng, dụng cụ, mức độ thử thách, yêu cầu tự lập và mức hỗ trợ của giáo viên đều được điều chỉnh theo độ tuổi để trẻ học điều mới mà không quá sức.",
       "keywords": [
         "độ tuổi",
         "ngoại khóa",
@@ -1584,7 +1584,7 @@
         "Các bé nhỏ có được tham gia dã ngoại không?",
         "Bé 2 tuổi có đi dã ngoại không?"
       ],
-      "answer": "Có, với những chuyến trải nghiệm phù hợp. Với nhóm 18–36 tháng, nhà trường cân nhắc kỹ hơn về khoảng cách di chuyển, thời lượng chương trình, mức độ đông người, điều kiện vệ sinh và khả năng chăm sóc trẻ tại địa điểm, để con có trải nghiệm mới nhưng vẫn an toàn, thoải mái.",
+      "answer": "Có, với những chuyến trải nghiệm phù hợp. Với nhóm 15 tháng–3 tuổi, nhà trường cân nhắc kỹ hơn về khoảng cách di chuyển, thời lượng chương trình, mức độ đông người, điều kiện vệ sinh và khả năng chăm sóc trẻ tại địa điểm, để con có trải nghiệm mới nhưng vẫn an toàn, thoải mái.",
       "keywords": [
         "bé nhỏ",
         "dã ngoại",
@@ -1643,6 +1643,22 @@
         "thời tiết",
         "hủy dã ngoại",
         "đổi lịch"
+      ]
+    },
+    {
+      "category": "Cơ sở & tuyển sinh",
+      "questions": [
+        "Số hotline của trường là gì?",
+        "Cho mình xin số điện thoại của trường",
+        "Gọi trường qua số nào ạ?",
+        "Muốn được tư vấn ngay thì gọi số nào?"
+      ],
+      "answer": "Hotline của Casa là 0989 059 838. Ba/Mẹ cần được tư vấn ngay có thể gọi số này để Casa hỗ trợ nhanh hơn ạ.",
+      "keywords": [
+        "hotline",
+        "số điện thoại trường",
+        "gọi trường",
+        "liên hệ"
       ]
     }
   ]

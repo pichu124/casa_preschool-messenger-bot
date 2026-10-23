@@ -100,7 +100,8 @@ Yêu cầu (nguyên văn ý): câu "Ba/Mẹ cho bé học thử 1 tuần miễn 
 
 ## 3. Cách bot áp dụng
 
-- Nhận bé từ 15 tháng, đã đi vững.
+- Dữ kiện chỉ ở Q&A (người vận hành 2026-10-23, `docs/kiem-ke-du-kien.md`): địa chỉ, giờ, giáo viên, chương trình theo tuổi, ưu đãi… nằm ở `data/qa_database.json`; trường sửa thông tin thì sửa Q&A. THÔNG TIN CỐT LÕI của prompt chỉ giữ tóm tắt không được sai (3 cơ sở và hệ; nhận bé 15 tháng, đã đi vững, đến 6 tuổi; không nêu con số học phí; 1 tuần học thử miễn phí). Luật hành xử ở prompt; câu cố định nguyên văn (mẫu nhắc lại, câu chuyển tư vấn viên, nút) ở code. `tests/test_prompt.py` kiểm phần còn trong prompt khớp Q&A.
+- Nhận bé từ 15 tháng, đã đi vững. Nhóm nhỏ nhất gọi là "15 tháng–3 tuổi", không dùng "18–36 tháng" (sót từ tuổi nhận cũ, sửa 2026-10-23).
 - Học phí: không nêu con số, không gửi bảng phí trên chat. Hỏi tuổi bé + cơ sở, kể giá trị trước, rồi xin SĐT/Zalo để tư vấn viên tư vấn/gửi bảng phí. Phụ huynh không cho số mà vẫn muốn biết → chuyển nhân viên trả lời trực tiếp (`[ESCALATE]`).
 - Chuyển tư vấn viên (`[ESCALATE]`, người vận hành 2026-10-22, sau khi khách cũ quay lại sau ~6 tháng hỏi "tôi muốn tìm hiểu thông tin về trường" bị chuyển): chỉ khi câu hỏi ngoài lề, hỏi một dữ kiện cụ thể không có trong Q&A (hoặc không chắc dữ kiện đó), hay phụ huynh không để lại số khi được xin (chưa từ chối rõ, vd hỏi lại "em cứ báo con số luôn đi") hoặc đã từ chối cho số mà vẫn cần học phí. Câu hỏi chung về trường (tìm hiểu trường, chương trình, cơ sở, giáo viên, độ tuổi…) luôn tự trả lời: giới thiệu ngắn rồi hỏi tuổi bé/cơ sở còn thiếu, kể cả khách cũ lâu ngày quay lại. Luật này không áp cho dữ kiện cụ thể: lịch học/thời gian biểu trong ngày không có trong Q&A nên vẫn `[ESCALATE]`, không bịa giờ (review 2026-10-22).
 - Câu chuyển tư vấn viên (mục 2g.1, `app/escalation.py`): luôn kèm Hotline 0989 059 838 (hằng số `HOTLINE`), không xin SĐT/Zalo. Chưa có SĐT hoặc đã từ chối để số: nguyên văn của trường; đã có SĐT: "…tư vấn viên sẽ liên hệ và trả lời Ba/Mẹ trong thời gian sớm nhất ạ." rồi cùng đoạn hotline.
@@ -176,7 +177,7 @@ Yêu cầu (nguyên văn ý): câu "Ba/Mẹ cho bé học thử 1 tuần miễn 
 - Cambridge Early Years hệ Quốc tế (3–6 tuổi): hằng ngày thứ Hai–thứ Sáu, tổng ~1,5–2 giờ/ngày; sáng English ~30–40 phút; chiều ~14:45–16:00 luân phiên Mathematics hoặc Let's Explore. Kim Mã: chờ trường xác nhận.
 - Khai giảng chính thức 05/09 hằng năm; nhận hồ sơ và nhập học quanh năm.
 - Tặng 1 tuần học thử hoàn toàn miễn phí.
-- Cam kết không tăng học phí trong suốt thời gian con theo học.
+- Cam kết không tăng học phí cơ bản trong suốt thời gian con theo học; tiền ăn và các khoản phí khác vẫn điều chỉnh bình thường (trường xác nhận 2026-10-23).
 - Học phí thu theo quý, 6 tháng hoặc 12 tháng; không thu theo tháng. Đóng trong 5 ngày làm việc đầu quý, quá hạn có phí nộp muộn.
 - Nhập học giữa tháng: học phí tháng đầu tính theo số ngày đi học thực tế. Khoản đầu kỳ (phí phát triển trường, phí học liệu và hoạt động ngoại khóa): thu tròn năm vào tháng 7 hằng năm; nhập học giữa năm học thì thu tròn theo tháng, từ tháng bé nhập học tới hết tháng 6.
 - Báo nghỉ trước 7:00 sáng (LittleLives hoặc email) → tiền ăn ngày nghỉ trừ vào quý sau.
@@ -191,7 +192,7 @@ Yêu cầu (nguyên văn ý): câu "Ba/Mẹ cho bé học thử 1 tuần miễn 
 ## 5. 7 nguyên tắc tư vấn (từ kịch bản)
 
 1. Hỏi độ tuổi con + khu vực trước khi nói học phí (không hỏi thẳng ngân sách).
-2. Kể giá trị trước, con số sau: giáo viên nước ngoài toàn thời gian (hệ Quốc tế), Cambridge Early Years kết hợp Montessori, cam kết không tăng học phí.
+2. Kể giá trị trước, con số sau: giáo viên nước ngoài toàn thời gian (hệ Quốc tế), Cambridge Early Years kết hợp Montessori, cam kết không tăng học phí cơ bản.
 3. Tổng chi phí thực tế do tư vấn viên tính và gửi, không tính trên chat.
 4. Dùng "học thử 1 tuần miễn phí" làm bước trung gian với khách còn phân vân.
 5. CARE khi chê đắt/so sánh trường khác: Connect → Acknowledge → Resolve → Evaluate.

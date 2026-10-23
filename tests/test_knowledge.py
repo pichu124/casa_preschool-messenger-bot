@@ -85,6 +85,8 @@ def test_admission_age_is_15_months_walking_steadily():
     assert _answers_with("15 tháng", "đi vững")
     assert not re.search(r"18 tháng (đến|tới|-) ?6 tuổi", ALL_TEXT)
     assert not re.search(r"nhận (bé|trẻ|con)[^.\n]{0,40}18 tháng", ALL_TEXT)
+    # Nhóm nhỏ nhất là 15 tháng–3 tuổi như prompt; "18–36 tháng" sót lại từ tuổi nhận cũ (docs/kiem-ke-du-kien.md).
+    assert not re.search(r"\b18 ?- ?36 tháng", ALL_TEXT)
 
 
 # --- Quyết định 2–3: ưu đãi ----------------------------------------------------
@@ -173,6 +175,17 @@ def test_campus_systems():
 
 def test_opening_day_and_rolling_admission():
     assert _answers_with("05/09", "quanh năm")
+
+
+# Chuyển từ THÔNG TIN CỐT LÕI của prompt sang Q&A (docs/kiem-ke-du-kien.md): Q&A là nơi duy nhất còn các dữ kiện này.
+def test_foreign_teacher_hours_per_system():
+    assert _answers_with("hệ quốc tế", "giáo viên nước ngoài", "8h30-17h00")
+    assert _answers_with("hệ song ngữ", "giáo viên nước ngoài", "khung giờ cố định")
+
+
+def test_under_3s_build_foundations_through_montessori_before_cambridge():
+    assert _answers_with("15 tháng-3 tuổi", "chưa học cambridge", "montessori")
+    assert _answers_with("15 tháng-3 tuổi", "giáo viên nước ngoài", "tiếng anh")
 
 
 def test_free_one_week_trial():
@@ -560,3 +573,11 @@ def test_weekend_visit_answer_offers_weekdays_and_promises_nothing(question):
     assert "thứ 2 đến thứ 6" in answer and "giờ hành chính" in answer, answer
     assert re.search(r"tư vấn viên[^.]*sắp xếp[^.]*xác nhận", answer), answer
     assert "được ạ" not in answer
+
+
+def test_hotline_is_in_qa_and_matches_the_handover_message():
+    # Phụ huynh hỏi số hotline thì bot trả lời từ Q&A (không chuyển tư vấn viên), cùng số với câu chuyển tư vấn viên.
+    from app.escalation import HOTLINE
+
+    answers = [p["answer"] for p in PAIRS if any("hotline" in q.lower() for q in p["questions"])]
+    assert answers and all(HOTLINE in a for a in answers)

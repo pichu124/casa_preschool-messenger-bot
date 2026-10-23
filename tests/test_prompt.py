@@ -184,7 +184,13 @@ def test_extract_prompt_flags_an_upset_parent(monkeypatch):
 
     assert info == {"upset": True, "phone_declined": True}
     (rule,) = [line for line in recorder.system_prompt.splitlines() if '"upset"' in line]
-    assert re.search(r'"upset": true khi[^\n]*khó chịu[^\n]*phàn nàn[^\n]*qua chat', rule), rule
+    # Cả ba điều kiện cùng lúc, đúng ý trường (mục 2g.2): khi cờ bật, main gửi câu xin lỗi thay mọi câu của model.
+    assert re.search(r'"upset": true CHỈ khi[^\n]*không muốn để[^\n]*qua chat[^\n]*VÀ[^\n]*khó chịu', rule), rule
+    # Ca CARE (chê đắt, so sánh trường) và lo lắng thường thì bot phải tự tư vấn, không xin lỗi rồi chuyển.
+    not_upset = rule.split("KHÔNG tính", 1)[1]
+    for case in ("chê đắt", "so sánh", "khóc", "ăn", "an toàn", "hỏi lại", "lịch sự"):
+        assert case in not_upset, case
+    assert "phàn nàn" not in rule
     assert "upset" not in ai_engine.PROFILE_FIELDS
 
 

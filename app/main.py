@@ -612,9 +612,21 @@ async def publish_topics(customer_id: str, topics: list[str], escalated: bool, t
         logger.warning(f"Topic row for customer {customer_id} not sent: {type(e).__name__}")
 
 
+# sender_id -> lock held while one message of that parent is answered. Parents often send two short messages in a
+# row and Facebook posts each to /webhook on its own; answered at the same time, both read the history from before
+# either, so both got the first-message greeting and the second did not know what the first said.
+_sender_locks: dict[str, asyncio.Lock] = {}
+
+
 async def process_message(
     sender_id: str, text: str, attribution: dict | None = None, phone_from_qr: str | None = None
 ):
+    """Answer one parent message; one parent's messages are answered one at a time, in the order they came."""
+    async with _sender_locks.setdefault(sender_id, asyncio.Lock()):
+        await _answer_message(sender_id, text, attribution, phone_from_qr)
+
+
+async def _answer_message(sender_id: str, text: str, attribution: dict | None, phone_from_qr: str | None):
     """Process an incoming message and respond.
 
     attribution: ad/link referral fields that came with the message. phone_from_qr: the number the parent sent

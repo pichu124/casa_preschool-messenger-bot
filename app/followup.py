@@ -116,6 +116,13 @@ def _is_due(profile: dict, now_utc: datetime) -> bool:
     latest_send = _latest_send(parent_at)
     if not latest_send - SEND_SLOT <= now_utc <= latest_send:
         return False
+    # Apologised to in this conversation (the 24 hours up to the parent's last message), even if the parent wrote on:
+    # the follow-up asks for the phone number they were upset about. An unreadable time counts as recent.
+    for m in history:
+        if m.get("role") == "assistant" and m.get("content") == ESCALATION_MESSAGE_UPSET:
+            at = _as_utc(m.get("timestamp"))
+            if at is None or at >= parent_at - MESSENGER_WINDOW:
+                return False
     # Already followed up, or staff answered by hand in the Page inbox (app/main.py), since the parent's last message
     for key in ("followup_sent_at", "staff_replied_at"):
         if key in profile:

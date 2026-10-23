@@ -136,6 +136,7 @@ Yêu cầu (nguyên văn ý): câu "Ba/Mẹ cho bé học thử 1 tuần miễn 
   2. Chưa biết tuổi bé → mẫu 1 (hỏi tuổi).
   3. Còn lại (đã biết tuổi, chưa có SĐT, chưa tư vấn đủ) → mẫu 2 (xin SĐT/Zalo), kể cả khi phụ huynh đã từ chối để lại số — theo nhãn mẫu của trường (mục 2d).
   Nguyên văn 3 mẫu: mục 2d (thay bản ở mục 2b.c).
+- Không nhắc lại phụ huynh đã nhận câu xin lỗi (mục 2g.2) trong 24 giờ tính tới tin cuối của họ, kể cả khi họ nhắn tiếp và bot trả lời bình thường (review 2026-10-23: phụ huynh bực vì bị đòi số, nhắn "ừ nhanh nhé", 3 giờ sau nhận mẫu 2 xin SĐT). Không lưu cờ vào hồ sơ: dò câu xin lỗi trong lịch sử. Luật chọn mẫu ở trên giữ nguyên.
 - SĐT: nhận cả số thiếu số 0 đầu, viết tách lạ, số nước ngoài.
 - Thứ tự hỏi (người vận hành 2026-10-22): chưa biết tuổi bé thì hỏi tuổi trước thời điểm dự kiến nhập học, kể cả ngay sau khi phụ huynh gửi SĐT, vì học phí và chương trình theo tuổi. Không gọi bé là "lứa nhỏ" (nguồn là câu ví dụ "Lứa này…" trong prompt, đã đổi thành "Ở tuổi này…").
 - Thực đơn mẫu: gửi thẳng cho phụ huynh ảnh `static/thuc-don-mau.jpg` (trường `images` của cặp Q&A thực đơn chung; JPG chuyển từ ảnh trường gửi để Messenger nhận chắc chắn). Món ví dụ trong câu trả lời lấy đúng từ ảnh (thứ Hai), không thêm món ngoài ảnh; 5 bữa: sáng, nhẹ sáng, trưa, chiều, phụ chiều.

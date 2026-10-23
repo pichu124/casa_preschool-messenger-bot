@@ -248,6 +248,54 @@ DUE_CASES = [
 ]
 
 
+def earlier(customer: dict, *messages: tuple[str, str, timedelta | None]) -> dict:
+    """`customer` có thêm các tin (role, nội dung, cách tin cuối của phụ huynh bao lâu; None: giờ không đọc được)
+    trước history của nó."""
+    history = customer["conversation_history"]
+    parent_at = datetime.fromisoformat(history[0]["timestamp"])
+    before = [
+        {"role": role, "content": content, "timestamp": (parent_at - ago).isoformat() if ago else "không phải ngày"}
+        for role, content, ago in messages
+    ]
+    return {**customer, "conversation_history": before + history}
+
+
+UPSET_TEXT = "sao cứ đòi số thế"
+KID = {"kid_age": "3 tuổi"}
+# Phụ huynh bực vì bị đòi số, bot xin lỗi và chuyển tư vấn viên, phụ huynh nhắn tiếp ("ừ nhanh nhé"), model trả lời
+# thường rồi phụ huynh im: tin cuối của bot không còn là câu xin lỗi, nhưng không được nhắc (xin SĐT) người vừa bực.
+UPSET_CASES = [
+    (
+        "xin lỗi rồi phụ huynh nhắn tiếp",
+        earlier(profile(**KID), ("user", UPSET_TEXT, 3 * M), ("assistant", ESCALATION_MESSAGE_UPSET, 2 * M)),
+        None,
+    ),
+    (
+        "xin lỗi 23 giờ trước tin cuối",
+        earlier(profile(**KID), ("user", UPSET_TEXT, 23 * H), ("assistant", ESCALATION_MESSAGE_UPSET, 23 * H)),
+        None,
+    ),
+    (
+        "xin lỗi hơn 24 giờ trước tin cuối: cuộc trò chuyện khác",
+        earlier(profile(**KID), ("user", UPSET_TEXT, 25 * H), ("assistant", ESCALATION_MESSAGE_UPSET, 25 * H)),
+        "ask_phone",
+    ),
+    ("câu xin lỗi không đọc được giờ", earlier(profile(**KID), ("assistant", ESCALATION_MESSAGE_UPSET, None)), None),
+    (
+        "chuyển tư vấn viên thường rồi nhắn tiếp: vẫn nhắc",
+        earlier(profile(**KID), ("assistant", ESCALATION_MESSAGE_ASK_PHONE, 2 * M)),
+        "ask_phone",
+    ),
+]
+
+
+@pytest.mark.parametrize(("customer", "template_key"), [c[1:] for c in UPSET_CASES], ids=[c[0] for c in UPSET_CASES])
+def test_parent_upset_in_this_conversation_gets_no_followup(customer, template_key):
+    expected = [(CID, template_key)] if template_key else []
+
+    assert followup.due_followups({CID: customer}, NOW) == expected
+
+
 @pytest.mark.parametrize(("customer", "now", "template_key"), [c[1:] for c in DUE_CASES], ids=[c[0] for c in DUE_CASES])
 def test_due_followups_edge_cases(customer, now, template_key):
     expected = [(CID, template_key)] if template_key else []

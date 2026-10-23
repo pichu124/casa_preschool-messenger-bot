@@ -282,9 +282,9 @@ SCENARIOS: dict[str, list[Turn]] = {
 TOPIC_SUITE = "topics"
 TOPIC_PASS_RATIO = 0.8
 FULL, PARTIAL, WRONG = "đúng", "một phần", "sai"
-ASK_PHONE_BOT = "Nếu tiện, Ba/Mẹ để lại SĐT/Zalo để tư vấn viên liên hệ nhé?"
-ASK_AGE_BOT = "Dạ Ba/Mẹ cho em xin tuổi bé để em tư vấn lớp phù hợp ạ?"
-ASK_TIME_BOT = "Vâng ạ. Ba/Mẹ muốn đưa bé qua tham quan buổi sáng hay buổi chiều ạ?"
+ASK_PHONE_BOT = "Nếu tiện, Ba/Mẹ để lại SĐT/Zalo để tư vấn viên liên hệ nhé? [QUICK:phone]"
+ASK_AGE_BOT = "Dạ Ba/Mẹ cho em xin tuổi bé để em tư vấn lớp phù hợp ạ? [QUICK:age]"
+ASK_TIME_BOT = "Vâng ạ. Ba/Mẹ muốn đưa bé qua tham quan buổi sáng hay buổi chiều ạ? [QUICK:visit_time]"
 BOOKED_BOT = "Dạ em đã báo tư vấn viên, tư vấn viên sẽ gọi Ba/Mẹ xác nhận giờ cụ thể ạ."
 
 
@@ -292,7 +292,7 @@ BOOKED_BOT = "Dạ em đã báo tư vấn viên, tư vấn viên sẽ gọi Ba/M
 class TopicCase:
     message: str
     expected: tuple[str, ...]  # chủ đề kỳ vọng, viết như trong TOPICS; () = tin không có chủ đề
-    last_bot_message: str = ""  # câu bot gửi ngay trước, như process_message truyền cho extract
+    last_bot_message: str = ""  # câu bot gửi ngay trước, như process_message truyền cho extract (lịch sử giữ token [QUICK:])
 
 
 TOPIC_CASES: list[TopicCase] = [
@@ -300,7 +300,7 @@ TOPIC_CASES: list[TopicCase] = [
     TopicCase("tiền học 1 thág bao nhiu v ạ", ("Học phí",)),
     TopicCase("học phí bao nhiêu, có ưu đãi gì không ạ", ("Học phí", "Ưu đãi")),
     TopicCase("trường dạy theo phương pháp gì vậy ạ", ("Chương trình/phương pháp",)),
-    TopicCase("truong co co giao nuoc ngoai day tieng anh ko", ("Tiếng Anh/GV nước ngoài",)),
+    TopicCase("be hoc tieng anh may tieng 1 ngay vay", ("Tiếng Anh/GV nước ngoài",)),
     TopicCase("1 lớp mấy cô mấy bạn ạ", ("Giáo viên/tỷ lệ cô trò",)),
     TopicCase("trường có sân chơi không, phòng học có điều hoà không ạ", ("Cơ sở vật chất",)),
     TopicCase("có camera không, ăn uống thế nào", ("An toàn/sức khoẻ/camera", "Ăn uống/thực đơn")),
@@ -312,6 +312,7 @@ TOPIC_CASES: list[TopicCase] = [
     TopicCase("trường mình khác gì so với Vinschool ạ", ("So sánh trường khác",)),
     TopicCase("giá bitcoin hôm nay bao nhiêu vậy", ("Khác",)),
     TopicCase(TEST_PHONE, (), last_bot_message=ASK_PHONE_BOT),
+    # Phụ huynh tự gõ tuổi (bấm nút thì bot nhận "Bé nhà em dưới 2 tuổi ạ").
     TopicCase("Dưới 2 tuổi", (), last_bot_message=ASK_AGE_BOT),
     # Bấm nút "Buổi chiều": bot nhận nghĩa của nút (app.main quick_reply_meaning), không phải tiêu đề.
     TopicCase(QUICK_REPLIES["visit_time"][1][1], (), last_bot_message=ASK_TIME_BOT),

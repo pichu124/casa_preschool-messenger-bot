@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from app.messenger import QUICK_REPLIES
+
 from app import ai_engine
 from app.ai_engine import AIProvider
 from app.config import settings
@@ -191,6 +193,7 @@ def test_topic_set_covers_every_topic_and_the_hard_cases():
     empty = [c for c in cases if not c.expected]
     assert any(eval_chat.TEST_PHONE in c.message for c in empty)
     assert any("tuổi" in c.last_bot_message for c in empty if c.message == "Dưới 2 tuổi")
-    assert any("buổi chiều" in c.message.lower() and c.last_bot_message for c in empty)
+    assert any(c.message == QUICK_REPLIES["visit_time"][1][1] and c.last_bot_message for c in empty)
+    assert all(c.last_bot_message.endswith("]") for c in empty if c.last_bot_message and "?" in c.last_bot_message)
     assert {"Chào trường ạ", "Cảm ơn ạ"} <= {c.message for c in empty}
     assert sum(c.expected == ("Khác",) for c in cases) == 1

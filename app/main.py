@@ -31,7 +31,6 @@ from app.escalation import (
     ESCALATION_HEADER,
     ESCALATION_MESSAGE_ASK_PHONE,
     ESCALATION_MESSAGE_HAS_PHONE,
-    ESCALATION_MESSAGE_PHONE_DECLINED,
     drop_pending_escalations,
     escalate_to_admin,
     get_pending_escalation,
@@ -670,8 +669,6 @@ async def process_message(
             )
             if had_phone or extracted.get("phone"):
                 reply_text = ESCALATION_MESSAGE_HAS_PHONE
-            elif extracted.get("phone_declined") or existing_profile.get("phone_declined"):
-                reply_text = ESCALATION_MESSAGE_PHONE_DECLINED
             else:
                 reply_text = ESCALATION_MESSAGE_ASK_PHONE
             await send_message(sender_id, reply_text)

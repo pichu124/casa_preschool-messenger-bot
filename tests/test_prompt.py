@@ -1062,7 +1062,7 @@ def test_prompt_never_teaches_lua_for_a_child():
 
 # Review 2026-10-22: phụ huynh hỏi học phí, gửi tuổi + cơ sở, bot xin số; phụ huynh không gửi, không từ chối rõ mà hỏi
 # lại "em cứ báo con số luôn đi". Extract chỉ đặt phone_declined khi từ chối rõ, nên ca này không phải ca "từ chối cho
-# số": bot không được nêu số, không được xin lại ngay, nên phải [ESCALATE] (main gửi kèm lời xin SĐT/Zalo).
+# số": bot không được nêu số, không được xin lại ngay, nên phải [ESCALATE] (main gửi câu chuyển kèm hotline).
 NO_PHONE_FEES = re.compile(r"không để lại số khi được xin hoặc từ chối cho số[^\n]*học phí")
 
 

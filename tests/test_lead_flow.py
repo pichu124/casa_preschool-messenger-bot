@@ -1,7 +1,7 @@
 """Phễu xin SĐT nối với tư vấn viên.
 
-Phụ huynh để lại SĐT lần đầu thì nhóm Telegram nhận đúng một tin lead; câu chuyển tư vấn viên chỉ
-mời để lại số khi chưa có số; history ghi đúng câu đã gửi; mỗi tin nhắn đồng bộ customers.json lên
+Phụ huynh để lại SĐT lần đầu thì nhóm Telegram nhận đúng một tin lead; câu chuyển tư vấn viên kèm
+hotline, không xin số; history ghi đúng câu đã gửi; mỗi tin nhắn đồng bộ customers.json lên
 GitHub đúng một lần. process_message gọi thẳng bằng asyncio.run (repo không có pytest-asyncio).
 """
 
@@ -355,12 +355,23 @@ def test_reply_to_escalation_reaches_customer_after_pending_lost(monkeypatch, ad
 # --- Câu chuyển tư vấn viên, history, analytics, hồ sơ ---
 
 
-def test_escalation_without_phone_invites_phone_or_zalo(bot):
+# Phản hồi của trường sau khi thử bot (đợt 7): câu chuyển tư vấn viên luôn kèm hotline, và không xin SĐT nữa
+# (phụ huynh bực vì bị xin số nhiều lần; hotline thay vai trò đó). Nguyên văn của trường.
+HOTLINE_LINE = "Nếu Ba/Mẹ cần được tư vấn ngay, mình có thể liên hệ Hotline 0989 059 838 để Casa hỗ trợ nhanh hơn nhé ạ."
+SCHOOL_HANDOVER = (
+    "Dạ, em cảm ơn Ba/Mẹ đã nhắn cho Casa ạ! Câu hỏi của Ba/Mẹ em đã chuyển đến bộ phận tư vấn, nhân viên phụ "
+    "trách sẽ hỗ trợ và phản hồi trực tiếp tại đây sớm nhất ạ.\n\n" + HOTLINE_LINE
+)
+
+
+@pytest.mark.parametrize("known_profile", [{}, {"phone_declined": True}], ids=["chưa có SĐT", "đã từ chối SĐT"])
+def test_escalation_without_phone_sends_the_school_handover_with_hotline(bot, known_profile):
+    customer_memory._customers[CUSTOMER_ID] = dict(known_profile)
+
     bot.say(QUESTION, reply="", escalate=True)
 
-    assert len(bot.sent) == 1
-    assert "tư vấn" in bot.sent[0]
-    assert "SĐT" in bot.sent[0] and "Zalo" in bot.sent[0]
+    assert bot.sent == [SCHOOL_HANDOVER]
+    assert not [word for word in ASK_PHONE_WORDS if word in bot.sent[0]]
     assert len(bot.escalations()) == 1
     assert bot.leads() == []
 
@@ -380,7 +391,8 @@ def test_escalation_with_phone_does_not_ask_for_it(bot, known_profile, text, ext
     bot.say(text, reply="", escalate=True, extracted=extracted)
 
     assert len(bot.sent) == 1
-    assert "tư vấn" in bot.sent[0]
+    assert "tư vấn viên sẽ liên hệ" in bot.sent[0]
+    assert bot.sent[0].endswith("ạ.\n\n" + HOTLINE_LINE), bot.sent[0]
     assert not [word for word in ASK_PHONE_WORDS if word in bot.sent[0]]
     assert len(bot.escalations()) == 1
     assert len(bot.leads()) == leads

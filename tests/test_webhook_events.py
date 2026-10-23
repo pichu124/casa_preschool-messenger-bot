@@ -507,7 +507,7 @@ def test_phone_declined_is_kept_only_when_json_true(bot, declined):
     bot.say("Cô chủ nhiệm tên gì ạ?", reply="", escalate=True, extracted={"phone_declined": declined})
 
     assert "phone_declined" not in customer_memory.get_profile(SENDER)
-    assert "SĐT" in bot.sent[0][1]
+    assert bot.sent[0][1] == escalation.ESCALATION_MESSAGE_ASK_PHONE
 
 
 def test_phone_declined_true_is_kept(bot):
@@ -539,7 +539,7 @@ def test_phone_without_9_to_11_digits_is_not_saved(bot, phone):
     profile = customer_memory.get_profile(SENDER)
     assert "phone" not in profile and profile["kid_age"] == "3 tuổi"
     assert bot.leads() == []
-    assert "SĐT" in bot.sent[0][1]
+    assert bot.sent[0][1] == escalation.ESCALATION_MESSAGE_ASK_PHONE
 
 
 @pytest.mark.parametrize("phone", [PHONE, "0911 222 501", "+84 911 222 501", "024 3333 4444"])

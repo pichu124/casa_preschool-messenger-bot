@@ -1087,14 +1087,18 @@ def test_some_photos_of_the_facilities_failing_count_as_sent_without_an_apology(
     assert len(image_alerts(parent)) == 1
 
 
-def test_a_failed_qa_image_is_skipped_without_an_apology_nor_an_alert(parent, catalog, monkeypatch):
+def test_a_failed_qa_image_is_skipped_without_an_apology_nor_an_alert(parent, catalog, monkeypatch, caplog):
     monkeypatch.setattr(settings, "MEDIA_SYNC_ENABLED", False)
     parent.failing = {f"{BASE_URL}/static/thuc-don-mau.jpg"}
 
-    sent = parent.say("Cho em xem thực đơn", reply="Dạ đây là thực đơn mẫu của Casa ạ. [IMAGES:static/thuc-don-mau.jpg]")
+    with caplog.at_level(logging.WARNING):
+        sent = parent.say("Cho em xem thực đơn", reply="Dạ đây là thực đơn mẫu của Casa ạ. [IMAGES:static/thuc-don-mau.jpg]")
 
     assert sent == [("text", "Dạ đây là thực đơn mẫu của Casa ạ.", None)]
     assert parent.telegram == []
+    assert [(r.levelname, r.getMessage()) for r in caplog.records if "not sent" in r.getMessage()] == [
+        ("WARNING", f"Image {BASE_URL}/static/thuc-don-mau.jpg not sent to {CUSTOMER_ID}: GraphError")
+    ]
 
 
 def test_every_turn_logs_the_drive_images_it_plans_to_send(parent, catalog, caplog):

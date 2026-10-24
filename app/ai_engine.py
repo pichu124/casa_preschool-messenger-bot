@@ -152,20 +152,33 @@ FACILITIES_NEED_CAMPUS = (
 class ImageNote(NamedTuple):
     kind: str  # a key of IMAGE_TOPICS
     label: str  # what the image shows: "học phí hệ Song ngữ (cơ sở Kim Mã)"
-    ask: tuple[str, ...] = ()  # what the reply asks for after it ("tuổi bé")
-    if_asked: bool = False  # sent only if this message asks about IMAGE_TOPICS[kind]
+    ask: tuple[str, ...] = ()  # state "missing": what the bot needs to know first ("tuổi bé")
+    if_asked: bool = False  # only if this message asks about IMAGE_TOPICS[kind]
+    state: str = "send"  # "send": the image follows the reply; "missing": not sent until `ask` is known
+
+
+def _missing_line(image: ImageNote) -> str:
+    ask = " và ".join(image.ask)
+    rule = (
+        f"chưa biết {ask} nên chưa gửi ảnh {image.label}: hỏi {ask} để em gửi đúng {image.label}; không nói đã/sẽ "
+        "gửi ảnh đó, không nói tư vấn viên sẽ gửi."
+    )
+    return f"- [HỆ THỐNG] Nếu phụ huynh hỏi {IMAGE_TOPICS[image.kind]}: {rule}" if image.if_asked else (
+        f"- [HỆ THỐNG] {rule[0].upper()}{rule[1:]}"
+    )
 
 
 def media_note(images: list[ImageNote], facilities_need_campus: bool = False) -> str:
-    """The [HỆ THỐNG] lines of the reminders telling the model which images the bot sends after its reply."""
+    """The [HỆ THỐNG] lines of the reminders telling the model which images the bot sends after its reply, and
+    which wait for what the bot does not know yet."""
     lines = []
-    for image in images:
+    for image in (i for i in images if i.state == "send"):
         when = f"Nếu phụ huynh hỏi {IMAGE_TOPICS[image.kind]}: sau câu trả lời" if image.if_asked else "Sau câu trả lời này"
-        ask = f", rồi hỏi {' và '.join(image.ask)}" if image.ask else ""
         answer = "" if image.if_asked or image.kind not in IMAGE_ANSWERS else f" {IMAGE_ANSWERS[image.kind]}"
-        lines.append(f"- [HỆ THỐNG] {when} hệ thống gửi ảnh {image.label}{ask}.{answer}")
+        lines.append(f"- [HỆ THỐNG] {when} hệ thống gửi ảnh {image.label}.{answer}")
     if lines:
         lines.insert(0, MEDIA_NOTE_HEADER)
+    lines += [_missing_line(i) for i in images if i.state == "missing"]
     if facilities_need_campus:
         lines.append(FACILITIES_NEED_CAMPUS)
     return "\n".join(lines)

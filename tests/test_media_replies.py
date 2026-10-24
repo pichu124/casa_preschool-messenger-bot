@@ -303,40 +303,66 @@ def test_fee_asked_while_drive_has_no_fee_image_of_the_system_does_not_wait(pare
 # --- thời khoá biểu ---
 
 
-def test_programme_question_without_age_or_campus_gets_the_3_to_5_timetable_of_my_dinh(parent, catalog):
-    sent = parent.say("Trường dạy chương trình gì ạ?", extracted={"topics": ["Chương trình/phương pháp"]})
-
-    assert parent.images(sent) == [url("md-tkb-36-60")]
+# Người vận hành 2026-10-24: hỏi thời khoá biểu khi chưa biết cơ sở, bot nói "em gửi ngay bên dưới" (ảnh mặc định
+# Mỹ Đình nhóm 3–5 tuổi) mà ảnh không tới. Thời khoá biểu chỉ gửi khi đã biết cả cơ sở và tuổi bé; thiếu thì hỏi.
+def test_timetable_waits_for_the_campus_and_the_age_then_goes_once(parent, catalog):
+    sent = parent.say("Cho mình tham khảo thời khoá biểu nhé")
+    assert parent.images(sent) == []
     note = parent.notes[-1]
-    assert "thời khoá biểu cơ sở Mỹ Đình" in note and "tuổi bé" in note and "cơ sở" in note
-    assert "[đã gửi ảnh thời khoá biểu cơ sở Mỹ Đình" in parent.history()[-1]
+    assert "Chưa biết cơ sở Ba/Mẹ quan tâm và tuổi bé nên chưa gửi ảnh thời khoá biểu" in note, note
+    assert "để em gửi đúng thời khoá biểu" in note and "không nói tư vấn viên sẽ gửi" in note, note
+    assert "hệ thống gửi ảnh thời khoá biểu" not in note, note
+    assert customer_memory.get_profile(CUSTOMER_ID)["timetable_asked"] is True
 
-    assert parent.images(parent.say("Trường dạy chương trình gì ạ?",
-                                    extracted={"topics": ["Chương trình/phương pháp"]})) == []
+    sent = parent.say("Em quan tâm cơ sở Kim Mã ạ", extracted={"interested_campus": "Kim Mã"})
+    assert parent.images(sent) == []
+    assert "Chưa biết tuổi bé nên chưa gửi ảnh thời khoá biểu" in parent.notes[-1], parent.notes[-1]
 
-
-def test_cambridge_question_gets_the_timetable_of_the_kids_age_and_campus(parent, catalog):
-    known(kid_age="20 tháng", interested_campus="Kim Mã")
-
-    sent = parent.say("Cambridge ở trường học thế nào ạ", extracted={"topics": ["Tiếng Anh/GV nước ngoài"]})
-
-    assert parent.images(sent) == [url("km-tkb-15-36")]
+    sent = parent.say("Bé nhà em 3-5 tuổi ạ", extracted={"kid_age": "3-5 tuổi"})
+    assert sent == [("text", SHOWN, None), ("image", url("km-tkb-36-72"), VISIT_BUTTONS)]
     assert "[HỆ THỐNG] Sau câu trả lời này hệ thống gửi ảnh thời khoá biểu cơ sở Kim Mã" in parent.notes[-1]
+    assert not customer_memory.get_profile(CUSTOMER_ID).get("timetable_asked")
+
+    assert parent.images(parent.say("dạ vâng")) == []
 
 
-@pytest.mark.parametrize(
-    ("program", "timetable", "campus"),
-    [("song ngữ", "km-tkb-36-72", "Kim Mã"), ("Hệ Song Ngữ", "km-tkb-36-72", "Kim Mã"),
-     ("quốc tế", "md-tkb-36-60", "Mỹ Đình"), (None, "md-tkb-36-60", "Mỹ Đình")],
-)
-def test_timetable_without_a_campus_follows_the_programme_the_parent_wants(parent, catalog, program, timetable, campus):
-    if program:
-        known(interested_program=program)
-
+def test_programme_question_without_campus_or_age_sends_no_timetable_but_asks_for_them(parent, catalog):
     sent = parent.say("Trường dạy chương trình gì ạ?", extracted={"topics": ["Chương trình/phương pháp"]})
 
-    assert parent.images(sent) == [url(timetable)]
-    assert f"thời khoá biểu cơ sở {campus}" in parent.notes[-1]
+    assert parent.images(sent) == []
+    assert (
+        "[HỆ THỐNG] Nếu phụ huynh hỏi chương trình học/Cambridge/thời khoá biểu: chưa biết cơ sở Ba/Mẹ quan tâm và "
+        "tuổi bé nên chưa gửi ảnh thời khoá biểu"
+    ) in parent.notes[-1], parent.notes[-1]
+    assert customer_memory.get_profile(CUSTOMER_ID)["timetable_asked"] is True
+
+    sent = parent.say("Bé 20 tháng, em quan tâm Mỹ Đình", extracted={"kid_age": "20 tháng", "interested_campus": "Mỹ Đình"})
+    assert parent.images(sent) == [url("md-tkb-15-36")]
+
+
+def test_timetable_with_the_age_known_asks_only_the_campus(parent, catalog):
+    known(kid_age="4 tuổi")
+
+    assert parent.images(parent.say("Cho em xin thời khoá biểu ạ")) == []
+    assert "Chưa biết cơ sở Ba/Mẹ quan tâm nên chưa gửi ảnh thời khoá biểu" in parent.notes[-1], parent.notes[-1]
+
+
+@pytest.mark.parametrize("program", ["song ngữ", "quốc tế"])
+def test_the_programme_the_parent_wants_does_not_pick_the_timetable_campus(parent, catalog, program):
+    known(interested_program=program, kid_age="4 tuổi")
+
+    assert parent.images(parent.say("Trường dạy chương trình gì ạ?", extracted={"topics": ["Chương trình/phương pháp"]})) == []
+
+
+@pytest.mark.parametrize("kid_age", ["4 tuổi", "10 tháng"], ids=["no-timetable-of-the-campus", "no-group-of-the-age"])
+def test_timetable_that_drive_does_not_have_does_not_wait(parent, catalog, kid_age):
+    for file_id in [i for i in media._catalog["items"] if i.startswith("md-tkb")]:
+        media._catalog["items"].pop(file_id)
+    known(interested_campus="Mỹ Đình" if kid_age == "4 tuổi" else "Kim Mã", kid_age=kid_age)
+
+    assert parent.images(parent.say("Cho em xin thời khoá biểu ạ")) == []
+    assert "thời khoá biểu" not in parent.notes[-1]
+    assert not customer_memory.get_profile(CUSTOMER_ID).get("timetable_asked")
 
 
 def test_daily_schedule_question_gets_the_timetable(parent, catalog):

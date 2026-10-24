@@ -42,9 +42,6 @@ JPEG_QUALITY = 85
 CATALOG_FILE = "catalog.json"
 # "HỌC PHÍ THÁNG N" has no year: a fee image last changed longer ago than this is taken for last year's.
 FEE_STALE_AFTER = timedelta(days=300)
-# Timetable sent when the kid's age is unknown: 3–5 years, else the group holding 48 months.
-DEFAULT_AGES = (36, 60)
-DEFAULT_AGE_MONTHS = 48
 
 _DASHES = str.maketrans({c: "-" for c in "‐‑‒–—―−"})
 _AGES = re.compile(r"(\d+)\s*(thang|tuoi)?\s*-\s*(\d+)\s*(thang|tuoi)")
@@ -363,16 +360,15 @@ def menu_image(system: str) -> str | None:
     return public_url(found[0]) if found else None
 
 
-def timetable_image(campus: str, age_months: int | None) -> str | None:
-    """Timetable of the campus for a kid of `age_months` (from <= age < to, or the group ending at it); None:
-    the 3–5 group, else the one holding 48 months."""
+def has_timetables(campus: str | None = None) -> bool:
+    """Whether Drive has a timetable of the campus (any campus when None)."""
+    return any(campus is None or _same_campus(i, campus) for i in _items("timetable"))
+
+
+def timetable_image(campus: str, age_months: int) -> str | None:
+    """Timetable of the campus for a kid of `age_months` (from <= age < to, or the group ending at it)."""
     groups = sorted((i for i in _items("timetable") if _same_campus(i, campus)), key=lambda i: i["age_min"])
-    if age_months is None:
-        found = [i for i in groups if (i["age_min"], i["age_max"]) == DEFAULT_AGES]
-        age_months = DEFAULT_AGE_MONTHS
-    else:
-        found = []
-    found = found or [i for i in groups if i["age_min"] <= age_months < i["age_max"]]
+    found = [i for i in groups if i["age_min"] <= age_months < i["age_max"]]
     found = found or [i for i in groups if i["age_max"] == age_months]
     return public_url(found[0]) if found else None
 

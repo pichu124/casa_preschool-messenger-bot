@@ -655,8 +655,6 @@ TOPICS_OF_IMAGE = {"fee": FEE_TOPICS, "timetable": (PROGRAMME_TOPIC,), "faciliti
 # the extraction tags Cambridge as "Tiếng Anh/GV nước ngoài" and a timetable as "Giờ học/…". "lịch học thử" is the
 # trial week.
 TIMETABLE_WORDS = re.compile(r"\bcambridge\b|\bthoi (?:khoa|gian) bieu\b|\btkb\b|\blich hoc\b(?! thu)")
-# Timetable sent while the campus is unknown: the campus of the system the parent wants, else Mỹ Đình.
-DEFAULT_TIMETABLE_CAMPUS = {"quoc_te": "Mỹ Đình", "song_ngu": "Kim Mã"}
 FACILITY_IMAGES = 4
 MAX_IMAGES = 5
 # The sample menu of the Q&A (data/qa_database.json): sent only while Drive has no menu image.
@@ -673,7 +671,6 @@ class Offer(NamedTuple):
     key: str  # its key in the profile's media_sent once sent
     urls: list[str]
     label: str
-    ask: tuple[str, ...] = ()
     stale: media.FeeImage | None = None  # a fee image of an earlier month
 
 
@@ -687,13 +684,14 @@ def _image_id(url: str) -> str:
 
 def _plan_images(
     profile: dict, extracted: dict, text: str, topics, qa_images: list[str], last_bot_message: str, today: date
-) -> tuple[list[str], list[Offer], dict]:
+) -> tuple[list[str], list[Offer], dict, list[ImageNote]]:
     """Images to send after the reply to `text`: the Q&A ones the model gave (`qa_images`), without the old sample
     menu when Drive has a menu; the Drive offers in sending order; the profile flags of questions waiting for what is
-    missing: fee_asked (the kid's age and the campus), facilities_asked (the campus). `extracted`: what the model
+    missing: fee_asked (the kid's age and the campus), timetable_asked (the campus and the kid's age),
+    facilities_asked (the campus); the notes of images waiting for what is missing. `extracted`: what the model
     extracted from `text`, {} before it is known; a campus and an age named in `text` count as well."""
     if not settings.MEDIA_SYNC_ENABLED:
-        return qa_images, [], {}
+        return qa_images, [], {}, []
     topics, sent = set(topics), profile.get("media_sent") or {}
     campus = (
         media.campus_in(extracted.get("interested_campus"))
@@ -709,7 +707,7 @@ def _plan_images(
     system = media.system_of(campus) if campus else None
     program = media.fold(profile.get("interested_program") or "")
     wanted_system = next((s for s, name in media.SYSTEM_NAMES.items() if media.fold(name) in program), None)
-    offers = []
+    offers, notes = [], []
 
     asked_fee = bool(topics & set(FEE_TOPICS))
     fee_key = f"fee:{system}:{today:%Y-%m}"
@@ -723,13 +721,18 @@ def _plan_images(
         label = f"học phí hệ {media.SYSTEM_NAMES[system]} (cơ sở {campus})"
         offers.append(Offer("fee", fee_key, [fee.url], label, stale=fee if fee.stale else None))
 
-    if PROGRAMME_TOPIC in topics or TIMETABLE_WORDS.search(media.fold(text)):
-        timetable_campus = campus or DEFAULT_TIMETABLE_CAMPUS[wanted_system or "quoc_te"]
-        timetable = media.timetable_image(timetable_campus, media.age_months(age) if age else None)
-        if timetable and f"timetable:{_image_id(timetable)}" not in sent:
-            ask = ("tuổi bé",) * (not age) + ("cơ sở Ba/Mẹ quan tâm",) * (not campus)
-            label = f"thời khoá biểu cơ sở {timetable_campus}" + ("" if age else " (lớp mẫu giáo, để tham khảo)")
-            offers.append(Offer("timetable", f"timetable:{_image_id(timetable)}", [timetable], label, ask))
+    asked_timetable = PROGRAMME_TOPIC in topics or bool(TIMETABLE_WORDS.search(media.fold(text)))
+    wants_timetable = (asked_timetable or bool(profile.get("timetable_asked"))) and media.has_timetables(campus)
+    months = media.age_months(age) if age else None
+    timetable_missing = ("cơ sở Ba/Mẹ quan tâm",) * (not campus) + ("tuổi bé",) * (months is None)
+    timetable_offered = False
+    if wants_timetable and timetable_missing:
+        notes.append(ImageNote("timetable", "thời khoá biểu", timetable_missing, state="missing"))
+    elif wants_timetable:
+        timetable = media.timetable_image(campus, months)
+        timetable_offered = bool(timetable) and f"timetable:{_image_id(timetable)}" not in sent
+        if timetable_offered:
+            offers.append(Offer("timetable", f"timetable:{_image_id(timetable)}", [timetable], f"thời khoá biểu cơ sở {campus}"))
 
     menu_system = system or wanted_system or "quoc_te"
     menu = media.menu_image(menu_system)
@@ -750,9 +753,10 @@ def _plan_images(
     # Waiting only for what is missing, or for an offer not delivered yet: never for an image already sent or absent
     waiting = {
         "fee_asked": wants_fee and (not fee_ready or bool(fee)),
+        "timetable_asked": wants_timetable and (bool(timetable_missing) or timetable_offered),
         "facilities_asked": wants_facilities and (not campus or facilities_offered),
     }
-    return qa_images, offers, waiting
+    return qa_images, offers, waiting, notes
 
 
 def _media_note(profile: dict, text: str, last_bot_message: str, today: date) -> str:
@@ -760,11 +764,12 @@ def _media_note(profile: dict, text: str, last_bot_message: str, today: date) ->
     the message asks, and those sent if it asks about their topic."""
     if not settings.MEDIA_SYNC_ENABLED:
         return ""
-    _, sure, _ = _plan_images(profile, {}, text, [], [], last_bot_message, today)
+    _, sure, _, sure_notes = _plan_images(profile, {}, text, [], [], last_bot_message, today)
     every_topic = [topic for topics in TOPICS_OF_IMAGE.values() for topic in topics]
-    _, offers, _ = _plan_images(profile, {}, text, every_topic, [], last_bot_message, today)
+    _, offers, _, notes = _plan_images(profile, {}, text, every_topic, [], last_bot_message, today)
     sure_keys = {o.key for o in sure}
-    images = [ImageNote(o.kind, o.label, o.ask, if_asked=o.key not in sure_keys) for o in offers]
+    images = [ImageNote(o.kind, o.label, if_asked=o.key not in sure_keys) for o in offers]
+    images += [n._replace(if_asked=n not in sure_notes) for n in notes]
     campus = media.campus_in(text) or media.campus_in(profile.get("interested_campus"))
     need_campus = not campus and any(media.facility_images(c, 1) for c in media.CAMPUSES)
     return media_note(images, facilities_need_campus=need_campus)
@@ -815,10 +820,12 @@ async def _send_reply_with_images(
 
 
 def _record_images(sender_id: str, profile: dict, delivered: list[Offer], waiting: dict) -> None:
-    """media_sent gets the offers delivered; fee_asked and facilities_asked stay true only while still waiting."""
+    """media_sent gets the offers delivered; fee_asked, timetable_asked and facilities_asked stay true only while
+    still waiting."""
     kinds = {o.kind for o in delivered}
     fields = {
         "fee_asked": waiting.get("fee_asked", False) and "fee" not in kinds,
+        "timetable_asked": waiting.get("timetable_asked", False) and "timetable" not in kinds,
         "facilities_asked": waiting.get("facilities_asked", False) and "facilities" not in kinds,
     }
     fields = {k: v for k, v in fields.items() if bool(profile.get(k)) != v}
@@ -924,7 +931,7 @@ async def _answer_message(sender_id: str, text: str, attribution: dict | None, p
             clean_text, quick_key = _extract_quick_reply(clean_text)
             quick_replies = build_quick_replies(quick_key)
             covered = topics_in_reply(response.text)
-            image_urls, offers, waiting = _plan_images(
+            image_urls, offers, waiting, _ = _plan_images(
                 existing_profile, extracted, text, topics, image_urls, last_bot_message, today
             )
 

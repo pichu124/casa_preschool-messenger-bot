@@ -684,12 +684,9 @@ QA_MENU_IMAGE = "static/thuc-don-mau.jpg"
 SAID_AGE_MONTHS = range(15, 85)
 ASKS_PHONE = ("sđt", "zalo", "số điện thoại")
 # What the history tells the model it sent or failed to send; a model copying it into a reply must not show it to the
-# parent. A parent asking to send again ("gửi lại đi") right after a failed one asks for that image again.
+# parent. An image that failed in the bot's last message is offered again (_media_note), by its label.
 SENT_NOTE = re.compile(r"\s*\[(?:đã gửi ảnh[^\]]*|ảnh [^\]]*chưa gửi được)\]")
 FAILED_NOTE = re.compile(r"\[ảnh ([^\]]*) chưa gửi được\]")
-RESEND_WORDS = re.compile(r"(?<!khong can )(?<!dung )\bgui lai\b")
-# The first words of the label of an Offer of each kind.
-KIND_LABELS = {"fee": "học phí", "timetable": "thời khoá biểu", "facilities": "cơ sở vật chất", "menu": "thực đơn"}
 
 
 class Offer(NamedTuple):
@@ -722,15 +719,6 @@ def _asks_timetable(text: str) -> bool:
         if media.fold(thu) != "thu" or thu == "thứ" or (thu == "thu" and WEEKDAY.fullmatch(media.fold(after))):
             return True
     return False
-
-
-def _asked_again(text: str, last_bot_message: str) -> set[str]:
-    """The kinds of the images that failed in the bot's last message (FAILED_NOTE) when the parent's `text` asks to
-    send again (RESEND_WORDS); nothing when the parent says anything else."""
-    if not RESEND_WORDS.search(media.fold(text)):
-        return set()
-    labels = FAILED_NOTE.findall(last_bot_message)
-    return {kind for label in labels for kind, words in KIND_LABELS.items() if label.startswith(words)}
 
 
 # Profile flag of a question waiting for an image -> the kind of that image.
@@ -788,12 +776,11 @@ def _plan_images(
     facilities: one campus a turn); the profile flags of questions waiting for what is missing: fee_asked (the kid's
     age and the campus), timetable_asked (the campus and the kid's age), facilities_asked (the campus); the notes of
     images waiting for what is missing. `extracted`: what the model extracted from `text`, {} before it is known; a
-    campus and an age named in `text` count as well; so does asking to send again the images that failed in
-    `last_bot_message` (_asked_again). `tagged`: the kinds of image the reply tags as sent ([SEND:<kind>]): their
-    offers go as if asked for, only when ready (the parent asked nothing, no flag waits)."""
+    campus and an age named in `text` count as well. `tagged`: the kinds of image the reply tags as sent
+    ([SEND:<kind>]): their offers go as if asked for, only when ready (the parent asked nothing, no flag waits)."""
     if not settings.MEDIA_SYNC_ENABLED:
         return qa_images, [], {}, []
-    asked = set(topics) | {topic for kind in _asked_again(text, last_bot_message) for topic in TOPICS_OF_IMAGE[kind]}
+    asked = set(topics)
     sent = profile.get("media_sent") or {}
     parent_asked_fee = bool(asked & set(FEE_TOPICS) or FEE_WORDS.search(media.fold(text)))
     topics = asked | {topic for kind in tagged for topic in TOPICS_OF_IMAGE[kind]}
@@ -889,14 +876,17 @@ def _plan_images(
 def _media_note(profile: dict, text: str, last_bot_message: str, today: date) -> str:
     """The [HỆ THỐNG] lines for the reply to `text`, written before its extraction is known: the images sent whatever
     the message asks, and those sent if it asks about their topic (or if the reply tags itself as sending them); what
-    an image waits for; the images sent before that this message asks for again."""
+    an image waits for; the images sent before that this message asks for again; the images of the bot's last
+    message that failed (FAILED_NOTE) and would go again if the reply tags them."""
     if not settings.MEDIA_SYNC_ENABLED:
         return ""
     _, sure, _, sure_notes = _plan_images(profile, {}, text, [], [], last_bot_message, today)
     every_topic = [topic for topics in TOPICS_OF_IMAGE.values() for topic in topics]
     _, offers, _, notes = _plan_images(profile, {}, text, every_topic, [], last_bot_message, today)
     sure_keys = {o.key for o in sure}
+    failed = set(FAILED_NOTE.findall(last_bot_message))
     images = [ImageNote(o.kind, o.label, if_asked=o.key not in sure_keys) for o in offers]
+    images += [ImageNote(o.kind, o.label, state="failed") for o in offers if o.label in failed and o.key not in sure_keys]
     images += [n._replace(if_asked=n not in sure_notes) for n in notes if n.state != "sent" or n in sure_notes]
     campuses = media.campuses_in(text) or media.campuses_in(profile.get("interested_campus"))
     need_campus = not campuses and any(media.facility_images(c, 1) for c in media.CAMPUSES)

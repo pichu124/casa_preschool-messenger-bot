@@ -977,30 +977,76 @@ def test_a_partly_failed_turn_apologises_for_the_image_that_failed_and_does_not_
     assert TIMETABLE_FOLLOWS not in parent.notes[-1], parent.notes[-1]
 
 
-@pytest.mark.parametrize("failing", [("km-tkb-36-72",), ("sn-fee-10", "km-tkb-36-72")], ids=["timetable", "every"])
-@pytest.mark.parametrize("again", ["em gửi lại ảnh đi", "Gui lai giup minh nhe"])
-def test_parent_asking_to_send_again_right_after_the_apology_gets_the_failed_images(parent, catalog, failing, again):
+def resend_line(kind: str, label: str) -> str:
+    return (
+        f"- [HỆ THỐNG] Ảnh {label} tin trước chưa gửi được. Nếu phụ huynh xin gửi lại thì báo em gửi lại và thêm "
+        f"[SEND:{kind}]; phụ huynh không cần/nói chuyện khác thì không thêm, không nhắc lại ảnh."
+    )
+
+
+# (loại, tin xin ảnh, trích xuất, ảnh của lượt, nhãn): mỗi loại ảnh Drive, phụ huynh ở Kim Mã, bé 4 tuổi.
+FAILED_KINDS = {
+    "fee": ("học phí bao nhiêu ạ", {"topics": ["Học phí"]}, ["sn-fee-10"], "học phí hệ Song ngữ (cơ sở Kim Mã)"),
+    "timetable": ("Cho em xin thời khoá biểu ạ", {}, ["km-tkb-36-72"], "thời khoá biểu cơ sở Kim Mã"),
+    "facilities": ("cho em xem ảnh trường ạ", {"topics": ["Cơ sở vật chất"]}, [f"km-csvc-{i}" for i in range(1, 5)],
+                   "cơ sở vật chất cơ sở Kim Mã"),
+    "menu": ("cho em xem thực đơn", {"topics": ["Ăn uống/thực đơn"]}, ["sn-menu"], "thực đơn hệ Song ngữ"),
+}
+
+
+def fail_once(parent, kind: str) -> tuple[list[str], str]:
+    """Lượt xin ảnh `kind` mà mọi ảnh của nó lỗi (bot xin lỗi); trả về URL các ảnh đó và nhãn trong ghi chú lịch sử."""
     known(kid_age="4 tuổi", interested_campus="Kim Mã")
-    parent.failing = {url(i) for i in failing}
-    parent.say("học phí và thời khoá biểu", extracted=FEE_AND_TIMETABLE)
+    text, extracted, ids, label = FAILED_KINDS[kind]
+    parent.failing = {url(i) for i in ids}
+    assert parent.images(parent.say(text, extracted=extracted)) == []
+    assert parent.history()[-1].endswith(f" [ảnh {label} chưa gửi được]")
     parent.failing = set()
-
-    sent = parent.say(again, reply="Dạ em gửi lại Ba/Mẹ ảnh ạ. [QUICK:visit_invite]")
-
-    assert parent.images(sent) == [url(i) for i in failing]
-    assert TIMETABLE_FOLLOWS in parent.notes[-1], parent.notes[-1]
-    assert TIMETABLE_NOTE_SENT in parent.history()[-1]
-    assert "timetable:km-tkb-36-72" in customer_memory.get_profile(CUSTOMER_ID)["media_sent"]
+    return [url(i) for i in ids], label
 
 
-@pytest.mark.parametrize("text", ["không cần gửi lại đâu em", "đừng gửi lại nhé"])
-def test_parent_saying_not_to_send_again_gets_no_image(parent, catalog, text):
+# Review 2026-10-24: code đọc chữ "gửi lại" của phụ huynh nên "không cần em gửi lại đâu" vẫn nhận ảnh. Ảnh lỗi ở tin
+# trước được nhắc trong dòng [HỆ THỐNG]; ảnh chỉ đi lại khi model gắn [SEND:<loại>] (như mọi ảnh tuỳ chủ đề).
+@pytest.mark.parametrize("kind", list(FAILED_KINDS))
+def test_a_failed_image_goes_again_when_the_reply_to_the_parent_asking_tags_it(parent, catalog, kind):
+    images, label = fail_once(parent, kind)
+
+    sent = parent.say("em gửi lại ảnh đi", reply=f"Dạ em gửi lại Ba/Mẹ ảnh ạ. [SEND:{kind}] [QUICK:visit_invite]")
+
+    assert parent.images(sent) == images
+    assert resend_line(kind, label) in parent.notes[-1].splitlines(), parent.notes[-1]
+    assert f"Sau câu trả lời này hệ thống gửi ảnh {label}" not in parent.notes[-1], parent.notes[-1]
+    assert parent.history()[-1] == f"Dạ em gửi lại Ba/Mẹ ảnh ạ. [QUICK:visit_invite] [đã gửi ảnh {label}]"
+
+
+@pytest.mark.parametrize("kind", list(FAILED_KINDS))
+@pytest.mark.parametrize("text", ["không cần em gửi lại đâu, chị xem web rồi", "dạ vâng", "em gửi lại ảnh đi"])
+def test_a_failed_image_does_not_go_again_when_the_reply_does_not_tag_it(parent, catalog, kind, text):
+    _, label = fail_once(parent, kind)
+
+    sent = parent.say(text)
+
+    assert sent == [("text", SHOWN, VISIT_BUTTONS)]
+    assert resend_line(kind, label) in parent.notes[-1].splitlines(), parent.notes[-1]
+    assert f"Sau câu trả lời này hệ thống gửi ảnh {label}" not in parent.notes[-1], parent.notes[-1]
+    assert "media_sent" not in customer_memory.get_profile(CUSTOMER_ID)
+
+
+def test_only_the_image_that_failed_is_offered_again_after_a_partly_failed_turn(parent, catalog):
     known(kid_age="4 tuổi", interested_campus="Kim Mã")
     parent.failing = {url("km-tkb-36-72")}
     parent.say("học phí và thời khoá biểu", extracted=FEE_AND_TIMETABLE)
     parent.failing = set()
 
-    assert parent.images(parent.say(text)) == []
+    sent = parent.say("em gửi lại ảnh đi", reply="Dạ em gửi lại Ba/Mẹ ảnh ạ. [SEND:timetable] [QUICK:visit_invite]")
+
+    assert parent.images(sent) == [url("km-tkb-36-72")]
+    resend = [line for line in parent.notes[-1].splitlines() if "tin trước chưa gửi được" in line]
+    assert resend == [resend_line("timetable", "thời khoá biểu cơ sở Kim Mã")], parent.notes[-1]
+    assert TIMETABLE_NOTE_SENT in parent.history()[-1]
+    assert "timetable:km-tkb-36-72" in customer_memory.get_profile(CUSTOMER_ID)["media_sent"]
+    parent.say("em gửi lại ảnh đi")
+    assert "tin trước chưa gửi được" not in parent.notes[-1], parent.notes[-1]
 
 
 # Thử thật trên Render 2026-10-24 (PUBLIC_BASE_URL sai, Graph "(#100) Upload failed"): ảnh cơ sở vật chất Chùa Láng

@@ -44,7 +44,7 @@ xuất thật theo AI_MODEL_ORDER, dòng [HỆ THỐNG] do _media_note viết), 
 mục ảnh giả, Graph/Telegram/Sheet/GitHub là fake ghi lại (httpx tới các host đó bị chặn), hồ sơ phụ huynh dựng theo ca
 trong thư mục tạm. Mỗi lượt chấm tập ảnh đi ra chính xác (id fixture), thẻ chuyển tư vấn viên, tin Telegram về ảnh, và
 câu chữ (grade_media_step): không hứa gửi khi không có ảnh, không "tư vấn viên … gửi" ảnh, hỏi đúng tuổi/cơ sở còn
-thiếu, không số tiền, không lộ token. 35 ca, 45 lượt, mỗi lượt 2 lời gọi model. Bộ đạt khi mọi lượt đạt.
+thiếu, không số tiền, không lộ token. 38 ca, 48 lượt, mỗi lượt 2 lời gọi model. Bộ đạt khi mọi lượt đạt.
 
 Exit: 0 = mọi heuristic đạt và các bộ (nếu chạy) đạt ngưỡng; 1 = có lượt vi phạm hoặc một bộ dưới ngưỡng;
 2 = INCONCLUSIVE (chưa có API key, mọi model đều lỗi) hoặc sai tên kịch bản.
@@ -674,6 +674,7 @@ NOTE_STATES = {
     "missing": "nên chưa gửi ảnh",
     "sent": "đã gửi ở tin trước",
     "need_campus": "chưa biết cơ sở nên hỏi",
+    "failed": "tin trước chưa gửi được",
 }
 # Host của Graph, Telegram, GitHub, Apps Script/Drive: bộ media không được gọi thật (model AI thì được).
 BLOCKED_HOSTS = (

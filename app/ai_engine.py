@@ -149,6 +149,11 @@ SEND_TOKEN_RULE = (
     "Chỉ khi câu trả lời báo em gửi ảnh này thì thêm [SEND:{kind}] ở cuối (trước [QUICK:]); hỏi/mời xem ảnh thì "
     "không thêm."
 )
+# An image of the bot's last message that failed: only the model knows whether the parent asks for it again.
+FAILED_IMAGE_LINE = (
+    "- [HỆ THỐNG] Ảnh {label} tin trước chưa gửi được. Nếu phụ huynh xin gửi lại thì báo em gửi lại và thêm "
+    "[SEND:{kind}]; phụ huynh không cần/nói chuyện khác thì không thêm, không nhắc lại ảnh."
+)
 FACILITIES_NEED_CAMPUS = (
     "- [HỆ THỐNG] Nếu phụ huynh hỏi cơ sở vật chất: có ảnh từng cơ sở, chưa biết cơ sở nên hỏi Ba/Mẹ quan tâm cơ sở "
     "nào để em gửi ảnh, kèm [QUICK:campus]."
@@ -160,7 +165,8 @@ class ImageNote(NamedTuple):
     label: str  # what the image shows: "học phí hệ Song ngữ (cơ sở Kim Mã)"
     ask: tuple[str, ...] = ()  # state "missing": what the bot needs to know first ("tuổi bé")
     if_asked: bool = False  # only if this message asks about IMAGE_TOPICS[kind]
-    # "send": the image follows the reply; "missing": not sent until `ask` is known; "sent": sent in an earlier turn
+    # "send": the image follows the reply; "missing": not sent until `ask` is known; "sent": sent in an earlier turn;
+    # "failed": failed in the bot's last message, sent again if the reply tags it
     state: str = "send"
 
 
@@ -180,7 +186,7 @@ def _not_sending_line(image: ImageNote) -> str:
 
 def media_note(images: list[ImageNote], facilities_need_campus: bool = False) -> str:
     """The [HỆ THỐNG] lines of the reminders telling the model which images the bot sends after its reply, which
-    wait for what the bot does not know yet and which went in an earlier turn."""
+    failed in its last message, which wait for what the bot does not know yet and which went in an earlier turn."""
     lines = []
     for image in (i for i in images if i.state == "send"):
         when = f"Nếu phụ huynh hỏi {IMAGE_TOPICS[image.kind]}: sau câu trả lời" if image.if_asked else "Sau câu trả lời này"
@@ -188,7 +194,8 @@ def media_note(images: list[ImageNote], facilities_need_campus: bool = False) ->
         lines.append(f"- [HỆ THỐNG] {when} hệ thống gửi ảnh {image.label}." + (f" {answer}" if answer else ""))
     if lines:
         lines.insert(0, MEDIA_NOTE_HEADER)
-    lines += [_not_sending_line(i) for i in images if i.state != "send"]
+    lines += [FAILED_IMAGE_LINE.format(label=i.label, kind=i.kind) for i in images if i.state == "failed"]
+    lines += [_not_sending_line(i) for i in images if i.state in ("missing", "sent")]
     if facilities_need_campus:
         lines.append(FACILITIES_NEED_CAMPUS)
     return "\n".join(lines)

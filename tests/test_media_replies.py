@@ -539,6 +539,26 @@ def test_trial_week_schedule_is_not_a_timetable_question(parent, catalog):
     assert parent.images(parent.say("lịch học thử tuần sau thế nào ạ")) == []
 
 
+TRIAL_WEEK_SENT = "Dạ em gửi Ba/Mẹ lịch học thử tuần sau ạ."
+
+
+# Review vòng thời khoá biểu v2: câu "em gửi … lịch học thử" bị đọc là báo gửi thời khoá biểu.
+def test_a_reply_sending_the_trial_week_does_not_send_the_timetable(parent, catalog):
+    known(kid_age="4 tuổi", interested_campus="Kim Mã")
+
+    assert parent.images(parent.say("cho em đăng ký học thử ạ", reply=TRIAL_WEEK_SENT)) == []
+
+
+def test_a_reply_sending_the_trial_week_does_not_wait_for_the_kids_age(parent, catalog):
+    known(interested_campus="Kim Mã")
+
+    parent.say("cho em đăng ký học thử ạ", reply=TRIAL_WEEK_SENT)
+
+    assert not customer_memory.get_profile(CUSTOMER_ID).get("timetable_asked")
+    parent.say("dạ vâng")
+    assert "[HỆ THỐNG] Chưa biết tuổi bé nên chưa gửi ảnh thời khoá biểu" not in parent.notes[-1], parent.notes[-1]
+
+
 # --- cơ sở vật chất ---
 
 

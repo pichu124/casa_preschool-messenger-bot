@@ -654,7 +654,8 @@ TOPICS_OF_IMAGE = {"fee": FEE_TOPICS, "timetable": (PROGRAMME_TOPIC,), "faciliti
 # A message naming the timetable or Cambridge (as media.fold writes it) asks for the timetable whatever its topics:
 # the extraction tags Cambridge as "Tiếng Anh/GV nước ngoài" and a timetable as "Giờ học/…". "lịch học thử" is the
 # trial week.
-TIMETABLE_WORDS = re.compile(r"\bcambridge\b|\bthoi (?:khoa|gian) bieu\b|\btkb\b|\blich hoc\b(?! thu)")
+TIMETABLE_NAMES = r"\bthoi (?:khoa|gian) bieu\b|\btkb\b|\blich hoc\b(?! thu)"
+TIMETABLE_WORDS = re.compile(rf"\bcambridge\b|{TIMETABLE_NAMES}")
 # A message asking for both systems ("2 hệ", "cả hai hệ") or both campuses ("cả 2 cơ sở", "hai bên").
 BOTH_WORDS = re.compile(r"\b(?:ca )?(?:2|hai) (he|co so|ben|truong)\b")
 # A reply saying the bot itself sends an image (as media.fold writes it: "em gửi", "em xin phép gửi", not "tư vấn
@@ -665,7 +666,7 @@ BOT_SENDS = re.compile(r"\bem(?: (?!chua\b|khong\b)\w+){0,2} gui\b")
 OFFERS = re.compile(r"\?\s*$|\bco muon\b|\bkhong a\b\W*$")
 IMAGE_WORDS = {
     "fee": re.compile(r"\b(?:hoc phi|bang phi)\b"),
-    "timetable": re.compile(r"\b(?:thoi (?:khoa|gian) bieu|tkb|lich hoc)\b"),
+    "timetable": re.compile(TIMETABLE_NAMES),
     "facilities": re.compile(r"\b(?:co so vat chat|anh (?:truong|lop|co so))\b"),
     "menu": re.compile(r"\bthuc don\b"),
 }

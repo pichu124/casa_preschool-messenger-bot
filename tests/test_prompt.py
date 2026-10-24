@@ -115,6 +115,17 @@ def test_extract_prompt_asks_for_lead_fields_and_sends_only_profile_fields(monke
         assert leaked not in recorder.user_message
 
 
+# Phụ huynh quan tâm "Chùa Láng và Kim Mã": hồ sơ giữ đủ cả hai để bot gửi thời khoá biểu từng cơ sở.
+def test_extract_prompt_keeps_every_campus_the_parent_names(monkeypatch):
+    recorder = RecordingProvider("{}")
+    engine = make_engine(monkeypatch, fake=recorder)
+
+    asyncio.run(engine.extract_customer_info("Chùa Láng và Kim Mã"))
+
+    line = next(line for line in recorder.system_prompt.splitlines() if line.startswith('- "interested_campus"'))
+    assert "nhiều cơ sở" in line and '"Chùa Láng, Kim Mã"' in line, line
+
+
 # Lead khi phụ huynh đồng ý chỉ có nếu extract ghi visit_request. Prompt cũ chỉ cho ghi lịch "ĐÃ CHỐT" nên bấm
 # "Đăng ký học thử" rồi rời đi (chưa chọn tuần) thì Telegram/Sheet không nhận gì.
 AGREE_TO_BOOK = [
@@ -1210,7 +1221,8 @@ def test_media_note_says_which_images_follow_and_what_to_ask():
     note = media_note(
         [
             ImageNote("fee", "học phí hệ Song ngữ (cơ sở Kim Mã)"),
-            ImageNote("timetable", "thời khoá biểu cơ sở Mỹ Đình", ("tuổi bé", "cơ sở Ba/Mẹ quan tâm"), if_asked=True),
+            ImageNote("menu", "thực đơn hệ Quốc tế", if_asked=True),
+            ImageNote("timetable", "thời khoá biểu", ("cơ sở Ba/Mẹ quan tâm", "tuổi bé"), if_asked=True, state="missing"),
         ],
         facilities_need_campus=True,
     )
@@ -1218,13 +1230,40 @@ def test_media_note_says_which_images_follow_and_what_to_ask():
 
     assert lines[0].startswith("- [HỆ THỐNG]") and "không nêu con số" in lines[0] and "không [ESCALATE]" in lines[0]
     assert "không nói không gửi được bảng phí" in lines[0]
+    assert "chỉ nói em gửi ảnh có dòng dưới đây" in lines[0] and "không nói tư vấn viên sẽ gửi ảnh đó" in lines[0]
     assert lines[1] == "- [HỆ THỐNG] Sau câu trả lời này hệ thống gửi ảnh học phí hệ Song ngữ (cơ sở Kim Mã)."
     assert lines[2] == (
-        "- [HỆ THỐNG] Nếu phụ huynh hỏi chương trình học/Cambridge/thời khoá biểu: sau câu trả lời hệ thống gửi ảnh "
-        "thời khoá biểu cơ sở Mỹ Đình, rồi hỏi tuổi bé và cơ sở Ba/Mẹ quan tâm."
+        "- [HỆ THỐNG] Nếu phụ huynh hỏi thực đơn/ăn uống: sau câu trả lời hệ thống gửi ảnh thực đơn hệ Quốc tế. Chỉ "
+        "khi câu trả lời báo em gửi ảnh này thì thêm [SEND:menu] ở cuối (trước [QUICK:]); hỏi/mời xem ảnh thì không thêm."
     )
-    assert "hỏi Ba/Mẹ quan tâm cơ sở nào" in lines[3] and "[QUICK:campus]" in lines[3]
+    assert lines[3] == (
+        "- [HỆ THỐNG] Nếu phụ huynh hỏi chương trình học/Cambridge/thời khoá biểu: chưa biết cơ sở Ba/Mẹ quan tâm và "
+        "tuổi bé nên chưa gửi ảnh thời khoá biểu: hỏi cơ sở Ba/Mẹ quan tâm và tuổi bé để em gửi đúng thời khoá biểu; "
+        "không nói đã/sẽ gửi ảnh đó, không nói tư vấn viên sẽ gửi."
+    )
+    assert "hỏi Ba/Mẹ quan tâm cơ sở nào" in lines[4] and "[QUICK:campus]" in lines[4]
     assert media_note([]) == ""
+
+
+def test_media_note_of_images_already_sent_says_so_without_the_sending_header():
+    note = media_note([ImageNote("timetable", "thời khoá biểu cơ sở Kim Mã", if_asked=True, state="sent")])
+
+    assert note == (
+        "- [HỆ THỐNG] Nếu phụ huynh hỏi chương trình học/Cambridge/thời khoá biểu: ảnh thời khoá biểu cơ sở Kim Mã đã "
+        "gửi ở tin trước ([đã gửi ảnh …] trong lịch sử): nói ngắn ảnh ở phía trên, không gửi lại, không nói tư vấn "
+        "viên sẽ gửi."
+    )
+
+
+# Người vận hành 2026-10-24: thiếu cơ sở/tuổi bé thì không có ảnh thời khoá biểu, nên dòng hỏi không mở bằng câu
+# "Ảnh dưới đây hệ thống tự gửi" và không cho model nói đã/sẽ gửi.
+def test_media_note_of_a_timetable_still_missing_the_age_only_asks_for_it():
+    note = media_note([ImageNote("timetable", "thời khoá biểu", ("tuổi bé",), state="missing")])
+
+    assert note == (
+        "- [HỆ THỐNG] Chưa biết tuổi bé nên chưa gửi ảnh thời khoá biểu: hỏi tuổi bé để em gửi đúng thời khoá biểu; "
+        "không nói đã/sẽ gửi ảnh đó, không nói tư vấn viên sẽ gửi."
+    )
 
 
 # Review 2026-10-23: "lịch chi tiết không có trong Q&A → [ESCALATE]" mâu thuẫn với luật gửi ảnh thời khoá biểu khi
@@ -1241,6 +1280,7 @@ def test_timetable_being_sent_answers_a_schedule_question_without_escalating(mon
     # Chỉ lịch trong tuần: lịch hè, Tết, học bù không có trong thời khoá biểu nên vẫn chuyển tư vấn viên.
     assert re.search(r"Lịch hè/Tết/học bù[^.]*vẫn \[ESCALATE\]", line), line
     assert "ESCALATE" not in maybe.splitlines()[-1] and "lịch học" not in maybe.splitlines()[-1], maybe
+    assert "[SEND:timetable]" in maybe and "SEND" not in sure, (maybe, sure)
     assert "ESCALATE" not in media_note([ImageNote("fee", "học phí hệ Song ngữ (cơ sở Kim Mã)")]).splitlines()[-1]
     escalate = next(l for l in _reminder(with_note).splitlines() if "BẮT BUỘC trả lời chính xác chuỗi [ESCALATE]" in l)
     assert "lịch chi tiết" in escalate, escalate

@@ -42,9 +42,6 @@ JPEG_QUALITY = 85
 CATALOG_FILE = "catalog.json"
 # "HỌC PHÍ THÁNG N" has no year: a fee image last changed longer ago than this is taken for last year's.
 FEE_STALE_AFTER = timedelta(days=300)
-# Timetable sent when the kid's age is unknown: 3–5 years, else the group holding 48 months.
-DEFAULT_AGES = (36, 60)
-DEFAULT_AGE_MONTHS = 48
 
 _DASHES = str.maketrans({c: "-" for c in "‐‑‒–—―−"})
 _AGES = re.compile(r"(\d+)\s*(thang|tuoi)?\s*-\s*(\d+)\s*(thang|tuoi)")
@@ -81,15 +78,33 @@ _KID_AGE = re.compile(
 )
 
 
-def age_months(kid_age: str) -> int | None:
+# A birth date: "sinh năm 2022", "sinh tháng 3/2022", "sinh tháng 3 năm 2022", "sinh 12/2023", "sinh ngày 5/3/2022";
+# not "tuyển sinh 2025" nor "học sinh năm 2024".
+_BORN = re.compile(r"(?<!tuyen )(?<!hoc )\bsinh (?:nam |(?:ngay )?(?:\d{1,2}/)?(?:thang )?(\d{1,2})(?:/|-| nam | ))?((?:19|20)\d{2})\b")
+# The month of a birth year said without it: mid-year, at most 6 months off.
+BORN_MONTH_UNKNOWN = 7
+
+
+def age_months(kid_age: str, today: date | None = None) -> int | None:
     """Months of a kid age as parents and the profile write it: "20 tháng" -> 20, "3 tuổi" -> 36, "2-3 tuổi" -> 24
-    (the lower end), "dưới 2 tuổi" -> 18, "2 tuổi 3 tháng" -> 27, a bare number is years ("3" -> 36); else None."""
+    (the lower end), "dưới 2 tuổi" -> 18, "2 tuổi 3 tháng" -> 27, a bare number is years ("3" -> 36), a birth date
+    up to `today` (Vietnam's today by default; "sinh tháng 3/2022" -> 55 in October 2026, a year alone counts from
+    BORN_MONTH_UNKNOWN); else None."""
     folded = fold(str(kid_age or "")).translate(_DASHES)
     if folded.isdigit():
-        return int(folded) * 12
+        # A bare number is years ("3"); a bare year ("2022") is the birth year, never 24264 months
+        if len(folded) == 4:
+            return age_months(f"sinh nam {folded}", today)
+        return int(folded) * 12 if int(folded) <= 7 else None
     m = _KID_AGE.search(folded)
     if not m:
-        return None
+        born = _BORN.search(folded)
+        if not born:
+            return None
+        today = today or datetime.now(VN_TZ).date()
+        month = int(born[1] or BORN_MONTH_UNKNOWN)
+        months = (today.year - int(born[2])) * 12 + today.month - month
+        return months if 1 <= month <= 12 and months >= 0 else None
     value = float(m[2].replace(",", "."))
     if m[3] == "thang":
         return int(value)
@@ -101,6 +116,13 @@ def campus_in(text: str) -> str | None:
     folded = fold(str(text or ""))
     named = [c for c in CAMPUSES if re.search(rf"\b{fold(c)}\b", folded)]
     return named[0] if len(named) == 1 else None
+
+
+def campuses_in(text: str) -> list[str]:
+    """Every campus key named in `text`, in the order named: "Chùa Láng và Kim Mã" -> ["Chùa Láng", "Kim Mã"]."""
+    folded = fold(str(text or ""))
+    found = {c: m.start() for c in CAMPUSES if (m := re.search(rf"\b{fold(c)}\b", folded))}
+    return sorted(found, key=found.get)
 
 
 def campus_key(name: str) -> str:
@@ -363,16 +385,15 @@ def menu_image(system: str) -> str | None:
     return public_url(found[0]) if found else None
 
 
-def timetable_image(campus: str, age_months: int | None) -> str | None:
-    """Timetable of the campus for a kid of `age_months` (from <= age < to, or the group ending at it); None:
-    the 3–5 group, else the one holding 48 months."""
+def has_timetables(campus: str | None = None) -> bool:
+    """Whether Drive has a timetable of the campus (any campus when None)."""
+    return any(campus is None or _same_campus(i, campus) for i in _items("timetable"))
+
+
+def timetable_image(campus: str, age_months: int) -> str | None:
+    """Timetable of the campus for a kid of `age_months` (from <= age < to, or the group ending at it)."""
     groups = sorted((i for i in _items("timetable") if _same_campus(i, campus)), key=lambda i: i["age_min"])
-    if age_months is None:
-        found = [i for i in groups if (i["age_min"], i["age_max"]) == DEFAULT_AGES]
-        age_months = DEFAULT_AGE_MONTHS
-    else:
-        found = []
-    found = found or [i for i in groups if i["age_min"] <= age_months < i["age_max"]]
+    found = [i for i in groups if i["age_min"] <= age_months < i["age_max"]]
     found = found or [i for i in groups if i["age_max"] == age_months]
     return public_url(found[0]) if found else None
 

@@ -132,8 +132,8 @@ IMAGE_TOPICS = {
 }
 MEDIA_NOTE_HEADER = (
     "- [HỆ THỐNG] Ảnh dưới đây hệ thống tự gửi ngay sau câu trả lời: báo ngắn, tự nhiên kiểu \"em gửi Ba/Mẹ … để "
-    "gia đình tham khảo ạ\"; không nêu con số, không nói không gửi được bảng phí/ảnh, không thêm [IMAGES:] cho ảnh "
-    "đó, không [ESCALATE] chỉ vì câu hỏi đó."
+    "gia đình tham khảo ạ\"; chỉ nói em gửi ảnh có dòng dưới đây, không nói tư vấn viên sẽ gửi ảnh đó; không nêu con "
+    "số, không nói không gửi được bảng phí/ảnh, không thêm [IMAGES:] cho ảnh đó, không [ESCALATE] chỉ vì câu hỏi đó."
 )
 # How the reply answers once the image surely follows ("Sau câu trả lời này"): the timetable answers a schedule
 # question that the Q&A alone would escalate ("lịch chi tiết"). Not on "Nếu phụ huynh hỏi …" lines.
@@ -143,6 +143,12 @@ IMAGE_ANSWERS = {
         "[ESCALATE], không tự nêu giờ ngoài Q&A. Lịch hè/Tết/học bù không có trong Q&A thì vẫn [ESCALATE]."
     ),
 }
+# A "Nếu phụ huynh hỏi …" image goes only if the extraction finds its topic, or if the reply tags itself as sending it
+# (app/main.py, which hides the token): the model, not a reading of its words, says whether the reply sends it.
+SEND_TOKEN_RULE = (
+    "Chỉ khi câu trả lời báo em gửi ảnh này thì thêm [SEND:{kind}] ở cuối (trước [QUICK:]); hỏi/mời xem ảnh thì "
+    "không thêm."
+)
 FACILITIES_NEED_CAMPUS = (
     "- [HỆ THỐNG] Nếu phụ huynh hỏi cơ sở vật chất: có ảnh từng cơ sở, chưa biết cơ sở nên hỏi Ba/Mẹ quan tâm cơ sở "
     "nào để em gửi ảnh, kèm [QUICK:campus]."
@@ -152,20 +158,37 @@ FACILITIES_NEED_CAMPUS = (
 class ImageNote(NamedTuple):
     kind: str  # a key of IMAGE_TOPICS
     label: str  # what the image shows: "học phí hệ Song ngữ (cơ sở Kim Mã)"
-    ask: tuple[str, ...] = ()  # what the reply asks for after it ("tuổi bé")
-    if_asked: bool = False  # sent only if this message asks about IMAGE_TOPICS[kind]
+    ask: tuple[str, ...] = ()  # state "missing": what the bot needs to know first ("tuổi bé")
+    if_asked: bool = False  # only if this message asks about IMAGE_TOPICS[kind]
+    # "send": the image follows the reply; "missing": not sent until `ask` is known; "sent": sent in an earlier turn
+    state: str = "send"
+
+
+def _not_sending_line(image: ImageNote) -> str:
+    ask = " và ".join(image.ask)
+    rule = (
+        f"chưa biết {ask} nên chưa gửi ảnh {image.label}: hỏi {ask} để em gửi đúng {image.label}; không nói đã/sẽ "
+        "gửi ảnh đó, không nói tư vấn viên sẽ gửi."
+    ) if image.state == "missing" else (
+        f"ảnh {image.label} đã gửi ở tin trước ([đã gửi ảnh …] trong lịch sử): nói ngắn ảnh ở phía trên, không gửi "
+        "lại, không nói tư vấn viên sẽ gửi."
+    )
+    return f"- [HỆ THỐNG] Nếu phụ huynh hỏi {IMAGE_TOPICS[image.kind]}: {rule}" if image.if_asked else (
+        f"- [HỆ THỐNG] {rule[0].upper()}{rule[1:]}"
+    )
 
 
 def media_note(images: list[ImageNote], facilities_need_campus: bool = False) -> str:
-    """The [HỆ THỐNG] lines of the reminders telling the model which images the bot sends after its reply."""
+    """The [HỆ THỐNG] lines of the reminders telling the model which images the bot sends after its reply, which
+    wait for what the bot does not know yet and which went in an earlier turn."""
     lines = []
-    for image in images:
+    for image in (i for i in images if i.state == "send"):
         when = f"Nếu phụ huynh hỏi {IMAGE_TOPICS[image.kind]}: sau câu trả lời" if image.if_asked else "Sau câu trả lời này"
-        ask = f", rồi hỏi {' và '.join(image.ask)}" if image.ask else ""
-        answer = "" if image.if_asked or image.kind not in IMAGE_ANSWERS else f" {IMAGE_ANSWERS[image.kind]}"
-        lines.append(f"- [HỆ THỐNG] {when} hệ thống gửi ảnh {image.label}{ask}.{answer}")
+        answer = IMAGE_ANSWERS.get(image.kind, "") if not image.if_asked else SEND_TOKEN_RULE.format(kind=image.kind)
+        lines.append(f"- [HỆ THỐNG] {when} hệ thống gửi ảnh {image.label}." + (f" {answer}" if answer else ""))
     if lines:
         lines.insert(0, MEDIA_NOTE_HEADER)
+    lines += [_not_sending_line(i) for i in images if i.state != "send"]
     if facilities_need_campus:
         lines.append(FACILITIES_NEED_CAMPUS)
     return "\n".join(lines)
@@ -694,7 +717,8 @@ class AIEngine:
             '- "phone_declined": true khi phụ huynh từ chối rõ ràng để lại SĐT/Zalo (VD: "chưa muốn để số", '
             'hoặc "không ạ" khi câu bot vừa hỏi là xin SĐT/Zalo)\n'
             '- "interested_program": "song ngữ" / "quốc tế"\n'
-            '- "interested_campus": "Chùa Láng" / "Mỹ Đình" / "Kim Mã"\n'
+            '- "interested_campus": "Chùa Láng" / "Mỹ Đình" / "Kim Mã"; quan tâm nhiều cơ sở thì ghi đủ (VD: '
+            '"Chùa Láng, Kim Mã")\n'
             '- "expected_start": thời điểm dự kiến cho bé nhập học (VD: "tháng 9", "sau Tết")\n'
             '- "visit_request": phụ huynh ĐỒNG Ý đăng ký học thử hoặc đặt lịch tham quan, kể cả bấm nút đồng ý khi chưa '
             'chọn buổi/tuần (VD: "học thử 1 tuần", "tham quan trường"); chọn buổi/tuần sau đó thì ghi cụ thể hơn '

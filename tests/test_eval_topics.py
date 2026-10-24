@@ -199,3 +199,10 @@ def test_topic_set_covers_every_topic_and_the_hard_cases():
     assert all(c.last_bot_message.endswith("]") for c in empty if c.last_bot_message and "?" in c.last_bot_message)
     assert {"Chào trường ạ", "Cảm ơn ạ"} <= {c.message for c in empty}
     assert sum(c.expected == ("Khác",) for c in cases) == 1
+
+
+def test_sentences_drop_the_send_token():
+    # Token [SEND:<loại>] (ảnh tuỳ chủ đề) không phải một câu: câu cuối vẫn là câu thật của bot.
+    assert eval_chat.sentences("Dạ em gửi Ba/Mẹ bảng học phí bên dưới ạ. [SEND:fee]") == [
+        "Dạ em gửi Ba/Mẹ bảng học phí bên dưới ạ."
+    ]

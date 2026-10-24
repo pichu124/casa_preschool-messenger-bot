@@ -376,18 +376,16 @@ def test_fee_image_last_changed_over_300_days_ago_is_stale(google, modified, old
     assert (fee.month, fee.stale, fee.old_since) == (11, old_since is not None, old_since)
 
 
-def test_timetable_image_by_age_and_the_default_group(google):
+def test_timetable_image_by_age(google):
     sync()
 
-    assert media.timetable_image("Chùa Láng", None) == url("cl-tkb-36-60")
     assert media.timetable_image("chua lang", 20) == url("cl-tkb-15-36")
     assert media.timetable_image("Mỹ Đình", 36) == url("md-tkb-36-60")
     assert media.timetable_image("Mỹ Đình", 60) == url("md-tkb-60-72")
     assert media.timetable_image("Mỹ Đình", 72) == url("md-tkb-60-72")
-    assert media.timetable_image("Kim Mã", None) == url("km-tkb-36-72")  # không có nhóm 3–5: nhóm chứa 48 tháng
     assert media.timetable_image("Cơ sở Kim Mã", 30) == url("km-tkb-15-36")
     assert media.timetable_image("Kim Mã", 10) is None
-    assert media.timetable_image("Cầu Giấy", None) is None
+    assert media.timetable_image("Cầu Giấy", 48) is None
 
 
 def test_facility_images_and_system_of_campus(google):

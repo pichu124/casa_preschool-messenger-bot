@@ -84,6 +84,7 @@ MONEY = re.compile(r"\d{1,3}(?:[.,]\d{3})+\s*(?:đ|đồng|vnđ|vnd)|\d+(?:[.,]\
 SENTENCE_END = re.compile(r"(?<=[.!?…])\s+")
 IMAGES_TOKEN = re.compile(r"\[IMAGES:[^\]]*\]")
 QUICK_TOKEN = re.compile(r"\[QUICK:([^\]]*)\]")
+SEND_TOKEN = re.compile(r"\[SEND:[^\]]*\]", re.I)
 QUICK_KEYS = set(QUICK_TOKEN.findall(SYSTEM_PROMPT))
 MAX_SENTENCES = 3
 SENTENCE_PUNCT = re.compile(r"[.?!…]+")
@@ -410,12 +411,12 @@ UPSET_CASES: list[UpsetCase] = [
 
 
 def sentences(text: str) -> list[str]:
-    """Các câu của câu bot gửi, bỏ token [QUICK:]/[IMAGES:] và mẩu chỉ có emoji.
+    """Các câu của câu bot gửi, bỏ token [QUICK:]/[IMAGES:]/[SEND:] và mẩu chỉ có emoji.
 
     Câu kết ở . ? ! … khi sau đó hết tin hoặc là khoảng trắng rồi chữ không viết thường. Không tách ở "v.v. và",
     "tiếng Anh... và", "1.5", "casa.edu.vn", hay dấu câu ngay sau emoji ("ạ 🌿." đếm như câu chào chuẩn "ạ 🌿 Cảm ơn…").
     """
-    text = QUICK_TOKEN.sub("", IMAGES_TOKEN.sub("", text))
+    text = QUICK_TOKEN.sub("", IMAGES_TOKEN.sub("", SEND_TOKEN.sub("", text)))
     pieces, start = [], 0
     for match in SENTENCE_PUNCT.finditer(text):
         rest, before = text[match.end():], text[: match.start()].rstrip().rstrip("\ufe0f")
@@ -473,7 +474,7 @@ def style_problems(text: str, parent_messages: list[str], known_phones: set[str]
 
 def last_sentence(text: str) -> str:
     # Bỏ "câu" chỉ gồm emoji/ký hiệu, vd "📅" đứng sau dấu chấm hỏi cuối.
-    text = QUICK_TOKEN.sub("", IMAGES_TOKEN.sub("", text))
+    text = QUICK_TOKEN.sub("", IMAGES_TOKEN.sub("", SEND_TOKEN.sub("", text)))
     sentences = [s for s in SENTENCE_END.split(text) if any(ch.isalpha() for ch in s)]
     return sentences[-1] if sentences else ""
 

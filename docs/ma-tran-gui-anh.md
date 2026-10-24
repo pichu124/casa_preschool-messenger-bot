@@ -1,6 +1,6 @@
 # Ma trận trường hợp gửi ảnh cho phụ huynh
 
-Mỗi nhánh của luật "Ảnh gửi phụ huynh" ([quyet-dinh-noi-dung.md](quyet-dinh-noi-dung.md), mục 3) là một dòng có mã, kết quả mong đợi và bộ kiểm phụ trách. Code: `_plan_images`, `_media_note`, `_send_reply_with_images`, `_record_images` và token `[SEND:<loại>]` trong `app/main.py`; dòng `[HỆ THỐNG]` do `media_note` trong `app/ai_engine.py` viết.
+Mỗi nhánh của luật "Ảnh gửi phụ huynh" ([quyet-dinh-noi-dung.md](quyet-dinh-noi-dung.md), mục 3) là một dòng có mã, kết quả mong đợi và bộ kiểm phụ trách. Code: `_plan_images`, `_media_note`, `_send_reply_with_images`, `_record_images`, `_wait_for_first_media_sync` và token `[SEND:<loại>]` trong `app/main.py`; `ready` trong `app/media.py` (hạn chờ lần đồng bộ đầu); dòng `[HỆ THỐNG]` do `media_note` trong `app/ai_engine.py` viết.
 
 Bản dữ liệu (đọc được bằng code) là `MATRIX` và `MEDIA_CASES` trong `scripts/eval_media_cases.py`; trang này là bản người đọc. `tests/test_eval_media.py` (chạy trong `./scripts/check.sh`) giữ hai bản khớp nhau và chặn thiếu: dòng `eval` phải có ca cùng mã trong `MEDIA_CASES`, dòng `pytest` phải có test đúng tên trong `tests/`, dòng `harness` phải có mã trong [features/media.md](../.claude/skills/verify-casa-bot/features/media.md); ca eval nào cũng thuộc một dòng `eval`. Thêm nhánh luật mới thì thêm dòng ở cả hai nơi cùng bộ kiểm của nó.
 
@@ -23,6 +23,7 @@ Heuristic chỉ để lọc nhanh: vẫn đọc transcript (`PH:`, `BOT (<model>
 
 - Câu ghép báo gửi một ảnh và mời ảnh khác, câu mời "có muốn em gửi … không ạ?", token của ảnh chưa đủ điều kiện: model thật không bị ép nói đúng câu đó, nên chỉ kiểm ở pytest (model giả nói đúng câu). Eval vẫn bắt hậu quả: ảnh thừa so với tập mong đợi.
 - Trần 5 ảnh một lượt và nút trên ảnh cuối: do code quyết định, chỉ pytest.
+- Ảnh lỗi một phần (`GEN-FAIL-PARTIAL`, `GEN-FAIL-PARTIAL-CAMPUS`, `GEN-FAIL-IN-GROUP`): chỉ pytest, vì `fail.graph_image` của harness làm hỏng mọi ảnh; harness thử câu xin lỗi chung và "gửi lại" (`GEN-FAIL-RESEND-HARNESS`). Bộ eval không làm ảnh lỗi: `GEN-FAIL-RESEND-REPLY`, `GEN-FAIL-OTHER-TOPIC` dựng sẵn lịch sử có ghi chú "[ảnh … chưa gửi được]".
 - Ảnh học phí, cơ sở vật chất, thực đơn đã gửi không có dòng `[HỆ THỐNG]` "đã gửi" (chỉ thời khoá biểu có): `FEE-SENT-AGAIN` và `CSVC-SENT-AGAIN` đo model có tự đọc ghi chú `[đã gửi ảnh …]` trong lịch sử để không hứa gửi lại hay không.
 
 ## Học phí
@@ -76,6 +77,7 @@ Heuristic chỉ để lọc nhanh: vẫn đọc transcript (`PH:`, `BOT (<model>
 | `TKB-TRIAL-NO-ACCENT` | "lich hoc thu …" không dấu | Chỉ là TKB khi sau "thu" là 2–7/hai/bay | pytest `test_trial_week_schedule_is_not_a_timetable_question` |
 | `TKB-TRIAL-REPLY-NO-WAIT` | Câu trả lời gửi lịch học thử | Không ảnh TKB, không cờ chờ tuổi | pytest `test_a_reply_sending_the_trial_week_does_not_wait_for_the_kids_age` |
 | `TKB-BOTH-NAMED-EARLIER` | "2 hệ" sau khi đã nêu các cơ sở ở tin trước | TKB của mọi cơ sở đã nêu | pytest `test_both_systems_asked_for_get_the_timetables_of_the_campuses_named_earlier` |
+| `TKB-BOTH-CAMPUS-WORDS` | "cả 2 cơ sở"/"hai bên"/"2 trường" (BOTH_WORDS không phải "hệ") | TKB của mọi cơ sở đã nêu trong hội thoại; chỉ nêu Kim Mã thì chỉ TKB Kim Mã: không thêm hệ chưa rõ, không hỏi cơ sở, không cờ chờ | pytest `test_both_campuses_get_the_timetables_of_every_campus_named_and_no_system_not_named` |
 
 ## Cơ sở vật chất
 
@@ -98,6 +100,8 @@ Heuristic chỉ để lọc nhanh: vẫn đọc transcript (`PH:`, `BOT (<model>
 | `MENU-UNKNOWN-SYSTEM` | Hỏi thực đơn, chưa biết hệ | Ảnh thực đơn hệ Quốc tế (qt-menu) | eval |
 | `MENU-NO-DRIVE` | Drive chưa có ảnh thực đơn | Ảnh thực đơn mẫu của Q&A (static/thuc-don-mau.jpg, model gắn [IMAGES:]) | eval |
 | `MENU-REPLACES-QA` | Model gắn ảnh mẫu của Q&A khi Drive có thực đơn | Chỉ ảnh thực đơn Drive, bỏ ảnh mẫu cũ | pytest `test_menu_of_kim_ma_is_the_drive_image_not_the_old_sample` |
+| `MENU-ONCE` | Xin lại thực đơn đã gửi | Không ảnh (mỗi ảnh một lần: khoá menu:<id>), không dòng [HỆ THỐNG] thực đơn | pytest `test_menu_goes_once_to_each_parent` |
+| `MENU-BY-PROGRAM` | Chưa biết cơ sở, hồ sơ có hệ quan tâm (interested_program) | Ảnh thực đơn của hệ đó (song ngữ: sn-menu, quốc tế: qt-menu) | pytest `test_menu_without_a_campus_is_the_one_of_the_programme_the_parent_wants` |
 
 ## Chung
 
@@ -111,9 +115,15 @@ Heuristic chỉ để lọc nhanh: vẫn đọc transcript (`PH:`, `BOT (<model>
 | `GEN-TOKEN-NOT-READY` | Token [SEND] cho ảnh chưa đủ điều kiện (thiếu tuổi/cơ sở) | Không ảnh, không cờ chờ | pytest `test_a_send_token_of_an_image_not_ready_sends_nothing_and_waits_for_nothing` |
 | `GEN-TOKEN-HIDDEN` | Token [SEND:] trong câu trả lời | Không lộ ra tin phụ huynh, không lưu vào lịch sử (eval cũng kiểm mọi lượt) | pytest `test_the_send_token_is_neither_shown_to_the_parent_nor_kept_in_the_history` |
 | `GEN-SENT-NOTE-HIDDEN` | Model chép ghi chú "[đã gửi ảnh …]" vào câu trả lời | Ghi chú không lộ ra tin phụ huynh | pytest `test_model_copying_the_sent_note_is_not_shown_to_the_parent` |
-| `GEN-MAX-FIVE` | Một lượt có hơn 5 ảnh | Tối đa 5 ảnh; nhóm không vừa chờ lần hỏi sau | pytest `test_at_most_five_images_in_one_turn` |
+| `GEN-MAX-FIVE` | Một lượt có hơn 5 ảnh | Tối đa 5 ảnh theo thứ tự học phí, thời khoá biểu, thực đơn, cơ sở vật chất; nút trên ảnh cuối | pytest `test_at_most_five_images_in_one_turn` |
+| `GEN-NOT-FIT-NEXT-TURN` | Nhóm ảnh cơ sở vật chất không vừa trần 5 ảnh | Cờ facilities_asked còn: lượt sau ("dạ vâng") 4 ảnh đi, cờ xoá | pytest `test_images_that_did_not_fit_go_on_the_next_turn` |
+| `GEN-NOT-FIT-MENU` | Ảnh thực đơn không vừa trần 5 ảnh (2 học phí + 3 thời khoá biểu) | Thực đơn không có cờ chờ: lượt sau không ảnh; hỏi lại thực đơn thì đi | pytest `test_a_menu_that_did_not_fit_waits_until_the_parent_asks_again` |
+| `GEN-TOKENS-ONLY` | Câu trả lời chỉ có token ([IMAGES:]/[QUICK:]), không chữ | Không tin chữ rỗng; chỉ ảnh, nút trên ảnh cuối | pytest `test_a_reply_of_only_tokens_sends_only_the_images_with_the_buttons` |
 | `GEN-QUICK-ON-LAST` | Lượt có ảnh và nút trả lời nhanh | Nút nằm trên ảnh cuối | pytest `test_facilities_wait_for_the_campus_then_go_once_with_buttons_on_the_last_image` |
 | `GEN-FAIL-RETRY` | Graph từ chối ảnh duy nhất của lượt (học phí) | Lượt vẫn xong, câu xin lỗi chung, ảnh chưa tính là đã gửi, lịch sử ghi "[ảnh … chưa gửi được]"; không tự thử lại, chỉ gửi khi phụ huynh hỏi lại (lượt sau hỏi học phí thì ảnh đi) | pytest `test_a_failed_image_does_not_break_the_turn_and_goes_when_asked_again` |
+| `GEN-FAIL-NO-AUTO-RETRY` | Ảnh cơ sở vật chất lỗi, lượt sau phụ huynh chỉ bấm nút tuổi | Không gửi lại, không xin lỗi lại, dòng [HỆ THỐNG] không có "Sau câu trả lời này … cơ sở vật chất"; hỏi lại ảnh trường thì gửi | pytest `test_failed_images_are_not_tried_again_until_the_parent_asks_again` |
+| `GEN-FAIL-IN-GROUP` | 1 trong 4 ảnh cơ sở vật chất của cơ sở lỗi | 3 ảnh còn lại đi, nhóm tính là đã gửi (media_sent), không câu xin lỗi; báo nhóm Telegram | pytest `test_some_photos_of_the_facilities_failing_count_as_sent_without_an_apology` |
+| `GEN-FAIL-QA-IMAGE` | Ảnh Q&A (static/thuc-don-mau.jpg) lỗi | Log WARNING, không câu xin lỗi, không báo nhóm Telegram (như trước khi có ảnh Drive) | pytest `test_a_failed_qa_image_is_skipped_without_an_apology_nor_an_alert` |
 | `GEN-FAIL-ALERT` | Ảnh Drive gửi lỗi | Báo nhóm Telegram tối đa 1 lần mỗi giờ, không có tin của phụ huynh | pytest `test_a_failed_image_tells_the_admin_group_once_an_hour_without_the_parents_message` |
 | `GEN-FAIL-APOLOGY` | Mọi ảnh Drive định gửi của lượt đều lỗi | Thêm câu xin lỗi ảnh lỗi kèm nút | pytest `test_parent_told_the_images_failed_when_every_drive_image_promised_failed` |
 | `GEN-FAIL-PARTIAL` | Ảnh lỗi một phần: xin "học phí và thời khoá biểu", chỉ ảnh thời khoá biểu lỗi | Ảnh học phí đi; câu xin lỗi nêu "thời khoá biểu cơ sở Kim Mã" kèm nút; lịch sử "[đã gửi ảnh học phí …] [ảnh thời khoá biểu … chưa gửi được]"; không cờ chờ: "dạ vâng" không ảnh | pytest `test_a_partly_failed_turn_apologises_for_the_image_that_failed_and_does_not_try_it_again_unasked` |
@@ -130,3 +140,18 @@ Heuristic chỉ để lọc nhanh: vẫn đọc transcript (`PH:`, `BOT (<model>
 | `GEN-LOG-PLANNED` | Mỗi lượt khi bật đồng bộ | Log INFO các ảnh định gửi | pytest `test_every_turn_logs_the_drive_images_it_plans_to_send` |
 | `GEN-GRAPH-NO-TOKEN` | Lỗi Graph khi gửi ảnh/tin | Log và lỗi không có access token | pytest `test_graph_errors_are_logged_and_raised_without_the_access_token` |
 | `GEN-TEST-CHAT` | /test-chat | Model nhận đúng dòng [HỆ THỐNG] như Messenger | pytest `test_test_chat_tells_the_model_which_images_follow_like_messenger` |
+| `GEN-TEST-CHAT-NO-TOKEN` | /test-chat với câu trả lời có [SEND:] | Lịch sử không giữ token | pytest `test_test_chat_keeps_no_send_token_in_the_history` |
+
+## Lần đồng bộ ảnh đầu sau khởi động
+
+| Mã | Trường hợp | Kết quả mong đợi | Bộ kiểm |
+|---|---|---|---|
+| `SYNC-WAIT` | Tin tới khi lần đồng bộ đầu còn chạy (đĩa trống) | Chờ đồng bộ xong rồi trả lời: dòng "Sau câu trả lời này …" và ảnh; không WARNING | pytest `test_a_message_right_after_start_waits_for_the_first_sync_and_gets_the_timetable` |
+| `SYNC-START-HARNESS` | App thật, tin ngay sau READY | TEXT rồi IMAGE; log first sync done | harness |
+| `SYNC-SLOW` | Đồng bộ đầu lâu hơn MEDIA_FIRST_SYNC_WAIT | Trả lời không ảnh sau hạn; một WARNING | pytest `test_a_first_sync_slower_than_the_wait_still_gets_an_answer_without_images` |
+| `SYNC-DEADLINE` | Nhiều tin tới trong và sau lúc chờ đồng bộ đầu | Một hạn chung = lúc bắt đầu đồng bộ + MEDIA_FIRST_SYNC_WAIT: tin giữa chừng chờ phần còn lại, tin sau hạn không chờ; WARNING một lần | pytest `test_every_message_waits_for_the_first_sync_until_one_deadline` |
+| `SYNC-TYPING` | Đang chờ đồng bộ đầu | "đang soạn" bật lại mỗi TYPING_REFRESH_EVERY, dừng khi xong | pytest `test_waiting_for_the_first_sync_keeps_the_typing_indicator_on` |
+| `SYNC-OFF-NO-WAIT` | Tắt MEDIA_SYNC_ENABLED hoặc thiếu LEADS_SHEET_WEBHOOK_URL | Không chờ, không gọi Apps Script | pytest `test_with_media_sync_off_a_message_does_not_wait` |
+| `SYNC-FAILED` | Lần đồng bộ đầu lỗi | Tin đó trả lời khi lỗi; tin sau không chờ lần đồng bộ kế | pytest `test_a_failed_first_sync_answers_then_and_no_later_message_waits` |
+| `SYNC-DISK` | Ảnh của lần chạy trước còn trên đĩa | Dùng ngay, không chờ | pytest `test_images_kept_on_disk_from_before_the_restart_are_used_without_waiting` |
+| `SYNC-TEST-CHAT` | /test-chat ngay sau khởi động | Chờ đồng bộ đầu như Messenger | pytest `test_test_chat_right_after_start_waits_for_the_first_sync` |

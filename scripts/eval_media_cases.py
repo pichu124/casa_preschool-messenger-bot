@@ -1,8 +1,8 @@
 """Ma trận trường hợp gửi ảnh cho phụ huynh và các ca của bộ eval `media` (scripts/eval_chat.py media).
 
 Luật: docs/quyet-dinh-noi-dung.md, mục "Ảnh gửi phụ huynh"; code: `_plan_images`, `_media_note`,
-`_send_reply_with_images`, `_record_images`, token `[SEND:<loại>]` trong app/main.py, `media_note` trong
-app/ai_engine.py. Bản người đọc: docs/ma-tran-gui-anh.md (tests/test_eval_media.py giữ hai bản khớp nhau).
+`_send_reply_with_images`, `_record_images`, `_wait_for_first_media_sync`, token `[SEND:<loại>]` trong app/main.py,
+`ready` trong app/media.py, `media_note` trong app/ai_engine.py. Bản người đọc: docs/ma-tran-gui-anh.md (tests/test_eval_media.py giữ hai bản khớp nhau).
 
 Mỗi dòng MATRIX là một nhánh của luật, có một bộ kiểm:
 - "eval": câu chữ hoặc hành vi của model (chủ đề trích xuất, tuổi/cơ sở đọc được, token, [ESCALATE]) quyết định kết
@@ -451,6 +451,11 @@ MATRIX: list[Row] = [
     Row("TKB-BOTH-NAMED-EARLIER", "Thời khoá biểu", "\"2 hệ\" sau khi đã nêu các cơ sở ở tin trước",
         "TKB của mọi cơ sở đã nêu", "pytest",
         "tests/test_media_replies.py::test_both_systems_asked_for_get_the_timetables_of_the_campuses_named_earlier"),
+    Row("TKB-BOTH-CAMPUS-WORDS", "Thời khoá biểu", "\"cả 2 cơ sở\"/\"hai bên\"/\"2 trường\" (BOTH_WORDS không phải \"hệ\")",
+        "TKB của mọi cơ sở đã nêu trong hội thoại; chỉ nêu Kim Mã thì chỉ TKB Kim Mã: không thêm hệ chưa rõ, không hỏi "
+        "cơ sở, không cờ chờ", "pytest",
+        "tests/test_media_replies.py::"
+        "test_both_campuses_get_the_timetables_of_every_campus_named_and_no_system_not_named"),
     # --- cơ sở vật chất ---
     Row("CSVC-WAIT-CAMPUS", "Cơ sở vật chất", "Hỏi cơ sở vật chất khi chưa biết cơ sở; lượt sau bấm Kim Mã",
         "Lượt 1 không ảnh, hỏi cơ sở; lượt 2 bốn ảnh km-csvc-1..4", "eval"),
@@ -477,6 +482,11 @@ MATRIX: list[Row] = [
     Row("MENU-REPLACES-QA", "Thực đơn", "Model gắn ảnh mẫu của Q&A khi Drive có thực đơn",
         "Chỉ ảnh thực đơn Drive, bỏ ảnh mẫu cũ", "pytest",
         "tests/test_media_replies.py::test_menu_of_kim_ma_is_the_drive_image_not_the_old_sample"),
+    Row("MENU-ONCE", "Thực đơn", "Xin lại thực đơn đã gửi", "Không ảnh (mỗi ảnh một lần: khoá menu:<id>), không dòng "
+        "[HỆ THỐNG] thực đơn", "pytest", "tests/test_media_replies.py::test_menu_goes_once_to_each_parent"),
+    Row("MENU-BY-PROGRAM", "Thực đơn", "Chưa biết cơ sở, hồ sơ có hệ quan tâm (interested_program)",
+        "Ảnh thực đơn của hệ đó (song ngữ: sn-menu, quốc tế: qt-menu)", "pytest",
+        "tests/test_media_replies.py::test_menu_without_a_campus_is_the_one_of_the_programme_the_parent_wants"),
     # --- chung ---
     Row("GEN-ESCALATE-NO-IMAGE", "Chung", "Lượt [ESCALATE] (tên giáo viên cụ thể) có kèm chủ đề ảnh",
         "Thẻ Telegram, không ảnh", "eval"),
@@ -500,14 +510,33 @@ MATRIX: list[Row] = [
     Row("GEN-SENT-NOTE-HIDDEN", "Chung", "Model chép ghi chú \"[đã gửi ảnh …]\" vào câu trả lời",
         "Ghi chú không lộ ra tin phụ huynh", "pytest",
         "tests/test_media_replies.py::test_model_copying_the_sent_note_is_not_shown_to_the_parent"),
-    Row("GEN-MAX-FIVE", "Chung", "Một lượt có hơn 5 ảnh", "Tối đa 5 ảnh; nhóm không vừa chờ lần hỏi sau", "pytest",
-        "tests/test_media_replies.py::test_at_most_five_images_in_one_turn"),
+    Row("GEN-MAX-FIVE", "Chung", "Một lượt có hơn 5 ảnh", "Tối đa 5 ảnh theo thứ tự học phí, thời khoá biểu, thực đơn, "
+        "cơ sở vật chất; nút trên ảnh cuối", "pytest", "tests/test_media_replies.py::test_at_most_five_images_in_one_turn"),
+    Row("GEN-NOT-FIT-NEXT-TURN", "Chung", "Nhóm ảnh cơ sở vật chất không vừa trần 5 ảnh",
+        "Cờ facilities_asked còn: lượt sau (\"dạ vâng\") 4 ảnh đi, cờ xoá", "pytest",
+        "tests/test_media_replies.py::test_images_that_did_not_fit_go_on_the_next_turn"),
+    Row("GEN-NOT-FIT-MENU", "Chung", "Ảnh thực đơn không vừa trần 5 ảnh (2 học phí + 3 thời khoá biểu)",
+        "Thực đơn không có cờ chờ: lượt sau không ảnh; hỏi lại thực đơn thì đi", "pytest",
+        "tests/test_media_replies.py::test_a_menu_that_did_not_fit_waits_until_the_parent_asks_again"),
+    Row("GEN-TOKENS-ONLY", "Chung", "Câu trả lời chỉ có token ([IMAGES:]/[QUICK:]), không chữ",
+        "Không tin chữ rỗng; chỉ ảnh, nút trên ảnh cuối", "pytest",
+        "tests/test_media_replies.py::test_a_reply_of_only_tokens_sends_only_the_images_with_the_buttons"),
     Row("GEN-QUICK-ON-LAST", "Chung", "Lượt có ảnh và nút trả lời nhanh", "Nút nằm trên ảnh cuối", "pytest",
         "tests/test_media_replies.py::test_facilities_wait_for_the_campus_then_go_once_with_buttons_on_the_last_image"),
     Row("GEN-FAIL-RETRY", "Chung", "Graph từ chối ảnh duy nhất của lượt (học phí)",
         "Lượt vẫn xong, câu xin lỗi chung, ảnh chưa tính là đã gửi, lịch sử ghi \"[ảnh … chưa gửi được]\"; không tự "
         "thử lại, chỉ gửi khi phụ huynh hỏi lại (lượt sau hỏi học phí thì ảnh đi)", "pytest",
         "tests/test_media_replies.py::test_a_failed_image_does_not_break_the_turn_and_goes_when_asked_again"),
+    Row("GEN-FAIL-NO-AUTO-RETRY", "Chung", "Ảnh cơ sở vật chất lỗi, lượt sau phụ huynh chỉ bấm nút tuổi",
+        "Không gửi lại, không xin lỗi lại, dòng [HỆ THỐNG] không có \"Sau câu trả lời này … cơ sở vật chất\"; hỏi lại "
+        "ảnh trường thì gửi", "pytest",
+        "tests/test_media_replies.py::test_failed_images_are_not_tried_again_until_the_parent_asks_again"),
+    Row("GEN-FAIL-IN-GROUP", "Chung", "1 trong 4 ảnh cơ sở vật chất của cơ sở lỗi",
+        "3 ảnh còn lại đi, nhóm tính là đã gửi (media_sent), không câu xin lỗi; báo nhóm Telegram", "pytest",
+        "tests/test_media_replies.py::test_some_photos_of_the_facilities_failing_count_as_sent_without_an_apology"),
+    Row("GEN-FAIL-QA-IMAGE", "Chung", "Ảnh Q&A (static/thuc-don-mau.jpg) lỗi",
+        "Log WARNING, không câu xin lỗi, không báo nhóm Telegram (như trước khi có ảnh Drive)", "pytest",
+        "tests/test_media_replies.py::test_a_failed_qa_image_is_skipped_without_an_apology_nor_an_alert"),
     Row("GEN-FAIL-ALERT", "Chung", "Ảnh Drive gửi lỗi",
         "Báo nhóm Telegram tối đa 1 lần mỗi giờ, không có tin của phụ huynh", "pytest",
         "tests/test_media_replies.py::test_a_failed_image_tells_the_admin_group_once_an_hour_without_the_parents_message"),
@@ -549,4 +578,30 @@ MATRIX: list[Row] = [
         "tests/test_media_replies.py::test_graph_errors_are_logged_and_raised_without_the_access_token"),
     Row("GEN-TEST-CHAT", "Chung", "/test-chat", "Model nhận đúng dòng [HỆ THỐNG] như Messenger", "pytest",
         "tests/test_media_replies.py::test_test_chat_tells_the_model_which_images_follow_like_messenger"),
+    Row("GEN-TEST-CHAT-NO-TOKEN", "Chung", "/test-chat với câu trả lời có [SEND:]", "Lịch sử không giữ token", "pytest",
+        "tests/test_media_replies.py::test_test_chat_keeps_no_send_token_in_the_history"),
+    # --- lần đồng bộ ảnh đầu sau khởi động ---
+    Row("SYNC-WAIT", "Đồng bộ đầu", "Tin tới khi lần đồng bộ đầu còn chạy (đĩa trống)",
+        "Chờ đồng bộ xong rồi trả lời: dòng \"Sau câu trả lời này …\" và ảnh; không WARNING", "pytest",
+        "tests/test_media_replies.py::test_a_message_right_after_start_waits_for_the_first_sync_and_gets_the_timetable"),
+    Row("SYNC-START-HARNESS", "Đồng bộ đầu", "App thật, tin ngay sau READY", "TEXT rồi IMAGE; log first sync done",
+        "harness"),
+    Row("SYNC-SLOW", "Đồng bộ đầu", "Đồng bộ đầu lâu hơn MEDIA_FIRST_SYNC_WAIT",
+        "Trả lời không ảnh sau hạn; một WARNING", "pytest",
+        "tests/test_media_replies.py::test_a_first_sync_slower_than_the_wait_still_gets_an_answer_without_images"),
+    Row("SYNC-DEADLINE", "Đồng bộ đầu", "Nhiều tin tới trong và sau lúc chờ đồng bộ đầu",
+        "Một hạn chung = lúc bắt đầu đồng bộ + MEDIA_FIRST_SYNC_WAIT: tin giữa chừng chờ phần còn lại, tin sau hạn không "
+        "chờ; WARNING một lần", "pytest",
+        "tests/test_media_replies.py::test_every_message_waits_for_the_first_sync_until_one_deadline"),
+    Row("SYNC-TYPING", "Đồng bộ đầu", "Đang chờ đồng bộ đầu", "\"đang soạn\" bật lại mỗi TYPING_REFRESH_EVERY, dừng khi xong",
+        "pytest", "tests/test_media_replies.py::test_waiting_for_the_first_sync_keeps_the_typing_indicator_on"),
+    Row("SYNC-OFF-NO-WAIT", "Đồng bộ đầu", "Tắt MEDIA_SYNC_ENABLED hoặc thiếu LEADS_SHEET_WEBHOOK_URL",
+        "Không chờ, không gọi Apps Script", "pytest",
+        "tests/test_media_replies.py::test_with_media_sync_off_a_message_does_not_wait"),
+    Row("SYNC-FAILED", "Đồng bộ đầu", "Lần đồng bộ đầu lỗi", "Tin đó trả lời khi lỗi; tin sau không chờ lần đồng bộ kế",
+        "pytest", "tests/test_media_replies.py::test_a_failed_first_sync_answers_then_and_no_later_message_waits"),
+    Row("SYNC-DISK", "Đồng bộ đầu", "Ảnh của lần chạy trước còn trên đĩa", "Dùng ngay, không chờ", "pytest",
+        "tests/test_media_replies.py::test_images_kept_on_disk_from_before_the_restart_are_used_without_waiting"),
+    Row("SYNC-TEST-CHAT", "Đồng bộ đầu", "/test-chat ngay sau khởi động", "Chờ đồng bộ đầu như Messenger", "pytest",
+        "tests/test_media_replies.py::test_test_chat_right_after_start_waits_for_the_first_sync"),
 ]

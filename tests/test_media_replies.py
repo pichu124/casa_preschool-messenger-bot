@@ -524,6 +524,21 @@ def test_both_systems_asked_for_get_the_timetables_of_the_campuses_named_earlier
     assert parent.images(sent) == [url("cl-tkb-36-60"), url("km-tkb-36-72")]
 
 
+@pytest.mark.parametrize("both", ["cả 2 cơ sở", "hai bên", "2 trường"])
+def test_both_campuses_get_the_timetables_of_every_campus_named_and_no_system_not_named(parent, catalog, both):
+    known(kid_age="4 tuổi")
+    parent.say("Chùa Láng và Kim Mã")
+
+    assert parent.images(parent.say(f"Gửi thời khoá biểu {both} nhé")) == [url("cl-tkb-36-60"), url("km-tkb-36-72")]
+
+    customer_memory.set_fields(CUSTOMER_ID, {"conversation_history": [], "media_sent": {}, "interested_campus": "Kim Mã"})
+    sent = parent.say(f"Cho em xin TKB {both} ạ")
+
+    assert parent.images(sent) == [url("km-tkb-36-72")]  # không thêm hệ Quốc tế mà phụ huynh chưa nêu, không hỏi
+    assert "Chưa biết cơ sở" not in parent.notes[-1], parent.notes[-1]
+    assert not customer_memory.get_profile(CUSTOMER_ID).get("timetable_asked")
+
+
 @pytest.mark.parametrize("text", ["Gửi thời khoá biểu 2 hệ nhé", "cho em xin TKB cả hai hệ ạ"])
 def test_both_systems_without_an_international_campus_ask_which_one(parent, catalog, text):
     known(kid_age="4 tuổi")
@@ -809,6 +824,23 @@ def test_menu_without_a_known_system_is_the_international_one(parent, catalog):
     assert parent.images(sent) == [url("qt-menu")]
 
 
+def test_menu_goes_once_to_each_parent(parent, catalog):
+    known(interested_campus="Kim Mã")
+    asks_menu = {"topics": ["Ăn uống/thực đơn"]}
+
+    assert parent.images(parent.say("cho em xem thực đơn ạ", extracted=asks_menu)) == [url("sn-menu")]
+    assert "menu:sn-menu" in customer_memory.get_profile(CUSTOMER_ID)["media_sent"]
+    assert parent.images(parent.say("gửi lại thực đơn cho em với", extracted=asks_menu)) == []
+    assert "thực đơn" not in parent.notes[-1], parent.notes[-1]
+
+
+@pytest.mark.parametrize(("program", "menu"), [("song ngữ", "sn-menu"), ("Quốc tế", "qt-menu")])
+def test_menu_without_a_campus_is_the_one_of_the_programme_the_parent_wants(parent, catalog, program, menu):
+    known(interested_program=program)
+
+    assert parent.images(parent.say("bé ăn những gì ạ", extracted={"topics": ["Ăn uống/thực đơn"]})) == [url(menu)]
+
+
 # --- không có danh mục, lỗi, chuyển tư vấn viên ---
 
 
@@ -996,6 +1028,29 @@ def test_failed_images_are_not_tried_again_until_the_parent_asks_again(parent, c
     assert parent.images(parent.say("Cho em xin ảnh trường ạ", extracted=asks_photos)) == photos
 
 
+def test_some_photos_of_the_facilities_failing_count_as_sent_without_an_apology(parent, catalog):
+    known(interested_campus="Kim Mã")
+    parent.failing = {url("km-csvc-2")}
+
+    sent = parent.say("cho em xem ảnh trường ạ", reply="Dạ em gửi Ba/Mẹ ảnh cơ sở Kim Mã ạ.",
+                      extracted={"topics": ["Cơ sở vật chất"]})
+
+    assert sent == [("text", "Dạ em gửi Ba/Mẹ ảnh cơ sở Kim Mã ạ.", None),
+                    *[("image", url(f"km-csvc-{i}"), None) for i in (1, 3, 4)]]
+    assert "facilities:Kim Mã" in customer_memory.get_profile(CUSTOMER_ID)["media_sent"]
+    assert len(image_alerts(parent)) == 1
+
+
+def test_a_failed_qa_image_is_skipped_without_an_apology_nor_an_alert(parent, catalog, monkeypatch):
+    monkeypatch.setattr(settings, "MEDIA_SYNC_ENABLED", False)
+    parent.failing = {f"{BASE_URL}/static/thuc-don-mau.jpg"}
+
+    sent = parent.say("Cho em xem thực đơn", reply="Dạ đây là thực đơn mẫu của Casa ạ. [IMAGES:static/thuc-don-mau.jpg]")
+
+    assert sent == [("text", "Dạ đây là thực đơn mẫu của Casa ạ.", None)]
+    assert parent.telegram == []
+
+
 def test_every_turn_logs_the_drive_images_it_plans_to_send(parent, catalog, caplog):
     known(kid_age="4 tuổi", interested_campus="Kim Mã")
 
@@ -1044,8 +1099,42 @@ def test_at_most_five_images_in_one_turn(parent, catalog):
 
     images = parent.images(sent)
     assert images[:3] == [url("sn-fee-10"), url("km-tkb-36-72"), url("sn-menu")]
-    assert len(images) == 3  # 4 ảnh cơ sở vật chất không vừa: chờ lần hỏi cơ sở vật chất sau
+    assert len(images) == 3  # 4 ảnh cơ sở vật chất không vừa: cờ facilities_asked chờ lượt sau
     assert sent[-1][2] == VISIT_BUTTONS
+
+
+def test_images_that_did_not_fit_go_on_the_next_turn(parent, catalog):
+    known(kid_age="3 tuổi", interested_campus="Kim Mã")
+    parent.say(
+        "cho em xin học phí, thời khóa biểu, thực đơn và ảnh trường",
+        extracted={"topics": ["Học phí", "Chương trình/phương pháp", "Ăn uống/thực đơn", "Cơ sở vật chất"]},
+    )
+
+    sent = parent.say("dạ vâng")
+
+    assert parent.images(sent) == [url(f"km-csvc-{i}") for i in range(1, 5)]
+    assert not customer_memory.get_profile(CUSTOMER_ID).get("facilities_asked")
+
+
+def test_a_menu_that_did_not_fit_waits_until_the_parent_asks_again(parent, catalog):
+    known(kid_age="4 tuổi", interested_campus="Chùa Láng, Mỹ Đình, Kim Mã")
+    asks_menu = {"topics": ["Ăn uống/thực đơn"]}
+
+    sent = parent.say("cho em xin học phí, thời khoá biểu và thực đơn",
+                      extracted={"topics": ["Học phí", "Chương trình/phương pháp", *asks_menu["topics"]]})
+
+    assert len(parent.images(sent)) == 5 and url("qt-menu") not in parent.images(sent)  # 2 học phí + 3 thời khoá biểu
+    assert parent.images(parent.say("dạ vâng")) == []  # thực đơn không có cờ chờ
+    assert parent.images(parent.say("cho em xem thực đơn", extracted=asks_menu)) == [url("qt-menu")]
+
+
+def test_a_reply_of_only_tokens_sends_only_the_images_with_the_buttons(parent, catalog):
+    known(interested_campus="Kim Mã")
+
+    sent = parent.say("thực đơn", reply="[IMAGES:static/thuc-don-mau.jpg][QUICK:age]",
+                      extracted={"topics": ["Ăn uống/thực đơn"]})
+
+    assert sent == [("image", url("sn-menu"), main.build_quick_replies("age"))]
 
 
 @pytest.mark.parametrize("note", ["[đã gửi ảnh học phí hệ Song ngữ]", "[ảnh thời khoá biểu cơ sở Kim Mã chưa gửi được]"])

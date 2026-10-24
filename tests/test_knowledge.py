@@ -448,6 +448,8 @@ def test_kim_ma_cambridge_answers_say_cambridge_is_for_3_to_6():
         assert any("cambridge" in s and "3-6 tuổi" in s for s in _full_sentences(answer)), answer
     kim_ma = _norm(_pair_with_question("Chương trình học ở cơ sở Kim Mã như thế nào?")["answer"])
     assert re.search(r"(dưới 3 tuổi|15 tháng-3 tuổi)[^.]{0,80}montessori", kim_ma), kim_ma
+    # Trường xác nhận 2026-10-24: Cambridge English khoảng 40 phút, cộng giờ tiếng Anh khác với giáo viên nước ngoài.
+    assert re.search(r"english[^.]*40 phút[^.]*giờ học khác bằng tiếng anh với giáo viên nước ngoài", kim_ma), kim_ma
 
 
 def test_montessori_five_areas_answer_names_all_five():

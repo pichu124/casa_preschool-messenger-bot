@@ -564,7 +564,7 @@ async def save_staff_reply(customer_id: str, replied_at: str):
 
 IMAGES_PATTERN = re.compile(r"\[IMAGES:([^\]]+)\]")
 QUICK_PATTERN = re.compile(r"\[QUICK:([^\]]*)\]")
-SEND_PATTERN = re.compile(r"\s*\[SEND:([^\]]*)\]", re.I)
+IMAGE_TAG_PATTERN = re.compile(r"\s*\[(SEND|SKIP):([^\]]*)\]", re.I)
 
 
 def _extract_images(text: str) -> tuple[str, list[str]]:
@@ -581,11 +581,14 @@ def _extract_images(text: str) -> tuple[str, list[str]]:
     return text, images
 
 
-def _extract_sends(text: str) -> tuple[str, set[str]]:
-    """Strip [SEND:<kind>] tokens (media_note: the reply says the bot sends that image). Returns (clean_text, the kinds
-    of TOPICS_OF_IMAGE tagged)."""
-    kinds = {kind.strip().lower() for kind in SEND_PATTERN.findall(text)}
-    return SEND_PATTERN.sub("", text).strip(), kinds & TOPICS_OF_IMAGE.keys()
+def _extract_image_tags(text: str) -> tuple[str, set[str], set[str]]:
+    """Strip [SEND:<kind>] and [SKIP:<kind>] tokens (media_note: the reply says the bot sends that image; the parent
+    does not want that image). Returns (clean_text, the kinds of TOPICS_OF_IMAGE tagged SEND, those tagged SKIP)."""
+    tags = {"send": set(), "skip": set()}
+    for tag, kind in IMAGE_TAG_PATTERN.findall(text):
+        tags[tag.lower()].add(kind.strip().lower())
+    kinds = TOPICS_OF_IMAGE.keys()
+    return IMAGE_TAG_PATTERN.sub("", text).strip(), tags["send"] & kinds, tags["skip"] & kinds
 
 
 def _extract_quick_reply(text: str) -> tuple[str, str]:
@@ -774,6 +777,7 @@ def _plan_images(
     last_bot_message: str,
     today: date,
     tagged: set[str] = frozenset(),
+    skipped: set[str] = frozenset(),
 ) -> tuple[list[str], list[Offer], dict, list[ImageNote]]:
     """Images to send after the reply to `text`: the Q&A ones the model gave (`qa_images`), without the old sample
     menu when Drive has a menu; the Drive offers in sending order (fee and timetable: one per system and campus,
@@ -781,7 +785,9 @@ def _plan_images(
     age and the campus), timetable_asked (the campus and the kid's age), facilities_asked (the campus); the notes of
     images waiting for what is missing. `extracted`: what the model extracted from `text`, {} before it is known; a
     campus and an age named in `text` count as well. `tagged`: the kinds of image the reply tags as sent
-    ([SEND:<kind>]): their offers go as if asked for, only when ready (the parent asked nothing, no flag waits)."""
+    ([SEND:<kind>]): their offers go as if asked for, only when ready (the parent asked nothing, no flag waits).
+    `skipped`: the kinds the reply tags as not wanted ([SKIP:<kind>], over [SEND:] of the same kind): their offers do
+    not go and their flag does not wait (asked again later, they go as usual); a kind without an offer is ignored."""
     if not settings.MEDIA_SYNC_ENABLED:
         return qa_images, [], {}, []
     asked = set(topics)
@@ -874,6 +880,10 @@ def _plan_images(
     if tagged:
         # A tag asks nothing: what waits is what the parent asked, as without it
         waiting = _plan_images(profile, extracted, text, asked, qa_images, last_bot_message, today)[2]
+    skipped = skipped & {o.kind for o in offers}
+    if skipped:
+        offers = [o for o in offers if o.kind not in skipped]
+        waiting = {flag: "" if WAITING_FLAGS[flag] in skipped else state for flag, state in waiting.items()}
     return qa_images, offers, waiting, notes
 
 
@@ -1111,15 +1121,15 @@ async def _answer_message(sender_id: str, text: str, attribution: dict | None, p
             await send_message(sender_id, reply_text)
         else:
             # History keeps the [IMAGES:] and [QUICK:] tokens, and a note per Drive image sent or failed, so the model
-            # knows what it already sent; not the [SEND:] ones, the note says it
-            reply_text, tagged = _extract_sends(response.text)
+            # knows what it already sent; not the [SEND:]/[SKIP:] ones, the note says it
+            reply_text, tagged, skipped = _extract_image_tags(response.text)
             clean_text, image_urls = _extract_images(SENT_NOTE.sub("", reply_text))
             clean_text, quick_key = _extract_quick_reply(clean_text)
             quick_replies = build_quick_replies(quick_key)
             covered = topics_in_reply(reply_text)
             # An image of a "Nếu phụ huynh hỏi …" line goes when the reply tags it, whatever the extraction found
             image_urls, offers, waiting, _ = _plan_images(
-                existing_profile, extracted, text, topics, image_urls, last_bot_message, today, tagged
+                existing_profile, extracted, text, topics, image_urls, last_bot_message, today, tagged, skipped
             )
 
             if settings.MEDIA_SYNC_ENABLED:
@@ -1276,7 +1286,7 @@ async def test_chat(body: TestMessage, _: None = Depends(require_secret)):
     try:
         await customer_memory.append_to_history(body.user_id, "user", body.message)
         if response.text:
-            await customer_memory.append_to_history(body.user_id, "assistant", _extract_sends(response.text)[0])
+            await customer_memory.append_to_history(body.user_id, "assistant", _extract_image_tags(response.text)[0])
     except Exception as e:
         logger.warning(f"Failed to persist history in test-chat: {e}")
 

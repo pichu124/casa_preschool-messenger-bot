@@ -149,6 +149,9 @@ SEND_TOKEN_RULE = (
     "Chỉ khi câu trả lời báo em gửi ảnh này thì thêm [SEND:{kind}] ở cuối (trước [QUICK:]); hỏi/mời xem ảnh thì "
     "không thêm."
 )
+# An image sure to follow the reply goes unless the reply tags it [SKIP:<kind>] (app/main.py hides the token): the model,
+# not a reading of the parent's words ("không cần gửi thời khoá biểu"), says the parent does not want it.
+SKIP_TOKEN_RULE = "Nếu phụ huynh nói không cần/không muốn ảnh này thì thêm [SKIP:{kind}], không báo gửi."
 # An image of the bot's last message that failed: only the model knows whether the parent asks for it again.
 FAILED_IMAGE_LINE = (
     "- [HỆ THỐNG] Ảnh {label} tin trước chưa gửi được. Nếu phụ huynh xin gửi lại thì báo em gửi lại và thêm "
@@ -190,8 +193,11 @@ def media_note(images: list[ImageNote], facilities_need_campus: bool = False) ->
     lines = []
     for image in (i for i in images if i.state == "send"):
         when = f"Nếu phụ huynh hỏi {IMAGE_TOPICS[image.kind]}: sau câu trả lời" if image.if_asked else "Sau câu trả lời này"
-        answer = IMAGE_ANSWERS.get(image.kind, "") if not image.if_asked else SEND_TOKEN_RULE.format(kind=image.kind)
-        lines.append(f"- [HỆ THỐNG] {when} hệ thống gửi ảnh {image.label}." + (f" {answer}" if answer else ""))
+        if image.if_asked:
+            answer = SEND_TOKEN_RULE.format(kind=image.kind)
+        else:
+            answer = " ".join(filter(None, (IMAGE_ANSWERS.get(image.kind), SKIP_TOKEN_RULE.format(kind=image.kind))))
+        lines.append(f"- [HỆ THỐNG] {when} hệ thống gửi ảnh {image.label}. {answer}")
     if lines:
         lines.insert(0, MEDIA_NOTE_HEADER)
     lines += [FAILED_IMAGE_LINE.format(label=i.label, kind=i.kind) for i in images if i.state == "failed"]

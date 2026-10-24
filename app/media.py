@@ -14,6 +14,7 @@ import asyncio
 import json
 import logging
 import re
+import socket
 import time
 import unicodedata
 from datetime import date, datetime, timedelta
@@ -24,6 +25,7 @@ from typing import NamedTuple
 import httpx
 from PIL import Image, ImageOps
 
+from app import escalation
 from app.config import settings
 from app.leads_sheet import VN_TZ
 from app.messenger import QUICK_REPLIES
@@ -43,6 +45,10 @@ JPEG_QUALITY = 85
 CATALOG_FILE = "catalog.json"
 # "HỌC PHÍ THÁNG N" has no year: a fee image last changed longer ago than this is taken for last year's.
 FEE_STALE_AFTER = timedelta(days=300)
+# After a sync with images the bot opens one of its public image URLs as Messenger will (check_link): a wrong
+# PUBLIC_BASE_URL fails every image ("(#100) Upload failed") and the admin group hears of it at most once an hour.
+LINK_CHECK_TIMEOUT = 10
+LINK_ALERT_EVERY = 3600  # seconds
 
 _DASHES = str.maketrans({c: "-" for c in "‐‑‒–—―−"})
 _AGES = re.compile(r"(\d+)\s*(thang|tuoi)?\s*-\s*(\d+)\s*(thang|tuoi)")
@@ -184,6 +190,8 @@ _off_warned = False
 # Set once the first sync since start_sync_task has ended (done or failed), at once when sync is off or images of
 # the last run are on disk; None before start_sync_task (no app started).
 _first_sync: asyncio.Event | None = None
+# time.monotonic() of the last broken-link alert (check_link); in memory
+_link_alerted_at: float | None = None
 
 
 def _configured() -> bool:
@@ -331,8 +339,10 @@ async def sync_forever(first_sync: asyncio.Event) -> None:
     outcome = "done" if report["ok"] else f"failed ({report['error']})"
     logger.info(f"Media first sync since start {outcome} in {time.monotonic() - started:.1f}s: {report['total']} images")
     while True:
+        if report["total"]:
+            await check_link()
         await asyncio.sleep(max(1, settings.MEDIA_SYNC_MINUTES) * 60)
-        await sync_media()
+        report = await sync_media()
 
 
 def start_sync_task() -> asyncio.Task | None:
@@ -356,6 +366,47 @@ async def ready(timeout: float) -> bool:
     except TimeoutError:
         return False
     return True
+
+
+def _link_failure(error: Exception) -> str:
+    if isinstance(error, httpx.TimeoutException):
+        return "timeout"
+    cause = error
+    while cause is not None:
+        if isinstance(cause, socket.gaierror):
+            return "DNS: không tìm thấy tên miền"
+        cause = cause.__cause__ or cause.__context__
+    return "không kết nối được" if isinstance(error, httpx.ConnectError) else type(error).__name__
+
+
+async def check_link() -> str | None:
+    """Open the public URL of one catalog image over the internet, as Messenger downloads it: None when it answers
+    200 with an image (or the catalog has none), else a short reason ("DNS: …", "HTTP 404", "timeout", "HTTP 200 nhưng
+    không phải ảnh: text/html"), also told to the admin group at most once every LINK_ALERT_EVERY. Never raises."""
+    global _link_alerted_at
+    if not _catalog["items"]:
+        return None
+    link = public_url(_catalog["items"][min(_catalog["items"])])
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=LINK_CHECK_TIMEOUT) as client:
+            resp = await client.get(link)
+        content_type = resp.headers.get("content-type", "")
+        if resp.status_code != 200:
+            reason = f"HTTP {resp.status_code}"
+        elif not content_type.startswith("image/"):
+            reason = f"HTTP 200 nhưng không phải ảnh: {content_type.split(';')[0] or 'không có Content-Type'}"
+        else:
+            return None
+    except Exception as e:
+        reason = _link_failure(e)
+    logger.error(f"Media link {link} does not open: {reason}")
+    if _link_alerted_at is None or time.monotonic() - _link_alerted_at >= LINK_ALERT_EVERY:
+        _link_alerted_at = time.monotonic()
+        await escalation._send_telegram(
+            f"⚠️ Link ảnh không mở được ({reason}): {link}. Kiểm PUBLIC_BASE_URL trên Render (hiện là "
+            f"{settings.PUBLIC_BASE_URL or 'chưa đặt'}), phải trùng địa chỉ service ở đầu trang Render."
+        )
+    return reason
 
 
 # --- lookups ---

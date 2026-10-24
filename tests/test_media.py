@@ -5,6 +5,7 @@ là fake ở tầng httpx."""
 import asyncio
 import json
 import logging
+import socket
 import time
 from datetime import date, datetime
 from io import BytesIO
@@ -74,6 +75,9 @@ class FakeGoogle:
         self.down = False
         self.requests: list[tuple[str, str, str]] = []
         self.telegram: list[dict] = []
+        # The bot's own public image URLs (PUBLIC_BASE_URL) as the internet answers them: "image", "html", "dns",
+        # "timeout" or an HTTP status
+        self.public: str | int = "image"
 
     def downloads(self) -> list[str]:
         return [path.rsplit("=", 1)[-1] for host, _, path in self.requests if host == "drive.google.com"]
@@ -84,6 +88,8 @@ class FakeGoogle:
         if url.host == "api.telegram.org":
             self.telegram.append(json.loads(request.content))
             return httpx.Response(200, json={"ok": True, "result": {"message_id": 7001}})
+        if url.host == httpx.URL(BASE_URL).host:
+            return self.public_answer(request)
         if self.down:
             raise httpx.ConnectError("network down", request=request)
         if url.host == "script.google.com":
@@ -100,6 +106,25 @@ class FakeGoogle:
             data = self.images.get(url.params["id"]) or png()
             return httpx.Response(200, content=data, headers={"Content-Type": "image/png"})
         raise AssertionError(f"unexpected request {url}")
+
+    def public_answer(self, request: httpx.Request) -> httpx.Response:
+        assert request.url.path.startswith("/static/media/") and request.url.path.endswith(".jpg")
+        if self.public == "dns":
+            # As httpx raises it for a name that does not exist: ConnectError from socket.gaierror
+            try:
+                raise socket.gaierror(-2, "Name or service not known")
+            except socket.gaierror as e:
+                raise httpx.ConnectError("[Errno -2] Name or service not known", request=request) from e
+        if self.public == "timeout":
+            raise httpx.ConnectTimeout("timed out", request=request)
+        if self.public == "html":
+            return httpx.Response(200, text="<html>Not Found</html>", headers={"Content-Type": "text/html"})
+        if self.public == "image":
+            return httpx.Response(200, content=b"\xff\xd8jpeg", headers={"Content-Type": "image/jpeg"})
+        return httpx.Response(self.public, text="Not Found")
+
+    def public_checks(self) -> int:
+        return sum(host == httpx.URL(BASE_URL).host for host, _, _ in self.requests)
 
 
 @pytest.fixture
@@ -118,6 +143,7 @@ def google(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "LEADS_SHEET_WEBHOOK_URL", SHEET_URL)
     monkeypatch.setattr(settings, "LEADS_SHEET_TOKEN", SHEET_TOKEN)
     monkeypatch.setattr(settings, "PUBLIC_BASE_URL", BASE_URL)
+    monkeypatch.setattr(media, "_link_alerted_at", None)
     return fake
 
 
@@ -544,6 +570,91 @@ def test_capnhatanh_reports_a_failed_sync_and_the_images_kept(admin_group):
     (sent,) = admin_group.telegram
     assert "Không cập nhật được ảnh" in sent["text"] and "30 ảnh" in sent["text"]
     assert SHEET_TOKEN not in sent["text"]
+
+
+# Thử thật trên Render 2026-10-24: PUBLIC_BASE_URL chưa đặt nên link ảnh mang tên miền mặc định không tồn tại, Graph
+# trả "(#100) Upload failed" cho mọi ảnh và chỉ biết khi phụ huynh đã nhận câu xin lỗi. Sau mỗi lần đồng bộ có ảnh,
+# bot tự mở một link ảnh công khai của chính nó như Messenger sẽ mở.
+LINK_ALERT = "⚠️ Link ảnh không mở được"
+
+
+def link_alerts(fake) -> list[str]:
+    return [t["text"] for t in fake.telegram if t["text"].startswith(LINK_ALERT)]
+
+
+def test_capnhatanh_reports_the_image_link_ok(admin_group):
+    command()
+
+    (sent,) = admin_group.telegram
+    assert sent["text"].startswith("🖼 CẬP NHẬT ẢNH: 30 ảnh"), sent["text"]
+    assert sent["text"].splitlines()[-1] == "Link ảnh: OK"
+    assert admin_group.public_checks() == 1
+
+
+@pytest.mark.parametrize(
+    ("public", "reason"),
+    [
+        ("dns", "DNS: không tìm thấy tên miền"),
+        (404, "HTTP 404"),
+        ("html", "HTTP 200 nhưng không phải ảnh: text/html"),
+        ("timeout", "timeout"),
+    ],
+)
+def test_capnhatanh_tells_the_admin_group_when_the_image_link_does_not_open(admin_group, public, reason):
+    admin_group.public = public
+
+    command()
+
+    summary = next(t["text"] for t in admin_group.telegram if t["text"].startswith("🖼"))
+    assert summary.splitlines()[-1] == f"Link ảnh: lỗi ({reason})", summary
+    assert "30 ảnh" in summary  # the sync itself went through
+    (alert,) = link_alerts(admin_group)
+    (checked,) = [path for host, _, path in admin_group.requests if host == httpx.URL(BASE_URL).host]
+    link = BASE_URL + checked.rstrip("?")
+    assert link in [i["url"] for i in media.catalog()["items"]]
+    assert alert == (
+        f"{LINK_ALERT} ({reason}): {link}. Kiểm PUBLIC_BASE_URL trên Render (hiện là {BASE_URL}), "
+        "phải trùng địa chỉ service ở đầu trang Render."
+    )
+    assert SHEET_TOKEN not in alert and "fake-bot" not in alert
+
+
+def test_a_broken_image_link_is_told_at_most_once_an_hour(admin_group, monkeypatch):
+    admin_group.public = "dns"
+    command(message_id=910)
+    command(message_id=911)
+
+    assert len(link_alerts(admin_group)) == 1
+    assert [t["text"].splitlines()[-1] for t in admin_group.telegram if t["text"].startswith("🖼")] == [
+        "Link ảnh: lỗi (DNS: không tìm thấy tên miền)"
+    ] * 2
+
+    monkeypatch.setattr(media, "_link_alerted_at", time.monotonic() - 3601)
+    command(message_id=912)
+    assert len(link_alerts(admin_group)) == 2
+
+
+def test_the_image_link_is_checked_after_the_sync_when_the_bot_starts(admin_group):
+    admin_group.public = 404
+
+    with TestClient(main.app):
+        deadline = time.time() + 10
+        while time.time() < deadline and not link_alerts(admin_group):
+            time.sleep(0.05)
+
+    assert media.menu_image("quoc_te") == url("qt-menu")
+    (alert,) = link_alerts(admin_group)
+    assert "(HTTP 404)" in alert and "/static/media/" in alert, alert
+
+
+def test_without_images_no_link_is_checked(admin_group):
+    admin_group.files = []
+
+    command()
+
+    (sent,) = admin_group.telegram
+    assert "Link ảnh" not in sent["text"]
+    assert admin_group.public_checks() == 0
 
 
 @pytest.mark.parametrize(

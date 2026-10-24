@@ -1058,6 +1058,8 @@ class SlowDrive:
             return httpx.Response(200, json=self.answer)
         if request.url.host == "drive.google.com":
             return httpx.Response(200, content=_png(), headers={"Content-Type": "image/png"})
+        if request.url.host == httpx.URL(BASE_URL).host:  # the link check after a sync (media.check_link)
+            return httpx.Response(200, content=b"\xff\xd8jpeg", headers={"Content-Type": "image/jpeg"})
         raise AssertionError(f"unexpected request {request.url}")
 
 
@@ -1075,6 +1077,7 @@ def drive(monkeypatch):
     monkeypatch.setattr(settings, "PUBLIC_BASE_URL", BASE_URL)
     monkeypatch.setattr(settings, "MEDIA_FIRST_SYNC_WAIT", 30)
     monkeypatch.setattr(media, "_first_sync", None)
+    monkeypatch.setattr(media, "_link_alerted_at", None)
     return fake
 
 

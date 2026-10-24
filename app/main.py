@@ -1287,7 +1287,11 @@ def _is_media_command(message: dict) -> bool:
 
 async def _sync_media_and_report():
     report = await media.sync_media()
-    await _send_telegram(media.sync_summary(report, datetime.now(VN_TZ).date()))
+    summary = media.sync_summary(report, datetime.now(VN_TZ).date())
+    if report["error"] != "off" and report["total"]:
+        reason = await media.check_link()
+        summary += f"\nLink ảnh: {f'lỗi ({reason})' if reason else 'OK'}"
+    await _send_telegram(summary)
 
 
 @app.post("/telegram-webhook")

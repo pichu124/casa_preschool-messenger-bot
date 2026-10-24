@@ -255,6 +255,41 @@ def test_parent_not_leaving_the_phone_when_asked_gets_the_image(parent, catalog)
     assert parent.images(sent) == [url("sn-fee-10")]
 
 
+ASKED_PHONE = "Dạ nếu tiện Ba/Mẹ để lại SĐT/Zalo nhé? [QUICK:phone]"
+
+
+# Review vòng thời khoá biểu v2: model xin SĐT "để em gửi bảng học phí chi tiết" (tư vấn viên gửi qua Zalo) được đọc
+# là báo gửi ảnh học phí; tin bot trước có "Zalo" nên luật "không để số mà đòi giá" bỏ qua tuổi bé, và phụ huynh không
+# hỏi học phí nhận ảnh học phí.
+def test_asking_the_phone_to_send_the_fee_table_sends_no_fee_image(parent, catalog):
+    known(interested_campus="Kim Mã")
+    parent.say("Em quan tâm Kim Mã", reply=ASKED_PHONE)
+    reply = "Dạ hiện Nhà trường chưa có tuyến xe bus ạ. Ba/Mẹ cho em xin SĐT/Zalo để em gửi bảng học phí chi tiết ạ."
+
+    sent = parent.say("trường có xe đưa đón không", reply=reply)
+
+    assert parent.images(sent) == []
+    assert not customer_memory.get_profile(CUSTOMER_ID).get("fee_asked")
+
+
+def test_fee_without_the_age_goes_only_to_a_parent_asking_the_fee(parent, catalog):
+    known(interested_campus="Kim Mã")
+    parent.say("Em quan tâm Kim Mã", reply=ASKED_PHONE)
+
+    sent = parent.say("trường có xe đưa đón không", reply="Dạ em gửi Ba/Mẹ chính sách học phí cơ sở Kim Mã ạ.")
+
+    assert parent.images(sent) == []
+
+
+def test_parent_not_leaving_the_phone_and_naming_the_fee_gets_it_when_the_reply_sends_it(parent, catalog):
+    known(interested_campus="Kim Mã")
+    parent.say("Em quan tâm Kim Mã", reply=ASKED_PHONE)
+
+    sent = parent.say("em cứ báo học phí luôn đi", reply="Dạ em gửi Ba/Mẹ chính sách học phí cơ sở Kim Mã ạ.")
+
+    assert parent.images(sent) == [url("sn-fee-10")]
+
+
 def test_parent_refusing_the_phone_without_a_campus_gets_no_fee_image(parent, catalog):
     known(kid_age="3 tuổi", phone_declined=True)
 

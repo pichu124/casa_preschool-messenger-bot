@@ -680,6 +680,7 @@ QA_MENU_IMAGE = "static/thuc-don-mau.jpg"
 # A kid age read from the message text itself, never a fee period ("đóng 12 tháng", "3 tháng").
 SAID_AGE_MONTHS = range(15, 85)
 ASKS_PHONE = ("sđt", "zalo", "số điện thoại")
+ASKS_PHONE_FOLDED = re.compile("|".join(rf"\b{media.fold(word)}\b" for word in ASKS_PHONE))
 # What the history tells the model it sent; a model copying it into a reply must not show it to the parent.
 SENT_NOTE = re.compile(r"\s*\[đã gửi ảnh[^\]]*\]")
 
@@ -701,9 +702,13 @@ def _image_id(url: str) -> str:
 
 
 def _announced(reply: str) -> set[str]:
-    """The kinds of image a sentence of `reply` says the bot sends ("Thời khoá biểu em gửi ngay bên dưới ạ")."""
+    """The kinds of image a sentence of `reply` says the bot sends ("Thời khoá biểu em gửi ngay bên dưới ạ"); not a
+    sentence asking for the phone or Zalo ("cho em xin SĐT/Zalo để em gửi bảng học phí"): a consultant sends that."""
     sentences = re.findall(r"[^.!?\n]+[.!?]*", media.fold(reply))
-    sentences = [s for s in sentences if any(BOT_SENDS.search(c) and not OFFERS.search(c) for c in s.split(","))]
+    sentences = [
+        s for s in sentences
+        if not ASKS_PHONE_FOLDED.search(s) and any(BOT_SENDS.search(c) and not OFFERS.search(c) for c in s.split(","))
+    ]
     return {kind for kind, words in IMAGE_WORDS.items() if any(words.search(s) for s in sentences)}
 
 
@@ -748,17 +753,27 @@ def _campuses(profile: dict, extracted: dict, text: str) -> tuple[list[str], lis
 
 
 def _plan_images(
-    profile: dict, extracted: dict, text: str, topics, qa_images: list[str], last_bot_message: str, today: date
+    profile: dict,
+    extracted: dict,
+    text: str,
+    topics,
+    qa_images: list[str],
+    last_bot_message: str,
+    today: date,
+    announced: set[str] = frozenset(),
 ) -> tuple[list[str], list[Offer], dict, list[ImageNote]]:
     """Images to send after the reply to `text`: the Q&A ones the model gave (`qa_images`), without the old sample
     menu when Drive has a menu; the Drive offers in sending order (fee and timetable: one per system and campus,
     facilities: one campus a turn); the profile flags of questions waiting for what is missing: fee_asked (the kid's
     age and the campus), timetable_asked (the campus and the kid's age), facilities_asked (the campus); the notes of
     images waiting for what is missing. `extracted`: what the model extracted from `text`, {} before it is known; a
-    campus and an age named in `text` count as well."""
+    campus and an age named in `text` count as well. `announced`: the kinds of image the reply says the bot sends,
+    taken as asked for, except that only the parent asking the fee lets it go without the kid's age."""
     if not settings.MEDIA_SYNC_ENABLED:
         return qa_images, [], {}, []
     topics, sent = set(topics), profile.get("media_sent") or {}
+    parent_asked_fee = bool(topics & set(FEE_TOPICS) or IMAGE_WORDS["fee"].search(media.fold(text)))
+    topics |= {topic for kind in announced for topic in TOPICS_OF_IMAGE[kind]}
     campuses, unknown_systems = _campuses(profile, extracted, text)
     if extracted.get("kid_age"):
         age = str(extracted["kid_age"])
@@ -780,7 +795,7 @@ def _plan_images(
     has_phone = profile.get("phone") or extracted.get("phone") or _find_phone(text)
     asked_phone = any(word in last_bot_message.lower() for word in ASKS_PHONE)
     refused = not has_phone and (profile.get("phone_declined") or extracted.get("phone_declined") or asked_phone)
-    fee_ready = bool(fee_systems and (age or (refused and asked_fee)))
+    fee_ready = bool(fee_systems and (age or (refused and parent_asked_fee)))
     fees_offered = False
     for system in unsent_fees if wants_fee and fee_ready else ():
         fee = media.fee_image(system, today)
@@ -1043,9 +1058,8 @@ async def _answer_message(sender_id: str, text: str, attribution: dict | None, p
             quick_replies = build_quick_replies(quick_key)
             covered = topics_in_reply(response.text)
             # An image of a "Nếu phụ huynh hỏi …" line goes when the reply says it does, whatever the extraction found
-            image_topics = [*topics, *(t for kind in _announced(clean_text) for t in TOPICS_OF_IMAGE[kind])]
             image_urls, offers, waiting, _ = _plan_images(
-                existing_profile, extracted, text, image_topics, image_urls, last_bot_message, today
+                existing_profile, extracted, text, topics, image_urls, last_bot_message, today, _announced(clean_text)
             )
 
             if settings.MEDIA_SYNC_ENABLED:

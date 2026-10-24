@@ -1,7 +1,7 @@
 """Ma trận trường hợp gửi ảnh cho phụ huynh và các ca của bộ eval `media` (scripts/eval_chat.py media).
 
 Luật: docs/quyet-dinh-noi-dung.md, mục "Ảnh gửi phụ huynh"; code: `_plan_images`, `_media_note`,
-`_send_reply_with_images`, `_record_images`, `_wait_for_first_media_sync`, token `[SEND:<loại>]` trong app/main.py,
+`_send_reply_with_images`, `_record_images`, `_wait_for_first_media_sync`, token `[SEND:<loại>]`/`[SKIP:<loại>]` trong app/main.py,
 `ready` trong app/media.py, `media_note` trong app/ai_engine.py. Bản người đọc: docs/ma-tran-gui-anh.md (tests/test_eval_media.py giữ hai bản khớp nhau).
 
 Mỗi dòng MATRIX là một nhánh của luật, có một bộ kiểm:
@@ -94,6 +94,9 @@ class Step:
     # Trích xuất đúng mong đợi của tin này: chỉ model giả của tests/test_eval_media.py dùng (eval thật chỉ in ra
     # bản model trích xuất để so).
     extract: dict = field(default_factory=dict)
+    # Loại ảnh phụ huynh từ chối ở tin này: model đúng luật gắn [SKIP:<loại>] (chỉ model giả của tests dùng; eval thật
+    # chấm hậu quả: ảnh thừa so với `images`).
+    declines: tuple[str, ...] = ()
 
 
 @dataclass
@@ -194,6 +197,13 @@ MEDIA_CASES: dict[str, MediaCase] = {
         steps=[Step("học phí bên mình thế nào em", images=("qt-fee-9",), alerts=("Chưa có ảnh học phí mới tháng 10",),
                     extract=FEE)],
     ),
+    # Người vận hành 2026-10-24: đã hỏi học phí, bot xin SĐT, phụ huynh không để số mà nói khỏi gửi (ảnh chắc chắn gửi).
+    "FEE-DECLINED-IN-WORDS": MediaCase(
+        profile={"interested_campus": "Mỹ Đình", "fee_asked": True},
+        history=[("học phí bên Mỹ Đình thế nào em", "Dạ học phí tuỳ độ tuổi của bé ạ. Nếu tiện, Ba/Mẹ để lại "
+                  "SĐT/Zalo để tư vấn viên gửi bảng phí chi tiết nhé? [QUICK:phone]")],
+        steps=[Step("thôi khỏi gửi học phí đâu em", declines=("fee",), extract={"phone_declined": True})],
+    ),
     "FEE-NO-NUMBER": MediaCase(
         profile=KM4, history=[("bé nhà em 4 tuổi, em quan tâm Kim Mã", OK_BOT)],
         steps=[Step("học phí 1 tháng bao nhiêu tiền vậy em, báo con số cụ thể giúp mình", images=("sn-fee-10",),
@@ -283,6 +293,11 @@ MEDIA_CASES: dict[str, MediaCase] = {
         profile={"interested_campus": "Mỹ Đình"}, history=[("em quan tâm cơ sở Mỹ Đình", OK_BOT)],
         steps=[Step("bé nhà em sinh năm 2022, cho em xem thời khoá biểu", images=("md-tkb-36-60",),
                     expect={"asks_age": False}, extract={"kid_age": "sinh năm 2022", **PROGRAMME})],
+    ),
+    # Người vận hành 2026-10-24: lời từ chối có chữ "thời khoá biểu" làm ảnh thành chắc chắn gửi.
+    "TKB-DECLINED-IN-WORDS": MediaCase(
+        profile=KM4, history=[("bé nhà em 4 tuổi, em quan tâm Kim Mã", OK_BOT)],
+        steps=[Step("Không cần gửi thời khoá biểu đâu em", declines=("timetable",))],
     ),
     # --- cơ sở vật chất ---
     "CSVC-WAIT-CAMPUS": MediaCase(
@@ -378,6 +393,9 @@ MATRIX: list[Row] = [
         "Gửi ảnh tháng cũ (qt-fee-9) và một tin Telegram \"Chưa có ảnh học phí mới tháng 10\"", "eval"),
     Row("FEE-NO-NUMBER", "Học phí", "Đòi con số cụ thể, đủ tuổi và cơ sở",
         "Ảnh học phí hệ Song ngữ; không viết số tiền; không nói không gửi được bảng phí", "eval"),
+    Row("FEE-DECLINED-IN-WORDS", "Học phí",
+        "Tin trước hỏi học phí (cờ fee_asked), bot xin SĐT; phụ huynh \"thôi khỏi gửi học phí đâu em\" (ảnh chắc chắn gửi)",
+        "Model gắn [SKIP:fee]: không ảnh; không hứa gửi ảnh", "eval"),
     Row("FEE-ONCE-A-MONTH", "Học phí", "Ảnh học phí chờ đủ tuổi + cơ sở, rồi mỗi tháng 1 lần",
         "Đã gửi tháng này thì không gửi lại; tháng sau hỏi lại thì gửi", "pytest",
         "tests/test_media_replies.py::test_fee_image_waits_for_age_and_campus_then_goes_once_a_month"),
@@ -463,10 +481,8 @@ MATRIX: list[Row] = [
         "tests/test_media_replies.py::"
         "test_both_campuses_get_the_timetables_of_every_campus_named_and_no_system_not_named"),
     Row("TKB-DECLINED-IN-WORDS", "Thời khoá biểu",
-        "Phụ huynh từ chối bằng chữ: \"Không cần gửi lại thời khoá biểu đâu em\" (TKB chưa gửi, đủ tuổi và cơ sở)",
-        "Giới hạn đã biết, chưa sửa: _asks_timetable đọc chữ tin phụ huynh nên vẫn gửi km-tkb-36-72; test ghi hành vi "
-        "hiện tại, người vận hành quyết sau", "pytest",
-        "tests/test_eval_media.py::test_a_parent_declining_the_timetable_in_words_still_gets_it"),
+        "Phụ huynh từ chối bằng chữ: \"Không cần gửi thời khoá biểu đâu em\" (TKB chưa gửi, đủ tuổi và cơ sở: chữ "
+        "\"thời khoá biểu\" làm ảnh chắc chắn gửi)", "Model gắn [SKIP:timetable]: không ảnh; không hứa gửi ảnh", "eval"),
     # --- cơ sở vật chất ---
     Row("CSVC-WAIT-CAMPUS", "Cơ sở vật chất", "Hỏi cơ sở vật chất khi chưa biết cơ sở; lượt sau bấm Kim Mã",
         "Lượt 1 không ảnh, hỏi cơ sở; lượt 2 bốn ảnh km-csvc-1..4", "eval"),
@@ -515,6 +531,19 @@ MATRIX: list[Row] = [
     Row("GEN-TOKEN-NOT-READY", "Chung", "Token [SEND] cho ảnh chưa đủ điều kiện (thiếu tuổi/cơ sở)",
         "Không ảnh, không cờ chờ", "pytest",
         "tests/test_media_replies.py::test_a_send_token_of_an_image_not_ready_sends_nothing_and_waits_for_nothing"),
+    Row("GEN-TOKEN-SKIP", "Chung", "Câu trả lời gắn [SKIP:<loại>] cho ảnh chắc chắn gửi (học phí, thời khoá biểu, cơ sở "
+        "vật chất), kể cả có cờ chờ", "Ảnh đó không đi, không ghi media_sent, cờ chờ của loại đó xoá; token không lộ, "
+        "không vào lịch sử; ảnh khác của lượt vẫn đi; hỏi lại sau thì gửi như thường; không token thì ảnh đi", "pytest",
+        "tests/test_media_replies.py::test_a_skip_token_drops_that_sure_image_and_its_waiting_flag"),
+    Row("GEN-TOKEN-SKIP-DECLINED", "Chung", "Kim Mã + 4 tuổi, \"Không cần gửi thời khoá biểu đâu em\" với model giả",
+        "Dòng chắc chắn gửi có câu [SKIP:timetable]; câu có token: không ảnh, không cờ timetable_asked, token không lộ, "
+        "lịch sử không có token; câu không token: ảnh đi; hỏi lại thì gửi", "pytest",
+        "tests/test_media_replies.py::test_a_parent_declining_the_timetable_gets_none_when_the_reply_tags_it_skipped"),
+    Row("GEN-TOKEN-SKIP-WINS", "Chung", "Câu trả lời gắn cả [SEND:<loại>] và [SKIP:<loại>] cùng loại; [SKIP:] của loại "
+        "không có ảnh định gửi", "SKIP thắng: không gửi; SKIP của loại khác bỏ qua, ảnh định gửi vẫn đi", "pytest",
+        "tests/test_media_replies.py::test_skip_wins_over_send_and_a_skip_of_an_image_not_offered_changes_nothing"),
+    Row("GEN-TOKEN-SKIP-HARNESS", "Chung", "App thật: fake chat trả câu có [SKIP:timetable] cho lời từ chối",
+        "Chỉ TEXT (không [SKIP:), hồ sơ không media_sent/timetable_asked; yêu cầu thật vẫn ra IMAGE", "harness"),
     Row("GEN-TOKEN-HIDDEN", "Chung", "Token [SEND:] trong câu trả lời",
         "Không lộ ra tin phụ huynh, không lưu vào lịch sử (eval cũng kiểm mọi lượt)", "pytest",
         "tests/test_media_replies.py::test_the_send_token_is_neither_shown_to_the_parent_nor_kept_in_the_history"),
@@ -617,8 +646,8 @@ MATRIX: list[Row] = [
         "tests/test_media_replies.py::test_graph_errors_are_logged_and_raised_without_the_access_token"),
     Row("GEN-TEST-CHAT", "Chung", "/test-chat", "Model nhận đúng dòng [HỆ THỐNG] như Messenger", "pytest",
         "tests/test_media_replies.py::test_test_chat_tells_the_model_which_images_follow_like_messenger"),
-    Row("GEN-TEST-CHAT-NO-TOKEN", "Chung", "/test-chat với câu trả lời có [SEND:]", "Lịch sử không giữ token", "pytest",
-        "tests/test_media_replies.py::test_test_chat_keeps_no_send_token_in_the_history"),
+    Row("GEN-TEST-CHAT-NO-TOKEN", "Chung", "/test-chat với câu trả lời có [SEND:] hoặc [SKIP:]", "Lịch sử không giữ token",
+        "pytest", "tests/test_media_replies.py::test_test_chat_keeps_no_image_token_in_the_history"),
     # --- lần đồng bộ ảnh đầu sau khởi động ---
     Row("SYNC-WAIT", "Đồng bộ đầu", "Tin tới khi lần đồng bộ đầu còn chạy (đĩa trống)",
         "Chờ đồng bộ xong rồi trả lời: dòng \"Sau câu trả lời này …\" và ảnh; không WARNING", "pytest",

@@ -179,7 +179,8 @@ def fake(monkeypatch) -> FakeModel:
 
 def follows_the_rules(step, note: str) -> str:
     """Model làm đúng luật: [ESCALATE] khi phải chuyển; báo em gửi khi có ảnh, gắn [SEND:<loại>] đúng dòng "Nếu phụ
-    huynh hỏi …" của ảnh đó, [IMAGES:] cho ảnh Q&A; hỏi đúng cái còn thiếu; nói các cụm ca đòi."""
+    huynh hỏi …" của ảnh đó, [SKIP:<loại>] cho ảnh phụ huynh từ chối mà dòng [HỆ THỐNG] dặn, [IMAGES:] cho ảnh Q&A;
+    hỏi đúng cái còn thiếu; nói các cụm ca đòi."""
     if step.escalate:
         return "[ESCALATE]"
     said = [SENDS] if step.images else []
@@ -188,6 +189,7 @@ def follows_the_rules(step, note: str) -> str:
     said += asks or ["Không biết Ba/Mẹ có muốn ghé tham quan không ạ?"]
     kinds = sorted({cases.image_kind(i) for i in step.images})
     said += [f"[SEND:{k}]" for k in kinds if f"Nếu phụ huynh hỏi {IMAGE_TOPICS[k]}: sau câu trả lời" in note]
+    said += [f"[SKIP:{k}]" for k in step.declines if f"thêm [SKIP:{k}]" in note]
     if cases.QA_MENU_IMAGE in step.images:
         said.append(f"[IMAGES:{cases.QA_MENU_IMAGE}]")
     return " ".join(said)
@@ -229,8 +231,8 @@ def test_media_suite_passes_a_model_that_follows_the_rules_and_meets_every_statu
     assert media_run.states == set(eval_chat.NOTE_STATES)
     assert "--- FEE-ASKED-READY ---" in out and "ảnh: qt-fee-10;" in out
     # Một lời gọi giám khảo mỗi lượt không chuyển tư vấn viên; mỗi lượt in phán quyết và lý do.
-    assert len(fake.judged) == media_run.steps - ESCALATED_STEPS == 45
-    assert out.count("  giám khảo (fake): ") == 45 and "lý do: theo bảng của test" in out
+    assert len(fake.judged) == media_run.steps - ESCALATED_STEPS == 47
+    assert out.count("  giám khảo (fake): ") == 47 and "lý do: theo bảng của test" in out
 
 
 def test_the_judge_reads_the_parent_message_the_images_that_went_and_the_reply_with_the_keys_of_the_turn(
@@ -341,9 +343,10 @@ def test_a_sentence_at_turns_without_images_is_graded_by_the_judges_verdict(
         ("Dạ em gửi ảnh ạ. [SEND:fee] [SEND:timetable] [SEND:facilities] [SEND:menu]", set(), "ảnh đi ra"),
         ("[ESCALATE]", set(), "mong đợi chuyển tư vấn viên=False"),
         ("Dạ em gửi Ba/Mẹ ảnh ạ. [SEND fee]", set(), "token lộ ra tin phụ huynh"),
+        ("Dạ vâng ạ. [SKIP timetable]", set(), "token lộ ra tin phụ huynh"),
     ],
     ids=["promise", "consultant-sends", "cannot-send", "asks-age", "no-question", "money", "every-token", "escalate",
-         "leaked-token"],
+         "leaked-token", "leaked-skip-token"],
 )
 def test_media_suite_grades_a_model_breaking_a_rule_as_a_violation(fake, capsys, reply, judged, problem):
     fake.chat = lambda step, note: reply
@@ -378,9 +381,9 @@ def test_a_judge_without_a_proper_verdict_leaves_the_turns_inconclusive(fake, mo
 
     out = capsys.readouterr().out
     assert "✘" not in out
-    assert out.count("  ? giám khảo (") == 45
-    assert "INCONCLUSIVE: giám khảo không ra phán quyết ở 45 lượt của bộ media" in out
-    assert "Ảnh: 3/48 lượt đạt, 45 lượt chưa kết luận" in out
+    assert out.count("  ? giám khảo (") == 47
+    assert "INCONCLUSIVE: giám khảo không ra phán quyết ở 47 lượt của bộ media" in out
+    assert "Ảnh: 3/50 lượt đạt, 47 lượt chưa kết luận" in out
 
 
 def test_a_verdict_with_keys_that_were_not_asked_still_grades_the_turns(fake, monkeypatch, capsys):
@@ -392,7 +395,7 @@ def test_a_verdict_with_keys_that_were_not_asked_still_grades_the_turns(fake, mo
     assert run(["media"]) == 0
 
     out = capsys.readouterr().out
-    assert out.count("  giám khảo (fake): ") == 45 and "lich_su" not in out
+    assert out.count("  giám khảo (fake): ") == 47 and "lich_su" not in out
 
 
 def test_the_next_model_judges_when_the_first_answers_off_format(fake, monkeypatch, capsys):
@@ -407,9 +410,9 @@ def test_the_next_model_judges_when_the_first_answers_off_format(fake, monkeypat
     assert run(["media"]) == 0
 
     out = capsys.readouterr().out
-    assert len(fake.judged) == len(backup.judged) == 45
-    assert out.count("  ! giám khảo fake trả sai khuôn: 'Dạ câu này đúng luật ạ.'") == 45
-    assert out.count("  giám khảo (fake2): ") == 45 and "  ? giám khảo" not in out
+    assert len(fake.judged) == len(backup.judged) == 47
+    assert out.count("  ! giám khảo fake trả sai khuôn: 'Dạ câu này đúng luật ạ.'") == 47
+    assert out.count("  giám khảo (fake2): ") == 47 and "  ? giám khảo" not in out
 
 
 def test_a_violation_found_by_code_counts_even_when_the_judge_has_no_verdict(fake, capsys):
@@ -504,20 +507,29 @@ def test_media_suite_leaves_the_app_as_it_found_it(fake):
     assert vars(main.ai_engine).get("get_response") is get_response
 
 
-def test_a_parent_declining_the_timetable_in_words_still_gets_it(fake, tmp_path):
-    """TKB-DECLINED-IN-WORDS, giới hạn đã biết: _asks_timetable đọc chữ tin phụ huynh, nên lời từ chối có chữ "thời khoá
-    biểu" vẫn gửi ảnh. Test ghi hành vi hiện tại; người vận hành quyết sau có đổi không."""
-    case = cases.MediaCase(steps=[], profile=cases.KM3, history=[("bé nhà em 3 tuổi, em quan tâm Kim Mã", cases.OK_BOT)])
+@pytest.mark.parametrize("code", ["TKB-DECLINED-IN-WORDS", "FEE-DECLINED-IN-WORDS"])
+def test_a_declined_sure_image_passes_only_when_the_model_tags_it_skipped(fake, monkeypatch, capsys, code):
+    """Phụ huynh từ chối ảnh chắc chắn gửi: model đúng luật gắn [SKIP:<loại>] theo dòng [HỆ THỐNG] (follows_the_rules,
+    cả bộ đạt ở test_media_suite_passes_…); model quên token thì ảnh vẫn đi và bộ media chấm ảnh thừa."""
+    with_steps(fake, monkeypatch)
+    turn = cases.MEDIA_CASES[code].steps[0]
+    assert turn.declines and not turn.images
+    fake.chat = lambda step, note: follows_the_rules(replace(step, declines=()) if step is turn else step, note)
 
-    async def decline():
-        bot = eval_chat.IsolatedBot(tmp_path)
-        try:
-            bot.start("9000000000999999", case)
-            return await bot.say("9000000000999999", "Không cần gửi lại thời khoá biểu đâu em")
-        finally:
-            bot.close()
+    assert run(["media"]) == 1
 
-    assert asyncio.run(decline()).images == ["km-tkb-36-72"]
+    out = capsys.readouterr().out
+    graded = out.split(f"--- {code} ---\n", 1)[1].split("\n--- ", 1)[0]
+    assert "✘ ảnh đi ra [" in graded and "mong đợi không có" in graded, graded
+    assert out.count("✘") == graded.count("✘"), out  # chỉ lượt từ chối vi phạm
+
+
+def test_the_eval_strips_and_catches_the_skip_token():
+    assert eval_chat.sentences("Dạ vâng ạ, Ba/Mẹ cần gì cứ nhắn em nhé ạ. [SKIP:timetable]") == [
+        "Dạ vâng ạ, Ba/Mẹ cần gì cứ nhắn em nhé ạ."
+    ]
+    assert eval_chat.LEAKED_TOKEN.search("Dạ vâng ạ. [SKIP:fee]") and eval_chat.LEAKED_TOKEN.search("[skip fee]")
+    assert eval_chat.TOKENS.sub("", "Dạ vâng ạ. [SKIP:fee] [SEND:menu]").strip() == "Dạ vâng ạ."
 
 
 def test_framing_leaves_no_frame_mark_even_from_broken_marks():

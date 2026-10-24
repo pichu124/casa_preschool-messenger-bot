@@ -1411,7 +1411,7 @@ def test_test_chat_tells_the_model_which_images_follow_like_messenger(parent, ca
 
 
 @pytest.mark.parametrize("token", ["[SEND:fee]", "[SKIP:fee]"])
-def test_test_chat_keeps_no_send_token_in_the_history(parent, catalog, monkeypatch, token):
+def test_test_chat_keeps_no_image_token_in_the_history(parent, catalog, monkeypatch, token):
     monkeypatch.setattr(settings, "TELEGRAM_WEBHOOK_SECRET", "tg-secret_media_replies")
     reply = f"Dạ em gửi Ba/Mẹ bảng học phí ạ. {token} [QUICK:visit_invite]"
     parent.response = AIResponse(text=reply, should_escalate=False, model_used="fake-model")

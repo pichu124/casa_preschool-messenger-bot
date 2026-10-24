@@ -1,12 +1,12 @@
 # Ma trận trường hợp gửi ảnh cho phụ huynh
 
-Mỗi nhánh của luật "Ảnh gửi phụ huynh" ([quyet-dinh-noi-dung.md](quyet-dinh-noi-dung.md), mục 3) là một dòng có mã, kết quả mong đợi và bộ kiểm phụ trách. Code: `_plan_images`, `_media_note`, `_send_reply_with_images`, `_record_images`, `_wait_for_first_media_sync` và token `[SEND:<loại>]` trong `app/main.py`; `ready` trong `app/media.py` (hạn chờ lần đồng bộ đầu); dòng `[HỆ THỐNG]` do `media_note` trong `app/ai_engine.py` viết.
+Mỗi nhánh của luật "Ảnh gửi phụ huynh" ([quyet-dinh-noi-dung.md](quyet-dinh-noi-dung.md), mục 3) là một dòng có mã, kết quả mong đợi và bộ kiểm phụ trách. Code: `_plan_images`, `_media_note`, `_send_reply_with_images`, `_record_images`, `_wait_for_first_media_sync` và token `[SEND:<loại>]`/`[SKIP:<loại>]` trong `app/main.py`; `ready` trong `app/media.py` (hạn chờ lần đồng bộ đầu); dòng `[HỆ THỐNG]` do `media_note` trong `app/ai_engine.py` viết.
 
 Bản dữ liệu (đọc được bằng code) là `MATRIX` và `MEDIA_CASES` trong `scripts/eval_media_cases.py`; trang này là bản người đọc. `tests/test_eval_media.py` (chạy trong `./scripts/check.sh`) giữ hai bản khớp nhau và chặn thiếu: dòng `eval` phải có ca cùng mã trong `MEDIA_CASES`, dòng `pytest` phải có test đúng tên trong `tests/`, dòng `harness` phải có mã trong [features/media.md](../.claude/skills/verify-casa-bot/features/media.md); ca eval nào cũng thuộc một dòng `eval`. Thêm nhánh luật mới thì thêm dòng ở cả hai nơi cùng bộ kiểm của nó.
 
 ## Bộ kiểm
 
-- `eval`: câu chữ hoặc hành vi của model quyết định kết quả (chủ đề trích xuất, tuổi/cơ sở đọc được, token `[SEND:]`, `[ESCALATE]`, câu hỏi lại). Chạy `.venv/bin/python scripts/eval_chat.py media` với API key thật (tốn phí: 38 ca, 48 lượt; mỗi lượt 2 lời gọi model của bot, cộng 1 lời gọi giám khảo cho mỗi lượt không chuyển tư vấn viên, 45 lượt khi bot chuyển đúng 3 lượt phải chuyển: ≈ 141 lời gọi, chưa kể lời gọi dự phòng khi một model lỗi hay giám khảo trả sai khuôn). Bộ này gọi `app.main.process_message` như tin Messenger thật, với model theo `AI_MODEL_ORDER` có key; Graph, Telegram, Sheet, GitHub là fake ghi lại (request httpx tới các host đó bị chặn); `MEDIA_SYNC_ENABLED=true` với danh mục ảnh giả (`catalog_items`: học phí 2 hệ, thực đơn 2 hệ, thời khoá biểu 3 cơ sở theo nhóm tuổi, cơ sở vật chất 3 cơ sở); hồ sơ phụ huynh dựng theo từng ca trong thư mục tạm, không đụng `data/customers.json`; hôm nay là 24/10/2026. Exit 0 đạt, 1 có lượt vi phạm, 2 chưa kết luận (chưa có API key, mọi model lỗi, hoặc không vi phạm nào mà có lượt giám khảo chưa ra phán quyết).
+- `eval`: câu chữ hoặc hành vi của model quyết định kết quả (chủ đề trích xuất, tuổi/cơ sở đọc được, token `[SEND:]`/`[SKIP:]`, `[ESCALATE]`, câu hỏi lại). Chạy `.venv/bin/python scripts/eval_chat.py media` với API key thật (tốn phí: 40 ca, 50 lượt; mỗi lượt 2 lời gọi model của bot, cộng 1 lời gọi giám khảo cho mỗi lượt không chuyển tư vấn viên, 47 lượt khi bot chuyển đúng 3 lượt phải chuyển: ≈ 147 lời gọi, chưa kể lời gọi dự phòng khi một model lỗi hay giám khảo trả sai khuôn). Bộ này gọi `app.main.process_message` như tin Messenger thật, với model theo `AI_MODEL_ORDER` có key; Graph, Telegram, Sheet, GitHub là fake ghi lại (request httpx tới các host đó bị chặn); `MEDIA_SYNC_ENABLED=true` với danh mục ảnh giả (`catalog_items`: học phí 2 hệ, thực đơn 2 hệ, thời khoá biểu 3 cơ sở theo nhóm tuổi, cơ sở vật chất 3 cơ sở); hồ sơ phụ huynh dựng theo từng ca trong thư mục tạm, không đụng `data/customers.json`; hôm nay là 24/10/2026. Exit 0 đạt, 1 có lượt vi phạm, 2 chưa kết luận (chưa có API key, mọi model lỗi, hoặc không vi phạm nào mà có lượt giám khảo chưa ra phán quyết).
 - `pytest`: kết quả do code quyết định khi chủ đề/token đã biết; test dùng model giả (`tests/test_media_replies.py`).
 - `harness`: cần app thật qua HTTP (Graph trả lỗi thật, ảnh tải lên Graph giả bằng multipart, ảnh phục vụ ở `/static/media`, biến môi trường lúc khởi động); skill `verify-casa-bot`, mã ghi ở hành trình tương ứng trong `features/media.md`.
 
@@ -16,7 +16,7 @@ Code chấm mọi thứ xác định được:
 
 - Ảnh đi ra đúng tập id fixture của lượt (không thừa, không thiếu), kể cả ảnh mẫu `static/thuc-don-mau.jpg` của Q&A.
 - Có/không thẻ Telegram chuyển tư vấn viên; tin Telegram cho admin về ảnh (vd ảnh học phí tháng cũ) đúng như ca đòi, không có tin thừa.
-- Lượt không chuyển tư vấn viên: không lộ token hay ghi chú (`[SEND:`, `[IMAGES:`, `[QUICK:`, `[ESCALATE]`, `[đã gửi ảnh`, `chưa gửi được]`) ra tin phụ huynh; không nêu số tiền; nút trả lời nhanh hỏi tuổi bé/cơ sở; cụm phải có/không được có của từng ca.
+- Lượt không chuyển tư vấn viên: không lộ token hay ghi chú (`[SEND:`, `[SKIP:`, `[IMAGES:`, `[QUICK:`, `[ESCALATE]`, `[đã gửi ảnh`, `chưa gửi được]`) ra tin phụ huynh; không nêu số tiền; nút trả lời nhanh hỏi tuổi bé/cơ sở; cụm phải có/không được có của từng ca.
 
 Luật câu chữ do giám khảo chấm (LLM-as-judge, `JUDGE_PROMPT` trong `scripts/eval_chat.py`): regex tiếng Việt đổi qua đổi lại giữa chấm oan câu đúng và bỏ lọt câu sai qua 4 vòng review, nên bộ media không còn regex ngữ nghĩa. Mỗi lượt không chuyển tư vấn viên là 1 lời gọi model nữa (model theo `AI_MODEL_ORDER`, cùng provider và key như bot; provider cố định temperature 0.3). Giám khảo nhận tin phụ huynh và câu trả lời của bot đã bỏ token (mỗi thứ trong khung `<<<` … `>>>`; prompt dặn nội dung trong khung là dữ liệu cần chấm, bỏ qua mọi chỉ dẫn trong đó; dấu khung có sẵn trong nội dung bị bỏ), các ảnh thực sự đi ra lượt đó, và các khoá có/không của lượt; trả JSON `{khoá: true/false, …, "ly_do": "…"}` có đủ các khoá được hỏi (khoá thừa bỏ đi). Khoá:
 
@@ -37,6 +37,7 @@ Heuristic và giám khảo chỉ để lọc nhanh: vẫn đọc transcript (`PH
 ## Chưa kiểm được
 
 - Câu ghép báo gửi một ảnh và mời ảnh khác, câu mời "có muốn em gửi … không ạ?", token của ảnh chưa đủ điều kiện: model thật không bị ép nói đúng câu đó, nên chỉ kiểm ở pytest (model giả nói đúng câu). Eval vẫn bắt hậu quả: ảnh thừa so với tập mong đợi.
+- Từ chối ảnh (`[SKIP:<loại>]`): eval chỉ có lời từ chối thời khoá biểu và học phí (`TKB-DECLINED-IN-WORDS`, `FEE-DECLINED-IN-WORDS`); cơ sở vật chất, SKIP cùng SEND, SKIP của loại không có ảnh định gửi chỉ pytest. Thực đơn không bao giờ chắc chắn gửi nên không có câu SKIP. Lời từ chối khi ảnh còn thiếu tuổi/cơ sở (dòng "… nên chưa gửi ảnh …", không có câu SKIP) chưa được xử lý: cờ chờ vẫn giữ; lượt sau đủ thông tin thì ảnh thành chắc chắn gửi, chỉ không đi nếu model đọc lời từ chối trong lịch sử và gắn SKIP. Chưa có ca kiểm.
 - Trần 5 ảnh một lượt và nút trên ảnh cuối: do code quyết định, chỉ pytest.
 - Ảnh lỗi một phần (`GEN-FAIL-PARTIAL`, `GEN-FAIL-PARTIAL-CAMPUS`, `GEN-FAIL-IN-GROUP`): chỉ pytest, vì `fail.graph_image` của harness làm hỏng mọi ảnh; harness thử câu xin lỗi chung và "gửi lại" (`GEN-FAIL-RESEND-HARNESS`). Bộ eval không làm ảnh lỗi: `GEN-FAIL-RESEND-REPLY`, `GEN-FAIL-NO-RESEND-REPLY`, `GEN-FAIL-OTHER-TOPIC` dựng sẵn lịch sử có ghi chú "[ảnh … chưa gửi được]" và chấm việc model gắn hay không gắn `[SEND:timetable]` (ảnh đi hay không) cùng câu hứa.
 - Định dạng tải ảnh lên (multipart `recipient`, `message`, `messaging_type`, `filedata`; gửi lại bằng `attachment_id`) chỉ kiểm với Graph giả (pytest, harness) theo tài liệu Send API; Graph thật chưa thử. Graph thật từ chối attachment_id theo mã lỗi nào cũng chưa biết: bot tải lại một lần với mọi lỗi Graph khi gửi bằng id.
@@ -58,6 +59,7 @@ Heuristic và giám khảo chỉ để lọc nhanh: vẫn đọc transcript (`PH
 | `FEE-ASKED-BEFORE-THEN-REFUSE` | Tin trước hỏi học phí (cờ fee_asked), bot xin SĐT, tin này không để số; biết cơ sở, chưa biết tuổi | Ảnh học phí hệ Quốc tế (dòng chắc chắn gửi); không xin SĐT lại | eval |
 | `FEE-STALE` | Drive chỉ có ảnh học phí tháng trước | Gửi ảnh tháng cũ (qt-fee-9) và một tin Telegram "Chưa có ảnh học phí mới tháng 10" | eval |
 | `FEE-NO-NUMBER` | Đòi con số cụ thể, đủ tuổi và cơ sở | Ảnh học phí hệ Song ngữ; không viết số tiền; không nói không gửi được bảng phí | eval |
+| `FEE-DECLINED-IN-WORDS` | Tin trước hỏi học phí (cờ fee_asked), bot xin SĐT; phụ huynh "thôi khỏi gửi học phí đâu em" (ảnh chắc chắn gửi) | Model gắn [SKIP:fee]: không ảnh; không hứa gửi ảnh | eval |
 | `FEE-ONCE-A-MONTH` | Ảnh học phí chờ đủ tuổi + cơ sở, rồi mỗi tháng 1 lần | Đã gửi tháng này thì không gửi lại; tháng sau hỏi lại thì gửi | pytest `test_fee_image_waits_for_age_and_campus_then_goes_once_a_month` |
 | `FEE-KIM-MA-NO-FOLDER` | Drive thiếu thư mục cơ sở Kim Mã | Vẫn gửi ảnh học phí hệ Song ngữ (hệ theo bảng CAMPUS_SYSTEMS) | pytest `test_kim_ma_parent_gets_the_bilingual_fee_even_without_a_kim_ma_folder_on_drive` |
 | `FEE-PHONE-ASK-NO-TOKEN` | Câu trả lời xin SĐT "để em gửi bảng học phí chi tiết" (không token) | Không ảnh học phí, không cờ fee_asked | pytest `test_asking_the_phone_to_send_the_fee_table_sends_no_fee_image` |
@@ -94,7 +96,7 @@ Heuristic và giám khảo chỉ để lọc nhanh: vẫn đọc transcript (`PH
 | `TKB-TRIAL-REPLY-NO-WAIT` | Câu trả lời gửi lịch học thử | Không ảnh TKB, không cờ chờ tuổi | pytest `test_a_reply_sending_the_trial_week_does_not_wait_for_the_kids_age` |
 | `TKB-BOTH-NAMED-EARLIER` | "2 hệ" sau khi đã nêu các cơ sở ở tin trước | TKB của mọi cơ sở đã nêu | pytest `test_both_systems_asked_for_get_the_timetables_of_the_campuses_named_earlier` |
 | `TKB-BOTH-CAMPUS-WORDS` | "cả 2 cơ sở"/"hai bên"/"2 trường" (BOTH_WORDS không phải "hệ") | TKB của mọi cơ sở đã nêu trong hội thoại; chỉ nêu Kim Mã thì chỉ TKB Kim Mã: không thêm hệ chưa rõ, không hỏi cơ sở, không cờ chờ | pytest `test_both_campuses_get_the_timetables_of_every_campus_named_and_no_system_not_named` |
-| `TKB-DECLINED-IN-WORDS` | Phụ huynh từ chối bằng chữ: "Không cần gửi lại thời khoá biểu đâu em" (TKB chưa gửi, đủ tuổi và cơ sở) | Giới hạn đã biết, chưa sửa: _asks_timetable đọc chữ tin phụ huynh nên vẫn gửi km-tkb-36-72; test ghi hành vi hiện tại, người vận hành quyết sau | pytest `test_a_parent_declining_the_timetable_in_words_still_gets_it` |
+| `TKB-DECLINED-IN-WORDS` | Phụ huynh từ chối bằng chữ: "Không cần gửi thời khoá biểu đâu em" (TKB chưa gửi, đủ tuổi và cơ sở: chữ "thời khoá biểu" làm ảnh chắc chắn gửi) | Model gắn [SKIP:timetable]: không ảnh; không hứa gửi ảnh | eval |
 
 ## Cơ sở vật chất
 
@@ -130,6 +132,10 @@ Heuristic và giám khảo chỉ để lọc nhanh: vẫn đọc transcript (`PH
 | `GEN-COMPOUND-SEND-INVITE` | Câu ghép: báo gửi học phí + mời xem ảnh cơ sở vật chất | Chỉ ảnh học phí | pytest `test_a_reply_sending_the_fee_and_offering_the_facilities_sends_only_the_fee` |
 | `GEN-TOKEN-TAGGED` | Câu trả lời gắn `[SEND:<loại>]` khi trích xuất sót chủ đề | Ảnh của dòng "Nếu phụ huynh hỏi …" vẫn đi | pytest `test_an_image_the_reply_tags_as_sent_goes_even_if_the_extraction_missed_its_topic` |
 | `GEN-TOKEN-NOT-READY` | Token [SEND] cho ảnh chưa đủ điều kiện (thiếu tuổi/cơ sở) | Không ảnh, không cờ chờ | pytest `test_a_send_token_of_an_image_not_ready_sends_nothing_and_waits_for_nothing` |
+| `GEN-TOKEN-SKIP` | Câu trả lời gắn [SKIP:<loại>] cho ảnh chắc chắn gửi (học phí, thời khoá biểu, cơ sở vật chất), kể cả có cờ chờ | Ảnh đó không đi, không ghi media_sent, cờ chờ của loại đó xoá; token không lộ, không vào lịch sử; ảnh khác của lượt vẫn đi; hỏi lại sau thì gửi như thường; không token thì ảnh đi | pytest `test_a_skip_token_drops_that_sure_image_and_its_waiting_flag` |
+| `GEN-TOKEN-SKIP-DECLINED` | Kim Mã + 4 tuổi, "Không cần gửi thời khoá biểu đâu em" với model giả | Dòng chắc chắn gửi có câu [SKIP:timetable]; câu có token: không ảnh, không cờ timetable_asked, token không lộ, lịch sử không có token; câu không token: ảnh đi; hỏi lại thì gửi | pytest `test_a_parent_declining_the_timetable_gets_none_when_the_reply_tags_it_skipped` |
+| `GEN-TOKEN-SKIP-WINS` | Câu trả lời gắn cả [SEND:<loại>] và [SKIP:<loại>] cùng loại; [SKIP:] của loại không có ảnh định gửi | SKIP thắng: không gửi; SKIP của loại khác bỏ qua, ảnh định gửi vẫn đi | pytest `test_skip_wins_over_send_and_a_skip_of_an_image_not_offered_changes_nothing` |
+| `GEN-TOKEN-SKIP-HARNESS` | App thật: fake chat trả câu có [SKIP:timetable] cho lời từ chối | Chỉ TEXT (không [SKIP:), hồ sơ không media_sent/timetable_asked; yêu cầu thật vẫn ra IMAGE | harness |
 | `GEN-TOKEN-HIDDEN` | Token [SEND:] trong câu trả lời | Không lộ ra tin phụ huynh, không lưu vào lịch sử (eval cũng kiểm mọi lượt) | pytest `test_the_send_token_is_neither_shown_to_the_parent_nor_kept_in_the_history` |
 | `GEN-SENT-NOTE-HIDDEN` | Model chép ghi chú "[đã gửi ảnh …]" vào câu trả lời | Ghi chú không lộ ra tin phụ huynh | pytest `test_model_copying_the_sent_note_is_not_shown_to_the_parent` |
 | `GEN-MAX-FIVE` | Một lượt có hơn 5 ảnh | Tối đa 5 ảnh theo thứ tự học phí, thời khoá biểu, thực đơn, cơ sở vật chất; nút trên ảnh cuối | pytest `test_at_most_five_images_in_one_turn` |
@@ -165,7 +171,7 @@ Heuristic và giám khảo chỉ để lọc nhanh: vẫn đọc transcript (`PH
 | `GEN-LOG-PLANNED` | Mỗi lượt khi bật đồng bộ | Log INFO các ảnh định gửi | pytest `test_every_turn_logs_the_drive_images_it_plans_to_send` |
 | `GEN-GRAPH-NO-TOKEN` | Lỗi Graph khi gửi ảnh/tin | Log và lỗi không có access token | pytest `test_graph_errors_are_logged_and_raised_without_the_access_token` |
 | `GEN-TEST-CHAT` | /test-chat | Model nhận đúng dòng [HỆ THỐNG] như Messenger | pytest `test_test_chat_tells_the_model_which_images_follow_like_messenger` |
-| `GEN-TEST-CHAT-NO-TOKEN` | /test-chat với câu trả lời có [SEND:] | Lịch sử không giữ token | pytest `test_test_chat_keeps_no_send_token_in_the_history` |
+| `GEN-TEST-CHAT-NO-TOKEN` | /test-chat với câu trả lời có [SEND:] hoặc [SKIP:] | Lịch sử không giữ token | pytest `test_test_chat_keeps_no_image_token_in_the_history` |
 
 ## Lần đồng bộ ảnh đầu sau khởi động
 

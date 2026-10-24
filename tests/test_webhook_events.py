@@ -447,14 +447,14 @@ def test_phone_quick_reply_wins_over_the_extracted_phone(bot):
 # --- Nút trả lời nhanh và ảnh tĩnh trong câu trả lời ---
 
 
-def test_reply_tokens_become_absolute_image_and_quick_replies_on_last_message(bot):
-    reply = f"{MODEL_TEXT} [IMAGES:static/thuc-don.jpg,https://cdn.example/b.jpg][QUICK:age]"
+def test_reply_tokens_become_images_and_quick_replies_on_last_message(bot):
+    reply = f"{MODEL_TEXT} [IMAGES:static/thuc-don-mau.jpg,https://cdn.example/b.jpg][QUICK:age]"
 
     bot.say("Cho em xem thực đơn", reply=reply)
 
     assert bot.sent == [
         ("text", MODEL_TEXT, None),
-        ("image", "https://casa.example/static/thuc-don.jpg", None),
+        ("image", main.STATIC_DIR / "thuc-don-mau.jpg", None),
         ("image", "https://cdn.example/b.jpg", build_quick_replies("age")),
     ]
     assert customer_memory.get_conversation_history(SENDER)[-1]["content"] == reply

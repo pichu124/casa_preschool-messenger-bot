@@ -51,7 +51,7 @@ Render vẫn chạy song song tới khi xong.
 
 1. Facebook (developers.facebook.com → app → Webhooks): đổi Callback URL sang `https://bot.<tên-miền>/webhook`, giữ nguyên Verify Token.
 2. Telegram: `POST https://bot.<tên-miền>/setup-telegram-webhook?secret=<TELEGRAM_WEBHOOK_SECRET>`.
-3. Trên VPS: đặt `PUBLIC_BASE_URL=https://bot.<tên-miền>` (đường dẫn ảnh trong `static/`, vd thực đơn mẫu).
+3. Trên VPS: đặt `PUBLIC_BASE_URL=https://bot.<tên-miền>` (dùng cho `/setup-telegram-webhook` và link ảnh trong `GET /media`; ảnh gửi phụ huynh được tải thẳng lên Messenger nên không phụ thuộc biến này).
 4. GitHub → Settings → Secrets and variables → Actions: đổi `BOT_BASE_URL` (tin nhắc lại) sang tên miền mới.
 5. Google Sheet: không đổi gì.
 6. Thử: tin thường, gửi SĐT (thẻ Telegram + hàng Sheet), câu cần chuyển tư vấn viên rồi admin trả lời qua Telegram. Đạt thì Suspend dịch vụ trên Render; để vài ngày rồi mới xoá.

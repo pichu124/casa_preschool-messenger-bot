@@ -822,10 +822,14 @@ def note_states(note: str) -> set[str]:
     return {state for line in note.splitlines() for state, words in NOTE_STATES.items() if words in line}
 
 
-def media_image_id(url: str) -> str:
-    """Id fixture của ảnh Drive (…/static/media/<id>.jpg), hoặc đường dẫn ảnh Q&A ("static/thuc-don-mau.jpg")."""
-    path = url.removeprefix(media_cases.BASE_URL + "/")
-    return path.removeprefix("static/media/").removesuffix(".jpg") if path.startswith("static/media/") else path
+def media_image_id(image: Path | str) -> str:
+    """Id fixture của ảnh Drive (file MEDIA_DIR/<id>.jpg), hoặc đường dẫn ảnh Q&A ("static/thuc-don-mau.jpg", file
+    trong STATIC_DIR); ảnh Q&A là URL ngoài thì chính URL đó."""
+    if isinstance(image, str):
+        return image
+    if image.parent == Path(settings.MEDIA_DIR):
+        return image.stem
+    return image.relative_to(ROOT).as_posix()
 
 
 @dataclass
@@ -916,8 +920,8 @@ class IsolatedBot:
             self.out.texts.append(text)
             self.out.quick_replies.append(quick_replies)
 
-        async def send_image(recipient_id, image_url, quick_replies=None):
-            self.out.images.append(media_image_id(image_url))
+        async def send_image(recipient_id, image, quick_replies=None):
+            self.out.images.append(media_image_id(image))
             self.out.quick_replies.append(quick_replies)
 
         async def nothing(*args, **kwargs):

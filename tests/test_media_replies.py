@@ -9,6 +9,8 @@ import json
 import logging
 import time
 from datetime import date, datetime, timedelta, timezone
+from email import policy
+from email.parser import BytesParser
 from io import BytesIO
 from pathlib import Path
 
@@ -56,8 +58,9 @@ CATALOG = [
 GRAPH_FETCH_ERROR = "(#100) Failed to fetch the file from the url (code 100)"
 
 
-def url(file_id: str) -> str:
-    return f"{BASE_URL}/static/media/{file_id}.jpg"
+def drive_file(file_id: str) -> Path:
+    """The file send_image uploads for a Drive image of the catalog."""
+    return Path(settings.MEDIA_DIR) / f"{file_id}.jpg"
 
 
 class Parent:
@@ -67,7 +70,7 @@ class Parent:
         self.sent: list[tuple] = []
         self.notes: list[str] = []
         self.telegram: list[str] = []
-        self.failing: set[str] = set()
+        self.failing: set[Path | str] = set()
         self.response = None
         self.extracted = {}
 
@@ -100,10 +103,10 @@ def parent(monkeypatch, today):
     async def send_message(recipient_id, text, quick_replies=None):
         p.sent.append(("text", text, quick_replies))
 
-    async def send_image(recipient_id, image_url, quick_replies=None):
-        if image_url in p.failing:
+    async def send_image(recipient_id, image, quick_replies=None):
+        if image in p.failing:
             raise messenger.GraphError("image", 400, GRAPH_FETCH_ERROR)
-        p.sent.append(("image", image_url, quick_replies))
+        p.sent.append(("image", image, quick_replies))
 
     async def nothing(*args, **kwargs):
         return {}
@@ -231,7 +234,7 @@ def test_fee_image_waits_for_age_and_campus_then_goes_once_a_month(parent, catal
 
     sent = parent.say("bé nhà em 3 tuổi, em quan tâm cơ sở Kim Mã",
                       extracted={"kid_age": "3 tuổi", "interested_campus": "Kim Mã"})
-    assert sent == [("text", SHOWN, None), ("image", url("sn-fee-10"), VISIT_BUTTONS)]
+    assert sent == [("text", SHOWN, None), ("image", drive_file("sn-fee-10"), VISIT_BUTTONS)]
     assert "[HỆ THỐNG] Sau câu trả lời này hệ thống gửi ảnh học phí hệ Song ngữ" in parent.notes[-1]
     assert "[đã gửi ảnh học phí hệ Song ngữ" in parent.history()[-1]
     assert parent.history()[-1].startswith(REPLY)
@@ -242,7 +245,7 @@ def test_fee_image_waits_for_age_and_campus_then_goes_once_a_month(parent, catal
 
     today[0] = date(2026, 11, 2)
     sent = parent.say("cho em hỏi lại học phí tháng này", extracted={"topics": ["Học phí"]})
-    assert parent.images(sent) == [url("sn-fee-10")]
+    assert parent.images(sent) == [drive_file("sn-fee-10")]
 
 
 def test_kim_ma_parent_gets_the_bilingual_fee_even_without_a_kim_ma_folder_on_drive(parent, catalog, monkeypatch):
@@ -252,7 +255,7 @@ def test_kim_ma_parent_gets_the_bilingual_fee_even_without_a_kim_ma_folder_on_dr
 
     sent = parent.say("học phí bao nhiêu ạ", extracted={"topics": ["Học phí"]})
 
-    assert parent.images(sent) == [url("sn-fee-10")]
+    assert parent.images(sent) == [drive_file("sn-fee-10")]
     assert not customer_memory.get_profile(CUSTOMER_ID).get("fee_asked")
 
 
@@ -261,7 +264,7 @@ def test_fee_question_with_age_and_campus_known_is_announced_to_the_model(parent
 
     sent = parent.say("học phí bao nhiêu ạ", extracted={"topics": ["Học phí"]})
 
-    assert parent.images(sent) == [url("qt-fee-10")]
+    assert parent.images(sent) == [drive_file("qt-fee-10")]
     note = parent.notes[-1]
     assert "Nếu phụ huynh hỏi học phí/ưu đãi" in note and "hệ Quốc tế" in note
     assert "không nêu con số" in note
@@ -273,7 +276,7 @@ def test_parent_refusing_the_phone_but_asking_the_fee_gets_the_image_without_a_c
 
     sent = parent.say("cứ báo học phí luôn đi em", extracted={"topics": ["Học phí"]})
 
-    assert parent.images(sent) == [url("qt-fee-10")]
+    assert parent.images(sent) == [drive_file("qt-fee-10")]
     assert "Nếu phụ huynh hỏi học phí/ưu đãi" in parent.notes[-1]
     assert not [t for t in parent.telegram if t.startswith(escalation.ESCALATION_HEADER)]
 
@@ -284,7 +287,7 @@ def test_parent_not_leaving_the_phone_when_asked_gets_the_image(parent, catalog)
 
     sent = parent.say("em cứ báo con số luôn đi", extracted={"topics": ["Học phí"]})
 
-    assert parent.images(sent) == [url("sn-fee-10")]
+    assert parent.images(sent) == [drive_file("sn-fee-10")]
 
 
 ASKED_PHONE = "Dạ nếu tiện Ba/Mẹ để lại SĐT/Zalo nhé? [QUICK:phone]"
@@ -325,7 +328,7 @@ def test_parent_not_leaving_the_phone_and_naming_the_fee_gets_it_when_the_reply_
 
     sent = parent.say("em cứ báo học phí luôn đi", reply=FEE_SENT)
 
-    assert parent.images(sent) == [url("sn-fee-10")]
+    assert parent.images(sent) == [drive_file("sn-fee-10")]
 
 
 # Review vòng thời khoá biểu v3: phụ huynh hỏi học phí ở tin trước (chưa biết tuổi, cờ fee_asked chờ), bot xin SĐT,
@@ -337,7 +340,7 @@ def test_parent_who_asked_the_fee_before_and_now_does_not_leave_the_phone_gets_i
 
     sent = parent.say("thôi không để số đâu em")
 
-    assert parent.images(sent) == [url("sn-fee-10")]
+    assert parent.images(sent) == [drive_file("sn-fee-10")]
     assert not customer_memory.get_profile(CUSTOMER_ID).get("fee_asked")
 
 
@@ -359,7 +362,7 @@ def test_stale_fee_image_is_sent_and_the_school_is_reminded_once_a_day(parent, c
         known(customer_id, kid_age="3 tuổi", interested_campus="Kim Mã")
         today[0] = date(2026, 11, day)
         assert parent.images(parent.say("học phí bao nhiêu ạ", extracted=fee, customer_id=customer_id)) == [
-            url("sn-fee-10")
+            drive_file("sn-fee-10")
         ]
         if n == 1:
             reminders = [t for t in parent.telegram if "HỌC PHÍ THÁNG 11" in t]
@@ -375,7 +378,7 @@ def test_last_years_fee_image_of_this_month_is_sent_and_the_school_is_reminded(p
     today[0] = date(2027, 11, 3)
     known(kid_age="3 tuổi", interested_campus="Kim Mã")
 
-    assert parent.images(parent.say("học phí bao nhiêu ạ", extracted={"topics": ["Học phí"]})) == [url("sn-fee-11")]
+    assert parent.images(parent.say("học phí bao nhiêu ạ", extracted={"topics": ["Học phí"]})) == [drive_file("sn-fee-11")]
 
     (reminder,) = [t for t in parent.telegram if "HỌC PHÍ THÁNG 11" in t]
     assert "Song ngữ" in reminder and "ảnh tháng 11 sửa lần cuối 01/11/2026" in reminder, reminder
@@ -384,7 +387,7 @@ def test_last_years_fee_image_of_this_month_is_sent_and_the_school_is_reminded(p
 
 def test_fee_asked_again_in_the_same_month_does_not_send_next_month_unasked(parent, catalog, today):
     known(kid_age="3 tuổi", interested_campus="Kim Mã")
-    assert parent.images(parent.say("học phí bao nhiêu ạ", extracted={"topics": ["Học phí"]})) == [url("sn-fee-10")]
+    assert parent.images(parent.say("học phí bao nhiêu ạ", extracted={"topics": ["Học phí"]})) == [drive_file("sn-fee-10")]
 
     assert parent.images(parent.say("học phí như vậy là theo quý ạ?", extracted={"topics": ["Học phí"]})) == []
     assert not customer_memory.get_profile(CUSTOMER_ID).get("fee_asked")
@@ -423,7 +426,7 @@ def test_timetable_waits_for_the_campus_and_the_age_then_goes_once(parent, catal
     assert "Chưa biết tuổi bé nên chưa gửi ảnh thời khoá biểu" in parent.notes[-1], parent.notes[-1]
 
     sent = parent.say("Bé nhà em 3-5 tuổi ạ", extracted={"kid_age": "3-5 tuổi"})
-    assert sent == [("text", SHOWN, None), ("image", url("km-tkb-36-72"), VISIT_BUTTONS)]
+    assert sent == [("text", SHOWN, None), ("image", drive_file("km-tkb-36-72"), VISIT_BUTTONS)]
     assert "[HỆ THỐNG] Sau câu trả lời này hệ thống gửi ảnh thời khoá biểu cơ sở Kim Mã" in parent.notes[-1]
     assert not customer_memory.get_profile(CUSTOMER_ID).get("timetable_asked")
 
@@ -441,7 +444,7 @@ def test_programme_question_without_campus_or_age_sends_no_timetable_but_asks_fo
     assert customer_memory.get_profile(CUSTOMER_ID)["timetable_asked"] is True
 
     sent = parent.say("Bé 20 tháng, em quan tâm Mỹ Đình", extracted={"kid_age": "20 tháng", "interested_campus": "Mỹ Đình"})
-    assert parent.images(sent) == [url("md-tkb-15-36")]
+    assert parent.images(sent) == [drive_file("md-tkb-15-36")]
 
 
 @pytest.mark.parametrize(
@@ -451,7 +454,7 @@ def test_programme_question_without_campus_or_age_sends_no_timetable_but_asks_fo
 def test_timetable_goes_for_a_kid_age_written_as_the_birth_date(parent, catalog, kid_age, campus, timetable):
     known(kid_age=kid_age, interested_campus=campus)
 
-    assert parent.images(parent.say("Cho em xin thời khoá biểu ạ")) == [url(timetable)]
+    assert parent.images(parent.say("Cho em xin thời khoá biểu ạ")) == [drive_file(timetable)]
     assert "tuổi bé" not in parent.notes[-1], parent.notes[-1]
     assert not customer_memory.get_profile(CUSTOMER_ID).get("timetable_asked")
 
@@ -459,7 +462,7 @@ def test_timetable_goes_for_a_kid_age_written_as_the_birth_date(parent, catalog,
 def test_birth_year_said_in_the_message_is_the_kids_age(parent, catalog):
     known(interested_campus="Kim Mã")
 
-    assert parent.images(parent.say("Bé nhà em sinh năm 2022, cho em xin thời khoá biểu ạ")) == [url("km-tkb-36-72")]
+    assert parent.images(parent.say("Bé nhà em sinh năm 2022, cho em xin thời khoá biểu ạ")) == [drive_file("km-tkb-36-72")]
 
 
 def test_enrolment_year_in_the_message_is_not_the_kids_age(parent, catalog):
@@ -508,7 +511,7 @@ def test_timetables_of_every_campus_the_parent_named_go_once_the_age_is_known(pa
 
     sent = parent.say("Bé nhà em 3-5 tuổi ạ", extracted={"kid_age": "3-5 tuổi"})
 
-    assert parent.images(sent) == [url("cl-tkb-36-60"), url("km-tkb-36-72")]
+    assert parent.images(sent) == [drive_file("cl-tkb-36-60"), drive_file("km-tkb-36-72")]
     for campus in ("Chùa Láng", "Kim Mã"):
         assert f"[HỆ THỐNG] Sau câu trả lời này hệ thống gửi ảnh thời khoá biểu cơ sở {campus}." in parent.notes[-1]
     assert not customer_memory.get_profile(CUSTOMER_ID).get("timetable_asked")
@@ -521,7 +524,7 @@ def test_both_systems_asked_for_get_the_timetables_of_the_campuses_named_earlier
 
     sent = parent.say("Gửi thời khoá biểu 2 hệ nhé")
 
-    assert parent.images(sent) == [url("cl-tkb-36-60"), url("km-tkb-36-72")]
+    assert parent.images(sent) == [drive_file("cl-tkb-36-60"), drive_file("km-tkb-36-72")]
 
 
 @pytest.mark.parametrize("both", ["cả 2 cơ sở", "hai bên", "2 trường"])
@@ -529,12 +532,12 @@ def test_both_campuses_get_the_timetables_of_every_campus_named_and_no_system_no
     known(kid_age="4 tuổi")
     parent.say("Chùa Láng và Kim Mã")
 
-    assert parent.images(parent.say(f"Gửi thời khoá biểu {both} nhé")) == [url("cl-tkb-36-60"), url("km-tkb-36-72")]
+    assert parent.images(parent.say(f"Gửi thời khoá biểu {both} nhé")) == [drive_file("cl-tkb-36-60"), drive_file("km-tkb-36-72")]
 
     customer_memory.set_fields(CUSTOMER_ID, {"conversation_history": [], "media_sent": {}, "interested_campus": "Kim Mã"})
     sent = parent.say(f"Cho em xin TKB {both} ạ")
 
-    assert parent.images(sent) == [url("km-tkb-36-72")]  # không thêm hệ Quốc tế mà phụ huynh chưa nêu, không hỏi
+    assert parent.images(sent) == [drive_file("km-tkb-36-72")]  # không thêm hệ Quốc tế mà phụ huynh chưa nêu, không hỏi
     assert "Chưa biết cơ sở" not in parent.notes[-1], parent.notes[-1]
     assert not customer_memory.get_profile(CUSTOMER_ID).get("timetable_asked")
 
@@ -545,13 +548,13 @@ def test_both_systems_without_an_international_campus_ask_which_one(parent, cata
 
     sent = parent.say(text)
 
-    assert parent.images(sent) == [url("km-tkb-36-72")]  # hệ Song ngữ chỉ có Kim Mã
+    assert parent.images(sent) == [drive_file("km-tkb-36-72")]  # hệ Song ngữ chỉ có Kim Mã
     note = parent.notes[-1]
     assert "Chưa biết cơ sở hệ Quốc tế Ba/Mẹ quan tâm (Chùa Láng hay Mỹ Đình) nên chưa gửi ảnh thời khoá biểu" in note, note
     assert customer_memory.get_profile(CUSTOMER_ID)["timetable_asked"] is True
 
     sent = parent.say("Em quan tâm cơ sở Mỹ Đình ạ", extracted={"interested_campus": "Mỹ Đình"})
-    assert parent.images(sent) == [url("md-tkb-36-60")]
+    assert parent.images(sent) == [drive_file("md-tkb-36-60")]
     assert not customer_memory.get_profile(CUSTOMER_ID).get("timetable_asked")
 
 
@@ -562,7 +565,7 @@ def test_fee_of_both_systems_goes_without_knowing_the_international_campus(paren
 
     sent = parent.say("Cho mình xin học phí 2 hệ nhé", extracted={"topics": ["Học phí"]})
 
-    assert parent.images(sent) == [url("sn-fee-10"), url("qt-fee-10")]
+    assert parent.images(sent) == [drive_file("sn-fee-10"), drive_file("qt-fee-10")]
     note = parent.notes[-1]
     assert "gửi ảnh học phí hệ Quốc tế." in note and "gửi ảnh học phí hệ Song ngữ (cơ sở Kim Mã)." in note, note
     assert "[đã gửi ảnh học phí hệ Quốc tế]" in parent.history()[-1]
@@ -579,7 +582,7 @@ def test_fee_of_two_campuses_of_different_systems_is_one_image_each(parent, cata
 
     sent = parent.say("học phí bao nhiêu ạ", extracted={"topics": ["Học phí"]})
 
-    assert parent.images(sent) == [url("qt-fee-10"), url("sn-fee-10")]
+    assert parent.images(sent) == [drive_file("qt-fee-10"), drive_file("sn-fee-10")]
     assert customer_memory.get_profile(CUSTOMER_ID)["media_sent"].keys() == {"fee:quoc_te:2026-10", "fee:song_ngu:2026-10"}
 
 
@@ -589,13 +592,13 @@ def test_facilities_of_two_campuses_go_one_campus_a_turn(parent, catalog):
     first = parent.images(parent.say("trường có sân chơi không ạ", extracted={"topics": ["Cơ sở vật chất"]}))
     second = parent.images(parent.say("cho em xem ảnh trường ạ", extracted={"topics": ["Cơ sở vật chất"]}))
 
-    assert first == [url(f"md-csvc-{i}") for i in range(1, 5)]
-    assert second == [url(f"km-csvc-{i}") for i in range(1, 5)]
+    assert first == [drive_file(f"md-csvc-{i}") for i in range(1, 5)]
+    assert second == [drive_file(f"km-csvc-{i}") for i in range(1, 5)]
 
 
 def test_timetables_already_sent_are_not_promised_again_nor_left_to_a_consultant(parent, catalog):
     known(kid_age="4 tuổi", interested_campus="Chùa Láng, Kim Mã")
-    assert parent.images(parent.say("Cho em xin thời khoá biểu ạ")) == [url("cl-tkb-36-60"), url("km-tkb-36-72")]
+    assert parent.images(parent.say("Cho em xin thời khoá biểu ạ")) == [drive_file("cl-tkb-36-60"), drive_file("km-tkb-36-72")]
 
     assert parent.images(parent.say("Gửi thời khoá biểu 2 hệ nhé")) == []
 
@@ -626,7 +629,7 @@ def test_an_image_the_reply_tags_as_sent_goes_even_if_the_extraction_missed_its_
     line = next(l for l in parent.notes[-1].splitlines() if "Nếu phụ huynh hỏi chương trình học" in l)
     assert "sau câu trả lời hệ thống gửi ảnh thời khoá biểu cơ sở Kim Mã" in line, line
     assert "thêm [SEND:timetable]" in line and "hỏi/mời xem ảnh thì không thêm" in line, line
-    assert parent.images(sent) == [url(i) for i in images]
+    assert parent.images(sent) == [drive_file(i) for i in images]
 
 
 # Review vòng thời khoá biểu v2: câu mời "Ba/Mẹ có muốn em gửi ảnh cơ sở vật chất không ạ?" bị đọc là báo gửi, nên
@@ -645,7 +648,7 @@ def test_an_offer_to_send_images_is_not_saying_they_are_sent(parent, catalog, re
 
     sent = parent.say("Kim Mã có rộng không ạ", reply=reply)
 
-    assert parent.images(sent) == ([url(f"km-csvc-{i}") for i in range(1, 5)] if goes else [])
+    assert parent.images(sent) == ([drive_file(f"km-csvc-{i}") for i in range(1, 5)] if goes else [])
     assert bool(customer_memory.get_profile(CUSTOMER_ID).get("media_sent")) == goes
 
 
@@ -656,7 +659,7 @@ def test_a_reply_sending_the_fee_and_offering_the_facilities_sends_only_the_fee(
 
     sent = parent.say("học phí bao nhiêu ạ", reply=f"{shown} [SEND:fee]", extracted={"topics": ["Học phí"]})
 
-    assert sent == [("text", shown, None), ("image", url("sn-fee-10"), None)]
+    assert sent == [("text", shown, None), ("image", drive_file("sn-fee-10"), None)]
     assert customer_memory.get_profile(CUSTOMER_ID)["media_sent"].keys() == {"fee:song_ngu:2026-10"}
 
 
@@ -668,7 +671,7 @@ def test_the_send_token_is_neither_shown_to_the_parent_nor_kept_in_the_history(p
 
     assert sent == [
         ("text", "Dạ em gửi Ba/Mẹ thời khoá biểu lớp của bé ạ.", None),
-        ("image", url("km-tkb-36-72"), VISIT_BUTTONS),
+        ("image", drive_file("km-tkb-36-72"), VISIT_BUTTONS),
     ]
     assert parent.history()[-1] == (
         "Dạ em gửi Ba/Mẹ thời khoá biểu lớp của bé ạ. [QUICK:visit_invite] [đã gửi ảnh thời khoá biểu cơ sở Kim Mã]"
@@ -700,13 +703,13 @@ def test_fee_image_the_reply_says_the_bot_sends_goes_without_the_fee_topic(paren
     reply = "Dạ em gửi Ba/Mẹ chính sách học phí cơ sở Mỹ Đình để tham khảo ạ. [SEND:fee]"
     sent = parent.say("vậy chi phí thế nào ạ", reply=reply)
 
-    assert parent.images(sent) == [url("qt-fee-10")]
+    assert parent.images(sent) == [drive_file("qt-fee-10")]
 
 
 def test_daily_schedule_question_gets_the_timetable(parent, catalog):
     known(interested_campus="Kim Mã", kid_age="4 tuổi")
 
-    assert parent.images(parent.say("Thời gian biểu trong ngày của bé thế nào ạ?")) == [url("km-tkb-36-72")]
+    assert parent.images(parent.say("Thời gian biểu trong ngày của bé thế nào ạ?")) == [drive_file("km-tkb-36-72")]
 
 
 # Review vòng thời khoá biểu v3: "lịch học thử 1 tuần/từ thứ 2/ba ngày" bị tính là thời khoá biểu ("thử" bỏ dấu là
@@ -743,7 +746,7 @@ def test_trial_week_schedule_is_not_a_timetable_question(parent, catalog, text):
 def test_weekday_schedule_question_gets_the_timetable(parent, catalog, text):
     known(interested_campus="Kim Mã", kid_age="4 tuổi")
 
-    assert parent.images(parent.say(text)) == [url("km-tkb-36-72")]
+    assert parent.images(parent.say(text)) == [drive_file("km-tkb-36-72")]
 
 
 TRIAL_WEEK_SENT = "Dạ em gửi Ba/Mẹ lịch học thử tuần sau ạ."
@@ -776,7 +779,7 @@ def test_facilities_wait_for_the_campus_then_go_once_with_buttons_on_the_last_im
 
     sent = parent.say("Em quan tâm cơ sở Kim Mã ạ")
     assert sent == [("text", SHOWN, None)] + [
-        ("image", url(f"km-csvc-{i}"), VISIT_BUTTONS if i == 4 else None) for i in range(1, 5)
+        ("image", drive_file(f"km-csvc-{i}"), VISIT_BUTTONS if i == 4 else None) for i in range(1, 5)
     ]
     assert "[HỆ THỐNG] Sau câu trả lời này hệ thống gửi ảnh cơ sở vật chất cơ sở Kim Mã" in parent.notes[-1]
 
@@ -788,7 +791,7 @@ def test_facilities_wait_for_the_campus_then_go_once_with_buttons_on_the_last_im
 def test_facilities_asked_again_after_the_images_went_does_not_wait_for_another_campus(parent, catalog):
     parent.say("trường có sân chơi không ạ", extracted={"topics": ["Cơ sở vật chất"]})
     sent = parent.say("Em quan tâm cơ sở Kim Mã ạ", extracted={"interested_campus": "Kim Mã"})
-    assert parent.images(sent) == [url(f"km-csvc-{i}") for i in range(1, 5)]
+    assert parent.images(sent) == [drive_file(f"km-csvc-{i}") for i in range(1, 5)]
 
     assert parent.images(parent.say("phòng học rộng không ạ", extracted={"topics": ["Cơ sở vật chất"]})) == []
     assert not customer_memory.get_profile(CUSTOMER_ID).get("facilities_asked")
@@ -814,21 +817,21 @@ def test_menu_of_kim_ma_is_the_drive_image_not_the_old_sample(parent, catalog):
 
     sent = parent.say("Cho em xem thực đơn của trường", reply=reply, extracted={"topics": ["Ăn uống/thực đơn"]})
 
-    assert parent.images(sent) == [url("sn-menu")]
+    assert parent.images(sent) == [drive_file("sn-menu")]
     assert "thực đơn hệ Song ngữ" in parent.notes[-1]
 
 
 def test_menu_without_a_known_system_is_the_international_one(parent, catalog):
     sent = parent.say("bé ăn những gì ở trường ạ", extracted={"topics": ["Ăn uống/thực đơn"]})
 
-    assert parent.images(sent) == [url("qt-menu")]
+    assert parent.images(sent) == [drive_file("qt-menu")]
 
 
 def test_menu_goes_once_to_each_parent(parent, catalog):
     known(interested_campus="Kim Mã")
     asks_menu = {"topics": ["Ăn uống/thực đơn"]}
 
-    assert parent.images(parent.say("cho em xem thực đơn ạ", extracted=asks_menu)) == [url("sn-menu")]
+    assert parent.images(parent.say("cho em xem thực đơn ạ", extracted=asks_menu)) == [drive_file("sn-menu")]
     assert "menu:sn-menu" in customer_memory.get_profile(CUSTOMER_ID)["media_sent"]
     assert parent.images(parent.say("gửi lại thực đơn cho em với", extracted=asks_menu)) == []
     assert "thực đơn" not in parent.notes[-1], parent.notes[-1]
@@ -838,7 +841,7 @@ def test_menu_goes_once_to_each_parent(parent, catalog):
 def test_menu_without_a_campus_is_the_one_of_the_programme_the_parent_wants(parent, catalog, program, menu):
     known(interested_program=program)
 
-    assert parent.images(parent.say("bé ăn những gì ạ", extracted={"topics": ["Ăn uống/thực đơn"]})) == [url(menu)]
+    assert parent.images(parent.say("bé ăn những gì ạ", extracted={"topics": ["Ăn uống/thực đơn"]})) == [drive_file(menu)]
 
 
 # --- không có danh mục, lỗi, chuyển tư vấn viên ---
@@ -856,7 +859,7 @@ def test_without_drive_images_the_bot_behaves_as_before(parent, catalog, monkeyp
     parent.say("học phí bao nhiêu ạ", extracted={"topics": ["Học phí", "Chương trình/phương pháp", "Cơ sở vật chất"]})
     sent = parent.say("Cho em xem thực đơn", reply=reply, extracted={"topics": ["Ăn uống/thực đơn"]})
 
-    assert parent.images() == [f"{BASE_URL}/static/thuc-don-mau.jpg"]
+    assert parent.images() == [main.STATIC_DIR / "thuc-don-mau.jpg"]
     assert sent[0] == ("text", "Dạ đây là thực đơn mẫu của Casa ạ.", None)
     assert all("[HỆ THỐNG]" not in note for note in parent.notes)
 
@@ -876,7 +879,7 @@ def test_no_image_when_the_parent_goes_to_a_consultant(parent, catalog, extracte
 
 def test_a_failed_image_does_not_break_the_turn_and_goes_when_asked_again(parent, catalog, caplog):
     known(kid_age="3 tuổi", interested_campus="Kim Mã")
-    parent.failing = {url("sn-fee-10")}
+    parent.failing = {drive_file("sn-fee-10")}
 
     with caplog.at_level(logging.WARNING):
         sent = parent.say("học phí bao nhiêu ạ", extracted={"topics": ["Học phí"]})
@@ -886,7 +889,7 @@ def test_a_failed_image_does_not_break_the_turn_and_goes_when_asked_again(parent
     assert [r.levelname for r in caplog.records if "not sent" in r.getMessage()] == ["WARNING"]
     assert parent.history()[-1] == REPLY + " [ảnh học phí hệ Song ngữ (cơ sở Kim Mã) chưa gửi được]"
     parent.failing = set()
-    assert parent.images(parent.say("học phí bao nhiêu ạ", extracted={"topics": ["Học phí"]})) == [url("sn-fee-10")]
+    assert parent.images(parent.say("học phí bao nhiêu ạ", extracted={"topics": ["Học phí"]})) == [drive_file("sn-fee-10")]
 
 
 TIMETABLE_SENT = "Dạ em gửi Ba/Mẹ thời khoá biểu lớp của bé để tham khảo ạ. [QUICK:visit_invite]"
@@ -899,13 +902,13 @@ def image_alerts(parent) -> list[str]:
 # Hội thoại thật 2026-10-24: bot báo "em gửi ngay bên dưới" mà ảnh Drive không tới, không ai biết vì sao.
 def test_a_failed_image_tells_the_admin_group_once_an_hour_without_the_parents_message(parent, catalog, monkeypatch):
     known(kid_age="4 tuổi", interested_campus="Kim Mã")
-    parent.failing = {url("km-tkb-36-72"), url("sn-fee-10")}
+    parent.failing = {drive_file("km-tkb-36-72"), drive_file("sn-fee-10")}
 
     parent.say("Cho em xin thời khoá biểu ạ", reply=TIMETABLE_SENT)
 
     (alert,) = image_alerts(parent)
     assert "thời khoá biểu cơ sở Kim Mã" in alert and "HTTP 400" in alert and GRAPH_FETCH_ERROR in alert, alert
-    assert "PUBLIC_BASE_URL" in alert and url("km-tkb-36-72") in alert, alert
+    assert "PUBLIC_BASE_URL" not in alert and BASE_URL not in alert, alert  # the image goes as a file, not a URL
     assert "Cho em xin" not in alert and CUSTOMER_ID not in alert
 
     parent.say("học phí bao nhiêu ạ", extracted={"topics": ["Học phí"]})
@@ -918,7 +921,7 @@ def test_a_failed_image_tells_the_admin_group_once_an_hour_without_the_parents_m
 
 def test_parent_told_the_images_failed_when_every_drive_image_promised_failed(parent, catalog):
     known(kid_age="4 tuổi", interested_campus="Kim Mã")
-    parent.failing = {url("km-tkb-36-72")}
+    parent.failing = {drive_file("km-tkb-36-72")}
 
     sent = parent.say("Cho em xin thời khoá biểu ạ", reply=TIMETABLE_SENT)
 
@@ -938,13 +941,13 @@ def failed(labels: str) -> str:
 
 def test_apology_names_the_campus_whose_timetable_failed(parent, catalog):
     known(kid_age="4 tuổi", interested_campus="Chùa Láng, Kim Mã")
-    parent.failing = {url("km-tkb-36-72")}
+    parent.failing = {drive_file("km-tkb-36-72")}
 
     sent = parent.say("Cho em xin thời khoá biểu ạ", reply=TIMETABLE_SENT)
 
     assert sent == [
         ("text", "Dạ em gửi Ba/Mẹ thời khoá biểu lớp của bé để tham khảo ạ.", None),
-        ("image", url("cl-tkb-36-60"), None),
+        ("image", drive_file("cl-tkb-36-60"), None),
         ("text", failed("thời khoá biểu cơ sở Kim Mã"), VISIT_BUTTONS),
     ]
     assert len(image_alerts(parent)) == 1
@@ -960,13 +963,13 @@ TIMETABLE_FOLLOWS = "Sau câu trả lời này hệ thống gửi ảnh thời k
 # im lặng (câu xin lỗi chỉ đi khi mọi ảnh lỗi) và xoá cờ chờ thời khoá biểu: phụ huynh không bao giờ biết ảnh thiếu.
 def test_a_partly_failed_turn_apologises_for_the_image_that_failed_and_does_not_try_it_again_unasked(parent, catalog):
     known(kid_age="4 tuổi", interested_campus="Kim Mã")
-    parent.failing = {url("km-tkb-36-72")}
+    parent.failing = {drive_file("km-tkb-36-72")}
 
     sent = parent.say("học phí và thời khoá biểu", extracted=FEE_AND_TIMETABLE)
 
     assert sent == [
         ("text", SHOWN, None),
-        ("image", url("sn-fee-10"), None),
+        ("image", drive_file("sn-fee-10"), None),
         ("text", failed("thời khoá biểu cơ sở Kim Mã"), VISIT_BUTTONS),
     ]
     assert parent.history()[-1] == f"{REPLY} {FEE_NOTE} {TIMETABLE_FAILED_NOTE}"
@@ -995,14 +998,14 @@ FAILED_KINDS = {
 
 
 def fail_once(parent, kind: str) -> tuple[list[str], str]:
-    """Lượt xin ảnh `kind` mà mọi ảnh của nó lỗi (bot xin lỗi); trả về URL các ảnh đó và nhãn trong ghi chú lịch sử."""
+    """Lượt xin ảnh `kind` mà mọi ảnh của nó lỗi (bot xin lỗi); trả về file các ảnh đó và nhãn trong ghi chú lịch sử."""
     known(kid_age="4 tuổi", interested_campus="Kim Mã")
     text, extracted, ids, label = FAILED_KINDS[kind]
-    parent.failing = {url(i) for i in ids}
+    parent.failing = {drive_file(i) for i in ids}
     assert parent.images(parent.say(text, extracted=extracted)) == []
     assert parent.history()[-1].endswith(f" [ảnh {label} chưa gửi được]")
     parent.failing = set()
-    return [url(i) for i in ids], label
+    return [drive_file(i) for i in ids], label
 
 
 # Review 2026-10-24: code đọc chữ "gửi lại" của phụ huynh nên "không cần em gửi lại đâu" vẫn nhận ảnh. Ảnh lỗi ở tin
@@ -1034,13 +1037,13 @@ def test_a_failed_image_does_not_go_again_when_the_reply_does_not_tag_it(parent,
 
 def test_only_the_image_that_failed_is_offered_again_after_a_partly_failed_turn(parent, catalog):
     known(kid_age="4 tuổi", interested_campus="Kim Mã")
-    parent.failing = {url("km-tkb-36-72")}
+    parent.failing = {drive_file("km-tkb-36-72")}
     parent.say("học phí và thời khoá biểu", extracted=FEE_AND_TIMETABLE)
     parent.failing = set()
 
     sent = parent.say("em gửi lại ảnh đi", reply="Dạ em gửi lại Ba/Mẹ ảnh ạ. [SEND:timetable] [QUICK:visit_invite]")
 
-    assert parent.images(sent) == [url("km-tkb-36-72")]
+    assert parent.images(sent) == [drive_file("km-tkb-36-72")]
     resend = [line for line in parent.notes[-1].splitlines() if "tin trước chưa gửi được" in line]
     assert resend == [resend_line("timetable", "thời khoá biểu cơ sở Kim Mã")], parent.notes[-1]
     assert TIMETABLE_NOTE_SENT in parent.history()[-1]
@@ -1055,7 +1058,7 @@ def test_only_the_image_that_failed_is_offered_again_after_a_partly_failed_turn(
 def test_failed_images_are_not_tried_again_until_the_parent_asks_again(parent, catalog, monkeypatch):
     chua_lang = [item(f"cl-csvc-{i}", f"IMG_{i:02}.jpg", QT, "CƠ SỞ CHÙA LÁNG", CSVC) for i in range(1, 7)]
     monkeypatch.setitem(media._catalog, "items", {**media._catalog["items"], **{i["id"]: i for i in chua_lang}})
-    photos = [url(f"cl-csvc-{i}") for i in range(1, 5)]
+    photos = [drive_file(f"cl-csvc-{i}") for i in range(1, 5)]
     asks_photos = {"topics": ["Cơ sở vật chất"]}
     facilities_sent = "Sau câu trả lời này hệ thống gửi ảnh cơ sở vật chất cơ sở Chùa Láng"
 
@@ -1076,20 +1079,20 @@ def test_failed_images_are_not_tried_again_until_the_parent_asks_again(parent, c
 
 def test_some_photos_of_the_facilities_failing_count_as_sent_without_an_apology(parent, catalog):
     known(interested_campus="Kim Mã")
-    parent.failing = {url("km-csvc-2")}
+    parent.failing = {drive_file("km-csvc-2")}
 
     sent = parent.say("cho em xem ảnh trường ạ", reply="Dạ em gửi Ba/Mẹ ảnh cơ sở Kim Mã ạ.",
                       extracted={"topics": ["Cơ sở vật chất"]})
 
     assert sent == [("text", "Dạ em gửi Ba/Mẹ ảnh cơ sở Kim Mã ạ.", None),
-                    *[("image", url(f"km-csvc-{i}"), None) for i in (1, 3, 4)]]
+                    *[("image", drive_file(f"km-csvc-{i}"), None) for i in (1, 3, 4)]]
     assert "facilities:Kim Mã" in customer_memory.get_profile(CUSTOMER_ID)["media_sent"]
     assert len(image_alerts(parent)) == 1
 
 
 def test_a_failed_qa_image_is_skipped_without_an_apology_nor_an_alert(parent, catalog, monkeypatch, caplog):
     monkeypatch.setattr(settings, "MEDIA_SYNC_ENABLED", False)
-    parent.failing = {f"{BASE_URL}/static/thuc-don-mau.jpg"}
+    parent.failing = {main.STATIC_DIR / "thuc-don-mau.jpg"}
 
     with caplog.at_level(logging.WARNING):
         sent = parent.say("Cho em xem thực đơn", reply="Dạ đây là thực đơn mẫu của Casa ạ. [IMAGES:static/thuc-don-mau.jpg]")
@@ -1097,8 +1100,122 @@ def test_a_failed_qa_image_is_skipped_without_an_apology_nor_an_alert(parent, ca
     assert sent == [("text", "Dạ đây là thực đơn mẫu của Casa ạ.", None)]
     assert parent.telegram == []
     assert [(r.levelname, r.getMessage()) for r in caplog.records if "not sent" in r.getMessage()] == [
-        ("WARNING", f"Image {BASE_URL}/static/thuc-don-mau.jpg not sent to {CUSTOMER_ID}: GraphError")
+        ("WARNING", f"Image static/thuc-don-mau.jpg not sent to {CUSTOMER_ID}: GraphError")
     ]
+
+
+def test_a_qa_image_in_static_goes_from_its_file_and_a_url_as_a_url(parent, monkeypatch):
+    reply = "Dạ đây là thực đơn mẫu ạ. [IMAGES:static/thuc-don-mau.jpg,https://cdn.example/b.jpg][QUICK:age]"
+
+    sent = parent.say("Cho em xem thực đơn", reply=reply)
+
+    assert sent == [
+        ("text", "Dạ đây là thực đơn mẫu ạ.", None),
+        ("image", main.STATIC_DIR / "thuc-don-mau.jpg", None),
+        ("image", "https://cdn.example/b.jpg", main.build_quick_replies("age")),
+    ]
+
+
+# A Q&A image is sent from STATIC_DIR only: "static/../<file>" would upload any file of the server to a parent.
+@pytest.mark.parametrize("ref", ["static/../app/config.py", "static/../../etc/hostname", "static/khong-co.jpg",
+                                 "static/../tests/test_media_replies.py"])
+def test_a_qa_image_that_is_not_an_image_file_in_static_is_not_sent(parent, caplog, ref):
+    with caplog.at_level(logging.WARNING):
+        sent = parent.say("Cho em xem thực đơn", reply=f"Dạ vâng ạ. [IMAGES:{ref},static/thuc-don-mau.jpg][QUICK:age]")
+
+    assert sent == [
+        ("text", "Dạ vâng ạ.", None),
+        ("image", main.STATIC_DIR / "thuc-don-mau.jpg", main.build_quick_replies("age")),
+    ]
+    assert f"Q&A image {ref} not sent" in caplog.text
+
+
+def test_buttons_go_on_the_text_when_the_only_qa_image_is_not_sent(parent):
+    sent = parent.say("Cho em xem thực đơn", reply="Dạ vâng ạ. [IMAGES:static/../app/config.py][QUICK:age]")
+
+    assert sent == [("text", "Dạ vâng ạ.", main.build_quick_replies("age"))]
+
+
+UPLOAD_TOKEN = "EAAG-page-token-uploads"
+
+
+class GraphUploads:
+    """graph.facebook.com /me/messages behind httpx: ("text", text, buttons), ("upload", file name, buttons) or
+    ("id", attachment_id, buttons) per message; an upload gets attachment_id "att-<file name>"."""
+
+    def __init__(self):
+        self.sent: list[tuple] = []
+
+    async def respond(self, request: httpx.Request) -> httpx.Response:
+        assert request.url.path.endswith("/me/messages") and request.url.params["access_token"] == UPLOAD_TOKEN
+        await request.aread()
+        if request.headers["content-type"].startswith("application/json"):
+            body = json.loads(request.content)
+            if "sender_action" in body:
+                return httpx.Response(200, json={})
+            message = body["message"]
+            if "text" in message:
+                self.sent.append(("text", message["text"], message.get("quick_replies")))
+            else:
+                payload = message["attachment"]["payload"]
+                assert "url" not in payload, payload
+                self.sent.append(("id", payload["attachment_id"], message.get("quick_replies")))
+            return httpx.Response(200, json={"recipient_id": body["recipient"]["id"], "message_id": "m_1"})
+        form = BytesParser(policy=policy.HTTP).parsebytes(
+            f"Content-Type: {request.headers['content-type']}\r\n\r\n".encode() + request.content
+        )
+        parts = {p.get_param("name", header="content-disposition"): p for p in form.iter_parts()}
+        message = json.loads(parts["message"].get_payload(decode=True))
+        assert message["attachment"] == {"type": "image", "payload": {"is_reusable": True}}, message
+        name = parts["filedata"].get_filename()
+        self.sent.append(("upload", name, message.get("quick_replies")))
+        return httpx.Response(200, json={"recipient_id": "x", "message_id": "m_2", "attachment_id": f"att-{name}"})
+
+
+@pytest.fixture
+def uploads(parent, monkeypatch):
+    """main sends with the real messenger functions to GraphUploads; every catalog image is a file in MEDIA_DIR."""
+    graph = GraphUploads()
+
+    async def handle(self, request):
+        return await graph.respond(request)
+
+    folder = Path(settings.MEDIA_DIR)
+    folder.mkdir(parents=True, exist_ok=True)
+    for i in CATALOG:
+        (folder / f"{i['id']}.jpg").write_bytes(_png())
+    monkeypatch.setattr(settings, "FB_PAGE_ACCESS_TOKEN", UPLOAD_TOKEN)
+    monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", handle)
+    monkeypatch.setattr(messenger, "_attachment_ids", {})
+    monkeypatch.setattr(main, "send_message", messenger.send_message)
+    monkeypatch.setattr(main, "send_image", messenger.send_image)
+    return graph
+
+
+# Thử thật trên Render 2026-10-24: Graph trả "(#100) Upload failed" cho ảnh gửi bằng URL dù URL mở được trong trình
+# duyệt. Mỗi loại ảnh Drive đi bằng file tải lên; phụ huynh sau nhận cùng ảnh bằng attachment_id, không tải lại.
+@pytest.mark.parametrize("kind", list(FAILED_KINDS))
+def test_drive_images_are_uploaded_then_sent_by_attachment_id_to_the_next_parent(parent, catalog, uploads, kind):
+    text, extracted, ids, _ = FAILED_KINDS[kind]
+    files = [f"{i}.jpg" for i in ids]
+    known(kid_age="4 tuổi", interested_campus="Kim Mã")
+    known("9000000000000702", kid_age="4 tuổi", interested_campus="Kim Mã")
+
+    parent.say(text, extracted=extracted)
+    first, uploads.sent = uploads.sent, []
+    parent.say(text, extracted=extracted, customer_id="9000000000000702")
+
+    buttons = [None] * (len(files) - 1) + [VISIT_BUTTONS]
+    assert first == [("text", SHOWN, None), *[("upload", f, b) for f, b in zip(files, buttons)]]
+    assert uploads.sent == [("text", SHOWN, None), *[("id", f"att-{f}", b) for f, b in zip(files, buttons)]]
+
+
+def test_the_qa_sample_menu_is_uploaded_when_drive_sync_is_off(parent, catalog, uploads, monkeypatch):
+    monkeypatch.setattr(settings, "MEDIA_SYNC_ENABLED", False)
+
+    parent.say("Cho em xem thực đơn", reply="Dạ đây là thực đơn mẫu của Casa ạ. [IMAGES:static/thuc-don-mau.jpg]")
+
+    assert uploads.sent == [("text", "Dạ đây là thực đơn mẫu của Casa ạ.", None), ("upload", "thuc-don-mau.jpg", None)]
 
 
 def test_every_turn_logs_the_drive_images_it_plans_to_send(parent, catalog, caplog):
@@ -1119,7 +1236,7 @@ PAGE_TOKEN = "EAAG-page-token-media-replies"
 
 
 @pytest.mark.parametrize("send", ["image", "message"])
-def test_graph_errors_are_logged_and_raised_without_the_access_token(monkeypatch, caplog, send):
+def test_graph_errors_are_logged_and_raised_without_the_access_token(monkeypatch, caplog, tmp_path, send):
     monkeypatch.setattr(settings, "FB_PAGE_ACCESS_TOKEN", PAGE_TOKEN)
     error = {"error": {"message": f"(#100) Failed to fetch the file from the url access_token={PAGE_TOKEN}", "code": 100}}
 
@@ -1128,7 +1245,9 @@ def test_graph_errors_are_logged_and_raised_without_the_access_token(monkeypatch
         return httpx.Response(400, content=json.dumps(error))
 
     monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", graph)
-    call = messenger.send_image(CUSTOMER_ID, url("x")) if send == "image" else messenger.send_message(CUSTOMER_ID, "Dạ")
+    photo = tmp_path / "x.jpg"
+    photo.write_bytes(b"\xff\xd8jpeg")
+    call = messenger.send_image(CUSTOMER_ID, photo) if send == "image" else messenger.send_message(CUSTOMER_ID, "Dạ")
 
     with caplog.at_level(logging.ERROR), pytest.raises(messenger.GraphError) as raised:
         asyncio.run(call)
@@ -1148,7 +1267,7 @@ def test_at_most_five_images_in_one_turn(parent, catalog):
     )
 
     images = parent.images(sent)
-    assert images[:3] == [url("sn-fee-10"), url("km-tkb-36-72"), url("sn-menu")]
+    assert images[:3] == [drive_file("sn-fee-10"), drive_file("km-tkb-36-72"), drive_file("sn-menu")]
     assert len(images) == 3  # 4 ảnh cơ sở vật chất không vừa: cờ facilities_asked chờ lượt sau
     assert sent[-1][2] == VISIT_BUTTONS
 
@@ -1162,7 +1281,7 @@ def test_images_that_did_not_fit_go_on_the_next_turn(parent, catalog):
 
     sent = parent.say("dạ vâng")
 
-    assert parent.images(sent) == [url(f"km-csvc-{i}") for i in range(1, 5)]
+    assert parent.images(sent) == [drive_file(f"km-csvc-{i}") for i in range(1, 5)]
     assert not customer_memory.get_profile(CUSTOMER_ID).get("facilities_asked")
 
 
@@ -1173,9 +1292,9 @@ def test_a_menu_that_did_not_fit_waits_until_the_parent_asks_again(parent, catal
     sent = parent.say("cho em xin học phí, thời khoá biểu và thực đơn",
                       extracted={"topics": ["Học phí", "Chương trình/phương pháp", *asks_menu["topics"]]})
 
-    assert len(parent.images(sent)) == 5 and url("qt-menu") not in parent.images(sent)  # 2 học phí + 3 thời khoá biểu
+    assert len(parent.images(sent)) == 5 and drive_file("qt-menu") not in parent.images(sent)  # 2 học phí + 3 thời khoá biểu
     assert parent.images(parent.say("dạ vâng")) == []  # thực đơn không có cờ chờ
-    assert parent.images(parent.say("cho em xem thực đơn", extracted=asks_menu)) == [url("qt-menu")]
+    assert parent.images(parent.say("cho em xem thực đơn", extracted=asks_menu)) == [drive_file("qt-menu")]
 
 
 def test_a_reply_of_only_tokens_sends_only_the_images_with_the_buttons(parent, catalog):
@@ -1184,7 +1303,7 @@ def test_a_reply_of_only_tokens_sends_only_the_images_with_the_buttons(parent, c
     sent = parent.say("thực đơn", reply="[IMAGES:static/thuc-don-mau.jpg][QUICK:age]",
                       extracted={"topics": ["Ăn uống/thực đơn"]})
 
-    assert sent == [("image", url("sn-menu"), main.build_quick_replies("age"))]
+    assert sent == [("image", drive_file("sn-menu"), main.build_quick_replies("age"))]
 
 
 @pytest.mark.parametrize("note", ["[đã gửi ảnh học phí hệ Song ngữ]", "[ảnh thời khoá biểu cơ sở Kim Mã chưa gửi được]"])
@@ -1258,8 +1377,6 @@ class SlowDrive:
             return httpx.Response(200, json=self.answer)
         if request.url.host == "drive.google.com":
             return httpx.Response(200, content=_png(), headers={"Content-Type": "image/png"})
-        if request.url.host == httpx.URL(BASE_URL).host:  # the link check after a sync (media.check_link)
-            return httpx.Response(200, content=b"\xff\xd8jpeg", headers={"Content-Type": "image/jpeg"})
         raise AssertionError(f"unexpected request {request.url}")
 
 
@@ -1277,7 +1394,6 @@ def drive(monkeypatch):
     monkeypatch.setattr(settings, "PUBLIC_BASE_URL", BASE_URL)
     monkeypatch.setattr(settings, "MEDIA_FIRST_SYNC_WAIT", 30)
     monkeypatch.setattr(media, "_first_sync", None)
-    monkeypatch.setattr(media, "_link_alerted_at", None)
     return fake
 
 
@@ -1314,7 +1430,7 @@ def test_a_message_right_after_start_waits_for_the_first_sync_and_gets_the_timet
     with caplog.at_level(logging.INFO):
         [(sent, seconds)] = right_after_start(parent, "Cho em xin thời khoá biểu ạ")
 
-    assert sent == [("text", SHOWN, None), ("image", url("km-tkb-36-72"), VISIT_BUTTONS)]
+    assert sent == [("text", SHOWN, None), ("image", drive_file("km-tkb-36-72"), VISIT_BUTTONS)]
     assert TIMETABLE_NOTE in parent.notes[-1], parent.notes[-1]
     assert seconds >= drive.delay
     first = [r for r in caplog.records if r.name == "app.media" and "first sync" in r.getMessage()]
@@ -1393,7 +1509,7 @@ def test_waiting_for_the_first_sync_keeps_the_typing_indicator_on(parent, drive,
 
     after = asyncio.run(run())
 
-    assert parent.images() == [url("km-tkb-36-72")]
+    assert parent.images() == [drive_file("km-tkb-36-72")]
     assert len(typing) >= 3 and set(typing) == {(CUSTOMER_ID, "typing_on")}, typing
     assert len(typing) == after  # stopped with the wait
 
@@ -1443,7 +1559,7 @@ def test_images_kept_on_disk_from_before_the_restart_are_used_without_waiting(pa
     with caplog.at_level(logging.WARNING):
         [(sent, seconds)] = right_after_start(parent, "Cho em xin thời khoá biểu ạ")
 
-    assert parent.images(sent) == [url("km-tkb-36-72")]
+    assert parent.images(sent) == [drive_file("km-tkb-36-72")]
     assert seconds < 5
     assert first_sync_warnings(caplog) == []
 

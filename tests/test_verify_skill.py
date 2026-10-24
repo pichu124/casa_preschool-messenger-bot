@@ -375,3 +375,47 @@ def test_fake_graph_refuses_only_images_when_graph_image_fails(monkeypatch, tmp_
     code, out, _ = fake.route("POST", "graph.facebook.com", "/v21.0/me/messages", {}, image)
     assert (code, out["error"]["code"]) == (400, 100)
     assert fake.route("POST", "graph.facebook.com", "/v21.0/me/messages", {}, text)[0] == 200
+
+
+def test_fake_graph_takes_an_uploaded_image_then_its_attachment_id(monkeypatch):
+    import _common
+
+    monkeypatch.setattr(fake, "args", SimpleNamespace(scenario=str(SKILL / "harness" / "scenario.default.json"), port=1))
+    image = httpx.Request(
+        "POST", "http://fake/v21.0/me/messages",
+        data={"recipient": json.dumps({"id": "1"}), "messaging_type": "RESPONSE",
+              "message": json.dumps({"attachment": {"type": "image", "payload": {"is_reusable": True}}})},
+        files={"filedata": ("km-tkb-2.jpg", b"\xff\xd8" + b"x" * 98, "image/jpeg")},
+    )
+    upload = fake.multipart_form(image.headers["content-type"], image.read())
+    assert upload["recipient"] == {"id": "1"} and upload["messaging_type"] == "RESPONSE"
+    assert upload["filedata"] == {"filename": "km-tkb-2.jpg", "content_type": "image/jpeg", "size": 100}
+
+    code, out, _ = fake.route("POST", "graph.facebook.com", "/v21.0/me/messages", {}, upload)
+    assert code == 200 and out["attachment_id"].startswith("att_fake_")
+    by_id = {"recipient": {"id": "2"},
+             "message": {"attachment": {"type": "image", "payload": {"attachment_id": out["attachment_id"]}}}}
+    assert fake.route("POST", "graph.facebook.com", "/v21.0/me/messages", {}, by_id)[0] == 200
+    unknown = {**by_id, "message": {"attachment": {"type": "image", "payload": {"attachment_id": "att_other"}}}}
+    assert fake.route("POST", "graph.facebook.com", "/v21.0/me/messages", {}, unknown)[0] == 400
+
+    rec = {"seq": 7, "status": 200, "host": "graph.facebook.com", "method": "POST", "path": "/v21.0/me/messages"}
+    assert _common.summarize({**rec, "body": upload, "response": out}) == (
+        f"#7   200 FB  to=1 IMAGE upload km-tkb-2.jpg (image/jpeg, 100 bytes) -> attachment_id={out['attachment_id']}"
+    )
+    assert _common.summarize({**rec, "body": by_id, "response": {}}) == (
+        f"#7   200 FB  to=2 IMAGE attachment_id={out['attachment_id']}"
+    )
+
+
+def test_fake_graph_image_failure_refuses_uploads_and_attachment_ids(monkeypatch, tmp_path):
+    scenario = {**SCENARIO, "fail": {**SCENARIO["fail"], "graph_image": True}}
+    (tmp_path / "scenario.json").write_text(json.dumps(scenario), "utf-8")
+    monkeypatch.setattr(fake, "args", SimpleNamespace(scenario=str(tmp_path / "scenario.json"), port=1))
+    message = {"attachment": {"type": "image", "payload": {"is_reusable": True}}}
+    upload = {"recipient": {"id": "1"}, "message": message, "filedata": {"filename": "a.jpg", "size": 1}}
+    by_id = {"recipient": {"id": "1"}, "message": {"attachment": {"type": "image", "payload": {"attachment_id": "x"}}}}
+
+    for body in (upload, by_id):
+        code, out, _ = fake.route("POST", "graph.facebook.com", "/v21.0/me/messages", {}, body)
+        assert (code, out["error"]["code"]) == (400, 100)

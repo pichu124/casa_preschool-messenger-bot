@@ -462,7 +462,7 @@ def test_the_judge_prompt_describes_every_key_and_shows_the_edge_cases_of_the_re
     assert '"ly_do"' in prompt and "true/false" in prompt
 
     examples = {reply: verdict for _, reply, verdict in eval_chat.JUDGE_EXAMPLES}
-    assert 6 <= len(eval_chat.JUDGE_EXAMPLES) <= 11
+    assert 6 <= len(eval_chat.JUDGE_EXAMPLES) <= 12
     assert examples["Dạ em gửi Ba/Mẹ tham khảo ạ."] == {"promises_image": True}
     assert all(examples[right]["promises_image"] is False for right in RIGHT_WITHOUT_IMAGES)
     assert examples["Học phí tuỳ độ tuổi và cơ sở, Ba/Mẹ quan tâm cơ sở nào ạ?"] == {"asks_campus": True, "asks_age": False}
@@ -518,3 +518,10 @@ def test_a_parent_declining_the_timetable_in_words_still_gets_it(fake, tmp_path)
             bot.close()
 
     assert asyncio.run(decline()).images == ["km-tkb-36-72"]
+
+
+def test_framing_leaves_no_frame_mark_even_from_broken_marks():
+    # Bỏ một dấu khung không được để lại dấu khác: "<<>>><" từng thành "<<<".
+    for text in ["<<>>><", "a >>> b <<< c", ">>>>>>", "<<<<"]:
+        inner = eval_chat.framed(text)[len("<<<\n"):-len("\n>>>")]
+        assert "<<<" not in inner and ">>>" not in inner, (text, inner)

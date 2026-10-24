@@ -736,6 +736,8 @@ JUDGE_EXAMPLES = [
     ("học phí", "Dạ em gửi Ba/Mẹ bảng học phí bên dưới ạ", {"announces_image": True}),
     ("thời khoá biểu", "Dạ ảnh thời khoá biểu lúc nãy chưa gửi được, em gửi lại Ba/Mẹ ạ",
      {"says_cannot_send": False, "announces_image": True}),
+    # The Q&A sample menu answer is written in the passive voice: it still says the image comes with the reply
+    ("thực đơn", "Ảnh thực đơn mẫu 1 tuần được gửi kèm để Ba/Mẹ tham khảo ạ.", {"announces_image": True}),
 ]
 
 
@@ -766,8 +768,8 @@ QUICK_OF = {"asks_age": "age", "asks_campus": "campus"}
 
 def framed(text: str) -> str:
     """`text` trong khung FRAME; dấu khung có sẵn trong `text` bị bỏ để nó không tự đóng khung."""
-    for mark in FRAME:
-        text = text.replace(mark, "")
+    # Every run of 3+ angle brackets goes: removing one mark must not leave another ("<<>>><" -> "<<<")
+    text = re.sub(r"[<>]{3,}", "", text)
     return f"{FRAME[0]}\n{text}\n{FRAME[1]}"
 
 

@@ -660,6 +660,9 @@ BOTH_WORDS = re.compile(r"\b(?:ca )?(?:2|hai) (he|co so|ben|truong)\b")
 # A reply saying the bot itself sends an image (as media.fold writes it: "em gửi", "em xin phép gửi", not "tư vấn
 # viên sẽ gửi" nor "em chưa gửi được"), and the words of each kind of image in that sentence.
 BOT_SENDS = re.compile(r"\bem(?: (?!chua\b|khong\b)\w+){0,2} gui\b")
+# A question or an offer ("Ba/Mẹ có muốn em gửi ảnh … không ạ?", "em gửi Ba/Mẹ … nhé?") does not say the bot sends;
+# told apart clause by clause ("em gửi Ba/Mẹ ảnh … ạ, Ba/Mẹ có muốn ghé thăm không ạ?" still does).
+OFFERS = re.compile(r"\?\s*$|\bco muon\b|\bkhong a\b\W*$")
 IMAGE_WORDS = {
     "fee": re.compile(r"\b(?:hoc phi|bang phi)\b"),
     "timetable": re.compile(r"\b(?:thoi (?:khoa|gian) bieu|tkb|lich hoc)\b"),
@@ -698,7 +701,8 @@ def _image_id(url: str) -> str:
 
 def _announced(reply: str) -> set[str]:
     """The kinds of image a sentence of `reply` says the bot sends ("Thời khoá biểu em gửi ngay bên dưới ạ")."""
-    sentences = [s for s in re.split(r"[.!?\n]+", media.fold(reply)) if BOT_SENDS.search(s)]
+    sentences = re.findall(r"[^.!?\n]+[.!?]*", media.fold(reply))
+    sentences = [s for s in sentences if any(BOT_SENDS.search(c) and not OFFERS.search(c) for c in s.split(","))]
     return {kind for kind, words in IMAGE_WORDS.items() if any(words.search(s) for s in sentences)}
 
 

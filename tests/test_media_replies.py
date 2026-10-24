@@ -488,6 +488,7 @@ def test_timetables_already_sent_are_not_promised_again_nor_left_to_a_consultant
         ("Dạ thời khoá biểu tư vấn viên sẽ gửi Ba/Mẹ ạ.", False),
         ("Dạ em chưa gửi được thời khoá biểu ạ.", False),
         ("Dạ em gửi Ba/Mẹ thông tin chương trình ạ. Thời khoá biểu thì theo từng lớp ạ.", False),
+        ("Dạ Ba/Mẹ có muốn em gửi thời khoá biểu lớp của bé không ạ?", False),
     ],
 )
 def test_an_image_the_reply_says_the_bot_sends_goes_even_if_the_extraction_missed_its_topic(parent, catalog, reply, goes):
@@ -497,6 +498,27 @@ def test_an_image_the_reply_says_the_bot_sends_goes_even_if_the_extraction_misse
 
     assert "Nếu phụ huynh hỏi chương trình học/Cambridge/thời khoá biểu: sau câu trả lời" in parent.notes[-1]
     assert parent.images(sent) == ([url("km-tkb-36-72")] if goes else [])
+
+
+# Review vòng thời khoá biểu v2: câu mời "Ba/Mẹ có muốn em gửi ảnh cơ sở vật chất không ạ?" bị đọc là báo gửi, nên
+# 4 ảnh đi ngay khi phụ huynh chưa trả lời. Câu hỏi, câu mời không phải báo gửi.
+@pytest.mark.parametrize(
+    ("reply", "goes"),
+    [
+        ("Dạ Kim Mã có sân vườn rộng ạ. Ba/Mẹ có muốn em gửi ảnh cơ sở vật chất không ạ?", False),
+        ("Dạ Kim Mã có sân vườn rộng ạ, em gửi Ba/Mẹ ảnh cơ sở vật chất nhé?", False),
+        ("Dạ Ba/Mẹ có muốn em gửi ảnh trường không ạ", False),
+        ("Dạ Kim Mã có sân vườn rộng ạ! Em gửi Ba/Mẹ ảnh cơ sở vật chất bên dưới ạ.", True),
+        ("Dạ em gửi Ba/Mẹ ảnh cơ sở vật chất ạ, Ba/Mẹ có muốn ghé tham quan không ạ?", True),
+    ],
+)
+def test_an_offer_to_send_images_is_not_saying_they_are_sent(parent, catalog, reply, goes):
+    known(interested_campus="Kim Mã")
+
+    sent = parent.say("Kim Mã có rộng không ạ", reply=reply)
+
+    assert parent.images(sent) == ([url(f"km-csvc-{i}") for i in range(1, 5)] if goes else [])
+    assert bool(customer_memory.get_profile(CUSTOMER_ID).get("media_sent")) == goes
 
 
 def test_fee_image_the_reply_says_the_bot_sends_goes_without_the_fee_topic(parent, catalog):

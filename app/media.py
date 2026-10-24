@@ -78,8 +78,9 @@ _KID_AGE = re.compile(
 )
 
 
-# A birth date: "sinh năm 2022", "sinh tháng 3/2022", "sinh tháng 3 năm 2022", "sinh 12/2023", "sinh ngày 5/3/2022".
-_BORN = re.compile(r"\bsinh (?:nam |(?:ngay )?(?:\d{1,2}/)?(?:thang )?(\d{1,2})(?:/|-| nam | ))?((?:19|20)\d{2})\b")
+# A birth date: "sinh năm 2022", "sinh tháng 3/2022", "sinh tháng 3 năm 2022", "sinh 12/2023", "sinh ngày 5/3/2022";
+# not "tuyển sinh 2025" nor "học sinh năm 2024".
+_BORN = re.compile(r"(?<!tuyen )(?<!hoc )\bsinh (?:nam |(?:ngay )?(?:\d{1,2}/)?(?:thang )?(\d{1,2})(?:/|-| nam | ))?((?:19|20)\d{2})\b")
 # The month of a birth year said without it: mid-year, at most 6 months off.
 BORN_MONTH_UNKNOWN = 7
 

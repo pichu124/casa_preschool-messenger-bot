@@ -188,6 +188,9 @@ def test_kid_age_is_read_as_months(kid_age, months):
         ("2022", 51),  # năm sinh trơn, không phải 2022 tuổi
         ("4", 48),
         ("30", None),
+        # Review vòng thời khoá biểu v3: năm tuyển sinh, học sinh của năm nào không phải năm sinh của bé
+        ("Trường còn tuyển sinh 2025 không", None),
+        ("lớp có bao nhiêu học sinh năm 2024 ạ", None),
     ],
 )
 def test_kid_age_written_as_the_birth_date_is_read_as_months(kid_age, months):
@@ -436,6 +439,13 @@ def test_birth_year_said_in_the_message_is_the_kids_age(parent, catalog):
     known(interested_campus="Kim Mã")
 
     assert parent.images(parent.say("Bé nhà em sinh năm 2022, cho em xin thời khoá biểu ạ")) == [url("km-tkb-36-72")]
+
+
+def test_enrolment_year_in_the_message_is_not_the_kids_age(parent, catalog):
+    known(interested_campus="Kim Mã")
+
+    assert parent.images(parent.say("Trường còn tuyển sinh 2025 không, cho em xin thời khoá biểu")) == []
+    assert "Chưa biết tuổi bé nên chưa gửi ảnh thời khoá biểu" in parent.notes[-1], parent.notes[-1]
 
 
 def test_timetable_with_the_age_known_asks_only_the_campus(parent, catalog):

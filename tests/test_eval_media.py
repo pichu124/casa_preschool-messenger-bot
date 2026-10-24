@@ -179,7 +179,7 @@ def fake(monkeypatch) -> FakeModel:
 
 def follows_the_rules(step, note: str) -> str:
     """Model làm đúng luật: [ESCALATE] khi phải chuyển; báo em gửi khi có ảnh, gắn [SEND:<loại>] đúng dòng "Nếu phụ
-    huynh hỏi …" của ảnh đó, [SKIP:<loại>] cho ảnh phụ huynh từ chối mà dòng [HỆ THỐNG] dặn, [IMAGES:] cho ảnh Q&A;
+    huynh hỏi …" của ảnh đó, [SKIP:<loại>] cho ảnh phụ huynh từ chối mà dòng SKIP nêu, [IMAGES:] cho ảnh Q&A;
     hỏi đúng cái còn thiếu; nói các cụm ca đòi."""
     if step.escalate:
         return "[ESCALATE]"
@@ -189,7 +189,8 @@ def follows_the_rules(step, note: str) -> str:
     said += asks or ["Không biết Ba/Mẹ có muốn ghé tham quan không ạ?"]
     kinds = sorted({cases.image_kind(i) for i in step.images})
     said += [f"[SEND:{k}]" for k in kinds if f"Nếu phụ huynh hỏi {IMAGE_TOPICS[k]}: sau câu trả lời" in note]
-    said += [f"[SKIP:{k}]" for k in step.declines if f"thêm [SKIP:{k}]" in note]
+    skip = next((line for line in note.splitlines() if eval_chat.NOTE_STATES["skip"] in line), "")
+    said += [f"[SKIP:{k}]" for k in step.declines if f"[SKIP:{k}]" in skip]
     if cases.QA_MENU_IMAGE in step.images:
         said.append(f"[IMAGES:{cases.QA_MENU_IMAGE}]")
     return " ".join(said)
@@ -227,7 +228,8 @@ def test_media_suite_passes_a_model_that_follows_the_rules_and_meets_every_statu
     assert "✘" not in out and "  ? giám khảo" not in out
     media_run = seen[0]
     assert media_run.steps == sum(len(case.steps) for case in cases.MEDIA_CASES.values())
-    # Mọi trạng thái dòng nhắc: chắc chắn gửi, "Nếu phụ huynh hỏi …", thiếu thông tin, đã gửi, hỏi cơ sở cho ảnh trường
+    # Mọi trạng thái dòng nhắc: chắc chắn gửi, "Nếu phụ huynh hỏi …", thiếu thông tin, đã gửi, hỏi cơ sở cho ảnh trường,
+    # ảnh lỗi tin trước, từ chối ảnh
     assert media_run.states == set(eval_chat.NOTE_STATES)
     assert "--- FEE-ASKED-READY ---" in out and "ảnh: qt-fee-10;" in out
     # Một lời gọi giám khảo mỗi lượt không chuyển tư vấn viên; mỗi lượt in phán quyết và lý do.
@@ -509,7 +511,7 @@ def test_media_suite_leaves_the_app_as_it_found_it(fake):
 
 @pytest.mark.parametrize("code", ["TKB-DECLINED-IN-WORDS", "FEE-DECLINED-IN-WORDS"])
 def test_a_declined_sure_image_passes_only_when_the_model_tags_it_skipped(fake, monkeypatch, capsys, code):
-    """Phụ huynh từ chối ảnh chắc chắn gửi: model đúng luật gắn [SKIP:<loại>] theo dòng [HỆ THỐNG] (follows_the_rules,
+    """Phụ huynh từ chối ảnh chắc chắn gửi: model đúng luật gắn [SKIP:<loại>] theo dòng SKIP (follows_the_rules,
     cả bộ đạt ở test_media_suite_passes_…); model quên token thì ảnh vẫn đi và bộ media chấm ảnh thừa."""
     with_steps(fake, monkeypatch)
     turn = cases.MEDIA_CASES[code].steps[0]

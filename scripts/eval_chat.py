@@ -667,6 +667,7 @@ NOTE_STATES = {
     "sent": "đã gửi ở tin trước",
     "need_campus": "chưa biết cơ sở nên hỏi",
     "failed": "tin trước chưa gửi được",
+    "skip": "Phụ huynh nói không cần/không muốn ảnh nào",
 }
 # Host của Graph, Telegram, GitHub, Apps Script/Drive: bộ media không được gọi thật (model AI thì được).
 BLOCKED_HOSTS = (

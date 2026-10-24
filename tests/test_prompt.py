@@ -1231,11 +1231,7 @@ def test_media_note_says_which_images_follow_and_what_to_ask():
     assert lines[0].startswith("- [HỆ THỐNG]") and "không nêu con số" in lines[0] and "không [ESCALATE]" in lines[0]
     assert "không nói không gửi được bảng phí" in lines[0]
     assert "chỉ nói em gửi ảnh có dòng dưới đây" in lines[0] and "không nói tư vấn viên sẽ gửi ảnh đó" in lines[0]
-    # Phụ huynh từ chối ảnh chắc chắn gửi: model quyết bằng token, code không đọc lời từ chối (người vận hành 2026-10-24)
-    assert lines[1] == (
-        "- [HỆ THỐNG] Sau câu trả lời này hệ thống gửi ảnh học phí hệ Song ngữ (cơ sở Kim Mã). Nếu phụ huynh nói "
-        "không cần/không muốn ảnh này thì thêm [SKIP:fee], không báo gửi."
-    )
+    assert lines[1] == "- [HỆ THỐNG] Sau câu trả lời này hệ thống gửi ảnh học phí hệ Song ngữ (cơ sở Kim Mã)."
     assert lines[2] == (
         "- [HỆ THỐNG] Nếu phụ huynh hỏi thực đơn/ăn uống: sau câu trả lời hệ thống gửi ảnh thực đơn hệ Quốc tế. Chỉ "
         "khi câu trả lời báo em gửi ảnh này thì thêm [SEND:menu] ở cuối (trước [QUICK:]); hỏi/mời xem ảnh thì không thêm."
@@ -1246,6 +1242,13 @@ def test_media_note_says_which_images_follow_and_what_to_ask():
         "không nói đã/sẽ gửi ảnh đó, không nói tư vấn viên sẽ gửi."
     )
     assert "hỏi Ba/Mẹ quan tâm cơ sở nào" in lines[4] and "[QUICK:campus]" in lines[4]
+    # Phụ huynh từ chối một ảnh (chắc chắn gửi, tuỳ chủ đề, còn thiếu thông tin): model quyết bằng token, code không đọc
+    # lời từ chối (người vận hành 2026-10-24); một dòng cho mọi loại ảnh của khối
+    assert lines[5:] == [
+        "- [HỆ THỐNG] Phụ huynh nói không cần/không muốn ảnh nào (kể cả ảnh còn chờ thông tin) thì thêm token của ảnh "
+        "đó ở cuối (trước [QUICK:]): học phí [SKIP:fee], thời khoá biểu [SKIP:timetable], cơ sở vật chất "
+        "[SKIP:facilities], thực đơn [SKIP:menu]; không báo gửi, không hỏi thêm để gửi ảnh đó."
+    ]
     assert media_note([]) == ""
 
 
@@ -1264,9 +1267,20 @@ def test_media_note_of_images_already_sent_says_so_without_the_sending_header():
 def test_media_note_of_a_timetable_still_missing_the_age_only_asks_for_it():
     note = media_note([ImageNote("timetable", "thời khoá biểu", ("tuổi bé",), state="missing")])
 
-    assert note == (
+    assert note.splitlines() == [
         "- [HỆ THỐNG] Chưa biết tuổi bé nên chưa gửi ảnh thời khoá biểu: hỏi tuổi bé để em gửi đúng thời khoá biểu; "
-        "không nói đã/sẽ gửi ảnh đó, không nói tư vấn viên sẽ gửi."
+        "không nói đã/sẽ gửi ảnh đó, không nói tư vấn viên sẽ gửi.",
+        "- [HỆ THỐNG] Phụ huynh nói không cần/không muốn ảnh nào (kể cả ảnh còn chờ thông tin) thì thêm token của ảnh "
+        "đó ở cuối (trước [QUICK:]): thời khoá biểu [SKIP:timetable]; không báo gửi, không hỏi thêm để gửi ảnh đó.",
+    ]
+
+
+# Review 2026-10-24: ảnh học phí chờ tuổi bé không có dòng [HỆ THỐNG] của nó (luật học phí xin SĐT/Zalo là của
+# SYSTEM_PROMPT), nên phụ huynh nói "thôi khỏi gửi học phí" mà model không biết token: dòng SKIP vẫn nêu loại đang chờ.
+def test_media_note_lets_the_parent_decline_an_image_waiting_without_a_line_of_its_own():
+    assert media_note([], waiting=["fee"]) == (
+        "- [HỆ THỐNG] Phụ huynh nói không cần/không muốn ảnh nào (kể cả ảnh còn chờ thông tin) thì thêm token của ảnh "
+        "đó ở cuối (trước [QUICK:]): học phí [SKIP:fee]; không báo gửi, không hỏi thêm để gửi ảnh đó."
     )
 
 
@@ -1278,15 +1292,14 @@ def test_timetable_being_sent_answers_a_schedule_question_without_escalating(mon
     maybe = media_note([ImageNote("timetable", "thời khoá biểu cơ sở Kim Mã", if_asked=True)])
     _, with_note = model_input(monkeypatch, "lịch học của bé thế nào ạ", conversation_history=FOLLOW_UP, media_note=sure)
 
-    line = _reminder(with_note).splitlines()[-1]
+    line = _reminder(with_note).splitlines()[-2]
     assert line.startswith("- [HỆ THỐNG] Sau câu trả lời này hệ thống gửi ảnh thời khoá biểu cơ sở Kim Mã."), line
     assert re.search(r"lịch học[^.]*giờ[^.]*trả lời chung[^.]*KHÔNG \[ESCALATE\][^.]*không tự nêu giờ", line), line
     # Chỉ lịch trong tuần: lịch hè, Tết, học bù không có trong thời khoá biểu nên vẫn chuyển tư vấn viên.
     assert re.search(r"Lịch hè/Tết/học bù[^.]*vẫn \[ESCALATE\]", line), line
-    assert "ESCALATE" not in maybe.splitlines()[-1] and "lịch học" not in maybe.splitlines()[-1], maybe
+    assert "ESCALATE" not in maybe.splitlines()[-2] and "lịch học" not in maybe.splitlines()[-2], maybe
     assert "[SEND:timetable]" in maybe and "SEND" not in sure, (maybe, sure)
-    assert line.endswith("thêm [SKIP:timetable], không báo gửi.") and "SKIP" not in maybe, (line, maybe)
-    assert "ESCALATE" not in media_note([ImageNote("fee", "học phí hệ Song ngữ (cơ sở Kim Mã)")]).splitlines()[-1]
+    assert "ESCALATE" not in media_note([ImageNote("fee", "học phí hệ Song ngữ (cơ sở Kim Mã)")]).splitlines()[-2]
     escalate = next(l for l in _reminder(with_note).splitlines() if "BẮT BUỘC trả lời chính xác chuỗi [ESCALATE]" in l)
     assert "lịch chi tiết" in escalate, escalate
 

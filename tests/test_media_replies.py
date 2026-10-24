@@ -679,8 +679,12 @@ def test_the_send_token_is_neither_shown_to_the_parent_nor_kept_in_the_history(p
 
 
 # Người vận hành 2026-10-24: "Không cần gửi thời khoá biểu đâu em" có chữ "thời khoá biểu" nên ảnh thành chắc chắn và
-# vẫn đi. Code không đọc lời từ chối của phụ huynh: dòng "Sau câu trả lời này …" dặn model gắn [SKIP:<loại>].
+# vẫn đi. Code không đọc lời từ chối của phụ huynh: dòng [HỆ THỐNG] cuối (SKIP_LINE) dặn model gắn [SKIP:<loại>].
 DECLINED = "Dạ vâng ạ, Ba/Mẹ cần thêm thông tin gì cứ nhắn em nhé ạ."
+
+
+def skip_line(note: str) -> str:
+    return next((line for line in note.splitlines() if "[SKIP:" in line), "")
 
 
 @pytest.mark.parametrize(
@@ -698,10 +702,8 @@ def test_a_parent_declining_the_timetable_gets_none_when_the_reply_tags_it_skipp
 
     sent = parent.say("Không cần gửi thời khoá biểu đâu em", reply=reply)
 
-    line = next(l for l in parent.notes[-1].splitlines() if "Sau câu trả lời này hệ thống gửi ảnh thời khoá biểu" in l)
-    assert line.endswith(
-        "Nếu phụ huynh nói không cần/không muốn ảnh này thì thêm [SKIP:timetable], không báo gửi."
-    ), line
+    assert "Sau câu trả lời này hệ thống gửi ảnh thời khoá biểu cơ sở Kim Mã" in parent.notes[-1], parent.notes[-1]
+    assert "thời khoá biểu [SKIP:timetable]" in skip_line(parent.notes[-1]), parent.notes[-1]
     assert parent.images(sent) == [drive_file(i) for i in images]
     assert sent[0] == ("text", DECLINED, None if images else VISIT_BUTTONS)
     profile = customer_memory.get_profile(CUSTOMER_ID)
@@ -734,7 +736,7 @@ def test_a_skip_token_drops_that_sure_image_and_its_waiting_flag(parent, catalog
 
     sent = parent.say(text, reply=f"{DECLINED} [SKIP:{kind}]")
 
-    assert f"thêm [SKIP:{kind}], không báo gửi" in parent.notes[-1], parent.notes[-1]
+    assert f"[SKIP:{kind}]" in skip_line(parent.notes[-1]), parent.notes[-1]
     assert parent.images(sent) == [drive_file(i) for i in others]
     stored = customer_memory.get_profile(CUSTOMER_ID)
     assert not stored.get(flag), stored
@@ -754,6 +756,51 @@ def test_skip_wins_over_send_and_a_skip_of_an_image_not_offered_changes_nothing(
     # SKIP của loại không có ảnh định gửi: bỏ qua, ảnh khác vẫn đi, token không lộ
     sent = parent.say("cho em xin thời khoá biểu ạ", reply=f"{DECLINED} [SKIP:menu] [SKIP:fee] [SKIP:la]")
     assert sent == [("text", DECLINED, None), ("image", drive_file("km-tkb-36-72"), None)]
+
+
+# Review 2026-10-24: ảnh còn chờ tuổi bé/cơ sở không có câu SKIP, và SKIP của loại chưa có ảnh định gửi bị bỏ qua: cờ
+# chờ còn, lượt sau đủ thông tin thì ảnh phụ huynh đã từ chối vẫn đi.
+@pytest.mark.parametrize(
+    ("profile", "decline", "kind", "flag", "then", "extracted", "images"),
+    [
+        ({"kid_age": "4 tuổi", "timetable_asked": True}, "Không cần gửi thời khoá biểu đâu em", "timetable",
+         "timetable_asked", "Em ở gần Kim Mã, học phí bên đó thế nào ạ",
+         {"interested_campus": "Kim Mã", "topics": ["Học phí"]}, ["sn-fee-10"]),
+        ({"interested_campus": "Kim Mã", "fee_asked": True}, "thôi khỏi gửi học phí đâu em", "fee", "fee_asked",
+         "bé nhà em 4 tuổi ạ", {"kid_age": "4 tuổi"}, []),
+    ],
+    ids=["timetable-missing-campus", "fee-missing-age"],
+)
+def test_declining_an_image_still_missing_the_age_or_campus_stops_it_waiting(
+    parent, catalog, profile, decline, kind, flag, then, extracted, images
+):
+    known(**profile)
+
+    sent = parent.say(decline, reply=f"{DECLINED} [SKIP:{kind}]")
+
+    assert sent == [("text", DECLINED, None)]
+    assert not customer_memory.get_profile(CUSTOMER_ID).get(flag)
+    line = skip_line(parent.notes[-1])
+    assert f"[SKIP:{kind}]" in line and "không hỏi thêm để gửi ảnh đó" in line, parent.notes[-1]
+
+    # Lượt sau đủ thông tin, câu trả lời không gắn token: ảnh đã từ chối không đi, ảnh khác theo luật của nó
+    sent = parent.say(then, extracted=extracted)
+    assert parent.images(sent) == [drive_file(i) for i in images]
+
+
+def test_declining_an_image_the_extraction_tags_as_asked_sends_none(parent, catalog):
+    known(interested_campus="Kim Mã")
+
+    sent = parent.say(
+        "Không cần gửi ảnh trường đâu em", reply=f"{DECLINED} [SKIP:facilities]", extracted={"topics": ["Cơ sở vật chất"]}
+    )
+
+    note = parent.notes[-1]
+    assert "Nếu phụ huynh hỏi cơ sở vật chất: sau câu trả lời hệ thống gửi ảnh cơ sở vật chất cơ sở Kim Mã" in note
+    assert "[SKIP:facilities]" in skip_line(note), note
+    assert sent == [("text", DECLINED, None)]
+    profile = customer_memory.get_profile(CUSTOMER_ID)
+    assert not profile.get("facilities_asked") and not profile.get("media_sent")
 
 
 # Token của ảnh chưa đủ điều kiện (thiếu tuổi bé, thiếu cơ sở) không gửi gì và không để cờ chờ: phụ huynh không hỏi.

@@ -786,8 +786,9 @@ def _plan_images(
     images waiting for what is missing. `extracted`: what the model extracted from `text`, {} before it is known; a
     campus and an age named in `text` count as well. `tagged`: the kinds of image the reply tags as sent
     ([SEND:<kind>]): their offers go as if asked for, only when ready (the parent asked nothing, no flag waits).
-    `skipped`: the kinds the reply tags as not wanted ([SKIP:<kind>], over [SEND:] of the same kind): their offers do
-    not go and their flag does not wait (asked again later, they go as usual); a kind without an offer is ignored."""
+    `skipped`: the kinds the reply tags as not wanted ([SKIP:<kind>]), over the extracted topics, [SEND:] and the flags:
+    their offers do not go and their flag does not wait, even one still waiting for the age or the campus (asked again
+    later, they go as usual)."""
     if not settings.MEDIA_SYNC_ENABLED:
         return qa_images, [], {}, []
     asked = set(topics)
@@ -880,7 +881,6 @@ def _plan_images(
     if tagged:
         # A tag asks nothing: what waits is what the parent asked, as without it
         waiting = _plan_images(profile, extracted, text, asked, qa_images, last_bot_message, today)[2]
-    skipped = skipped & {o.kind for o in offers}
     if skipped:
         offers = [o for o in offers if o.kind not in skipped]
         waiting = {flag: "" if WAITING_FLAGS[flag] in skipped else state for flag, state in waiting.items()}
@@ -891,7 +891,8 @@ def _media_note(profile: dict, text: str, last_bot_message: str, today: date) ->
     """The [HỆ THỐNG] lines for the reply to `text`, written before its extraction is known: the images sent whatever
     the message asks, and those sent if it asks about their topic (or if the reply tags itself as sending them); what
     an image waits for; the images sent before that this message asks for again; the images of the bot's last
-    message that failed (FAILED_NOTE) and would go again if the reply tags them."""
+    message that failed (FAILED_NOTE) and would go again if the reply tags them; the token tagging any of these, or an
+    image a flag of WAITING_FLAGS waits for, as not wanted ([SKIP:<kind>])."""
     if not settings.MEDIA_SYNC_ENABLED:
         return ""
     _, sure, _, sure_notes = _plan_images(profile, {}, text, [], [], last_bot_message, today)
@@ -904,7 +905,8 @@ def _media_note(profile: dict, text: str, last_bot_message: str, today: date) ->
     images += [n._replace(if_asked=n not in sure_notes) for n in notes if n.state != "sent" or n in sure_notes]
     campuses = media.campuses_in(text) or media.campuses_in(profile.get("interested_campus"))
     need_campus = not campuses and any(media.facility_images(c, 1) for c in media.CAMPUSES)
-    return media_note(images, facilities_need_campus=need_campus)
+    waiting = [kind for flag, kind in WAITING_FLAGS.items() if profile.get(flag)]
+    return media_note(images, facilities_need_campus=need_campus, waiting=waiting)
 
 
 _stale_fee_reminded: dict[str, date] = {}

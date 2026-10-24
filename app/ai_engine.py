@@ -149,9 +149,15 @@ SEND_TOKEN_RULE = (
     "Chỉ khi câu trả lời báo em gửi ảnh này thì thêm [SEND:{kind}] ở cuối (trước [QUICK:]); hỏi/mời xem ảnh thì "
     "không thêm."
 )
-# An image sure to follow the reply goes unless the reply tags it [SKIP:<kind>] (app/main.py hides the token): the model,
-# not a reading of the parent's words ("không cần gửi thời khoá biểu"), says the parent does not want it.
-SKIP_TOKEN_RULE = "Nếu phụ huynh nói không cần/không muốn ảnh này thì thêm [SKIP:{kind}], không báo gửi."
+# An image the reply tags [SKIP:<kind>] (app/main.py hides the token) does not go nor wait any longer: the model, not a
+# reading of the parent's words ("không cần gửi thời khoá biểu"), says the parent does not want it. One line for every
+# kind sent, maybe sent or waiting, since the fee waiting for the age has no line of its own (a "hỏi tuổi bé" line would
+# go against the SĐT/Zalo funnel of SYSTEM_PROMPT).
+IMAGE_NAMES = {"fee": "học phí", "timetable": "thời khoá biểu", "facilities": "cơ sở vật chất", "menu": "thực đơn"}
+SKIP_LINE = (
+    "- [HỆ THỐNG] Phụ huynh nói không cần/không muốn ảnh nào (kể cả ảnh còn chờ thông tin) thì thêm token của ảnh đó "
+    "ở cuối (trước [QUICK:]): {tokens}; không báo gửi, không hỏi thêm để gửi ảnh đó."
+)
 # An image of the bot's last message that failed: only the model knows whether the parent asks for it again.
 FAILED_IMAGE_LINE = (
     "- [HỆ THỐNG] Ảnh {label} tin trước chưa gửi được. Nếu phụ huynh xin gửi lại thì báo em gửi lại và thêm "
@@ -187,23 +193,26 @@ def _not_sending_line(image: ImageNote) -> str:
     )
 
 
-def media_note(images: list[ImageNote], facilities_need_campus: bool = False) -> str:
+def media_note(images: list[ImageNote], facilities_need_campus: bool = False, waiting=()) -> str:
     """The [HỆ THỐNG] lines of the reminders telling the model which images the bot sends after its reply, which
-    failed in its last message, which wait for what the bot does not know yet and which went in an earlier turn."""
+    failed in its last message, which wait for what the bot does not know yet and which went in an earlier turn; then
+    the SKIP_LINE of those images and of the kinds `waiting` (a question waits for their image)."""
     lines = []
     for image in (i for i in images if i.state == "send"):
         when = f"Nếu phụ huynh hỏi {IMAGE_TOPICS[image.kind]}: sau câu trả lời" if image.if_asked else "Sau câu trả lời này"
-        if image.if_asked:
-            answer = SEND_TOKEN_RULE.format(kind=image.kind)
-        else:
-            answer = " ".join(filter(None, (IMAGE_ANSWERS.get(image.kind), SKIP_TOKEN_RULE.format(kind=image.kind))))
-        lines.append(f"- [HỆ THỐNG] {when} hệ thống gửi ảnh {image.label}. {answer}")
+        answer = SEND_TOKEN_RULE.format(kind=image.kind) if image.if_asked else IMAGE_ANSWERS.get(image.kind, "")
+        lines.append(f"- [HỆ THỐNG] {when} hệ thống gửi ảnh {image.label}." + (f" {answer}" if answer else ""))
     if lines:
         lines.insert(0, MEDIA_NOTE_HEADER)
     lines += [FAILED_IMAGE_LINE.format(label=i.label, kind=i.kind) for i in images if i.state == "failed"]
     lines += [_not_sending_line(i) for i in images if i.state in ("missing", "sent")]
     if facilities_need_campus:
         lines.append(FACILITIES_NEED_CAMPUS)
+    kinds = {i.kind for i in images if i.state in ("send", "missing")} | set(waiting)
+    kinds |= {"facilities"} if facilities_need_campus else set()
+    if kinds:
+        tokens = ", ".join(f"{name} [SKIP:{kind}]" for kind, name in IMAGE_NAMES.items() if kind in kinds)
+        lines.append(SKIP_LINE.format(tokens=tokens))
     return "\n".join(lines)
 
 

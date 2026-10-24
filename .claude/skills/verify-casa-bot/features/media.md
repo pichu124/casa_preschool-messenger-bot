@@ -5,6 +5,7 @@ Bot tự đồng bộ ảnh học phí, thực đơn, thời khoá biểu và c�
 ## Sub-features
 
 - `startup-sync` khởi động với `MEDIA_SYNC_ENABLED=true` → một POST tới Apps Script (`{"type":"media","token":…}`), rồi mỗi ảnh một GET `drive.google.com/uc?export=download&id=…` (303 sang `drive.usercontent.google.com/download`); log `Media synced: 30 images, 30 downloaded, …`. Tắt (mặc định của harness) thì không có request nào, log WARNING `Media sync off` một lần.
+- `first-sync-wait` tin phụ huynh tới khi lần đồng bộ đầu sau khởi động còn chạy (đĩa chưa có ảnh) → lượt đó chờ nó xong (tối đa `MEDIA_FIRST_SYNC_WAIT` giây, mặc định 60) rồi mới gọi model, nên có dòng `[HỆ THỐNG]` và `IMAGE`; log INFO `Media first sync since start done in …s: 30 images`. Quá trần → trả lời không ảnh, log WARNING `Media first sync not done after …s`. Đồng bộ tắt, lần đầu đã xong (kể cả lỗi), hay ảnh cũ trên đĩa → không chờ.
 - `classify` thư mục `HỆ QUỐC TẾ`/`HỆ SONG NGỮ` → `HỌC PHÍ THÁNG N` (fee), `THỰC ĐƠN` (menu), `CƠ SỞ <TÊN>/THỜI KHÓA BIỂU` (timetable, nhóm tuổi theo tháng từ tên file), `CƠ SỞ <TÊN>/ẢNH CƠ SỞ VẬT CHẤT` (facilities); cơ sở là khoá của hồ sơ (`Chùa Láng`, `Mỹ Đình`, `Kim Mã`). File khác: bỏ qua, nằm trong `skipped`.
 - `media-endpoint` `GET /media?secret=` → `enabled`, `synced_at`, `last_error`, `total`, `counts` (fee, menu, timetable, facilities), `items` (mỗi ảnh: `kind`, `system`, `month`, `campus`, `age_min`, `age_max`, `path`, `url`), `skipped`; secret sai hoặc thiếu → 403.
 - `media-static` `GET /static/media/<id>.jpg` → `200 image/jpeg`; ảnh đã xoá → 404.
@@ -34,6 +35,7 @@ Preconditions:
 - Fake Apps Script trả cây thư mục thật của trường (30 ảnh, `MEDIA_FILES` trong `harness/fake_server.py`); fake Drive trả một PNG 64x48 cho mọi id.
 
 - **Đồng bộ lúc khởi động.** `read outbox | head` → `SHEET {"type": "media", "token": "fake-sheet-token-…"} files=30`, rồi từng cặp `DRIVE GET drive.google.com/uc id=… -> http://127.0.0.1:<port>/drive.usercontent.google.com/download?…` (303) và `DRIVE GET drive.usercontent.google.com/download id=… -> <image/png, … bytes>`. `read outbox --host drive` đủ 60 dòng. `read log --grep app.media` → `Media synced: 30 images, 30 downloaded, 0 removed, 0 skipped, 0 failed`.
+- **Tin ngay sau khởi động.** Ngay sau `READY`: `send text 9000000000002501 "Cho em xin thời khoá biểu cơ sở Kim Mã, bé 3 tuổi ạ"` → `TEXT` rồi `IMAGE …/km-tkb-2.jpg`; `read log --grep "first sync"` → `Media first sync since start done in 0.2s: 30 images`, không có `first sync not done`.
 - **Danh mục.** `curl -s "$CASA_APP/media?secret=$CASA_SECRET"` → `total: 30`, `counts: {"fee": 2, "menu": 2, "timetable": 8, "facilities": 18}`, timetable `Kim Mã` 15–36 và 36–72, `url` là `http://127.0.0.1:<port>/static/media/<id>.jpg`. Không secret hoặc `secret=wrong` → 403.
 - **Ảnh qua app.** `curl -s -o /tmp/x.jpg -w '%{http_code} %{content_type}\n' "$CASA_APP/static/media/km-tkb-2.jpg"` → `200 image/jpeg`, file là JPEG 64x48.
 - **/capnhatanh.** `send tg-command /capnhatanh` → `SENT tg-command -> HTTP 200 {"status":"media_sync_started"}`, một `SHEET {"type": "media", …}`, không có `DRIVE` (không file nào đổi), `TG sendMessage … header='🖼 CẬP NHẬT ẢNH: 30 ảnh (tải mới 0, giữ nguyên 30, xoá 0)'`. Đọc đủ tin: `read outbox --host tg --full | tail -1`.
@@ -54,6 +56,7 @@ Preconditions:
 
 - Harness mặc định `MEDIA_SYNC_ENABLED=false` để outbox các hành trình khác không đổi; phải `--env MEDIA_SYNC_ENABLED=true` lúc `up`.
 - Fake Drive không giả trang "quét virus" hay giới hạn tải của Google; ảnh lớn (14 MB của Kim Mã) chỉ thử được ở pytest (`tests/test_media.py`, Pillow thật), không qua harness.
+- Fake Apps Script trả lời ngay, không có công tắc làm chậm: lần đồng bộ đầu xong (~0,2 giây) trước `READY`, nên harness không bắt được lượt phải chờ. Chờ, quá trần, đồng bộ đầu lỗi, ảnh cũ trên đĩa chỉ thử ở pytest (`tests/test_media_replies.py`, mục "lần đồng bộ đầu sau khởi động").
 - `static/media/` bị gitignore nên bản sao bắt đầu không có ảnh; mỗi lần `up` là tải lại đủ.
 - Fake extract trả `{}` cho câu tự viết như "Bé 20 tháng, cơ sở Kim Mã" hay "Chùa Láng và Kim Mã": hồ sơ không có tuổi/cơ sở (trích xuất thật thì có; kịch bản mặc định chỉ được trích tên nút, `tests/test_verify_skill.py`). Câu đó vẫn tính cho chính lượt ấy (bot đọc tên cơ sở và tuổi trong tin), nhưng lượt sau thì không; dùng nút `QR:age:*`, `QR:campus:2` hoặc `TOUR_CAMPUS` để hồ sơ có dữ liệu.
 - Tóm tắt dùng tháng hiện tại theo giờ Việt Nam của máy; fake chỉ có `HỌC PHÍ THÁNG 10`, nên chạy vào tháng khác sẽ thấy cảnh báo học phí ngay từ lần đầu. Ảnh fake có `modified` 2026-10-01: từ cuối tháng 7/2027 ảnh học phí là ảnh cũ (sửa lần cuối hơn 300 ngày), tóm tắt và tin nhắc ghi thêm "sửa lần cuối 01/10/2026".

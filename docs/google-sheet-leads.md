@@ -383,6 +383,8 @@ Bot lấy ảnh học phí, thực đơn, thời khoá biểu và cơ sở vật
 5. Trên Render → service của bot → **Environment**: thêm `MEDIA_SYNC_ENABLED` = `true` → Save (Render deploy lại). Bot dùng chung `LEADS_SHEET_WEBHOOK_URL` và `LEADS_SHEET_TOKEN`; `MEDIA_SYNC_MINUTES` (mặc định 30) là số phút giữa hai lần đồng bộ.
 6. Trong nhóm Telegram admin gõ `/capnhatanh` → bot đồng bộ ngay và gửi tóm tắt số ảnh mỗi loại.
 
+Sau đó bot tự đồng bộ mỗi lần khởi động và mỗi `MEDIA_SYNC_MINUTES` phút; `/capnhatanh` chỉ dùng khi vừa đổi ảnh trên Drive và muốn bot lấy ngay. Mỗi lần khởi động (deploy, hoặc Render Free thức dậy sau 15 phút ngủ: ổ đĩa trống), tin phụ huynh tới trước khi lần đồng bộ đầu xong sẽ chờ nó xong rồi mới trả lời (tối đa `MEDIA_FIRST_SYNC_WAIT` giây, mặc định 60), để có ảnh; quá thì trả lời không ảnh, log WARNING `Media first sync not done …`. Log INFO `Media first sync since start …` cho biết lần đầu mất bao nhiêu giây, bao nhiêu ảnh.
+
 Thư mục gốc là hằng `MEDIA_ROOT_ID` trong script (thư mục của trường). Dùng thư mục khác: **Project Settings → Script Properties** → thêm `MEDIA_ROOT_ID` = id thư mục (phần sau `/folders/` trong link) → Save; không cần deploy lại.
 
 Tắt: xoá `MEDIA_SYNC_ENABLED` hoặc đặt khác `true` (ảnh đã tải vẫn ở trên đĩa tới lần deploy sau).

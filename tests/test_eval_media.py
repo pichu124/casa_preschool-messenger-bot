@@ -124,7 +124,7 @@ def test_eval_cases_send_every_kind_of_image_and_tap_real_buttons():
 ASK = {"age": "Ba/Mẹ cho em xin tuổi bé ạ?", "campus": "Ba/Mẹ quan tâm cơ sở nào ạ?"}
 SENDS = "Dạ em gửi Ba/Mẹ ảnh để gia đình tham khảo ạ."
 # Giám khảo giả: khoá nào true với câu nào của bot; câu bot không chứa câu nào của bảng thì mọi khoá false.
-JUDGE_TABLE = {SENDS: {"promises_image"}, ASK["age"]: {"asks_age"}, ASK["campus"]: {"asks_campus"}}
+JUDGE_TABLE = {SENDS: {"promises_image", "announces_image"}, ASK["age"]: {"asks_age"}, ASK["campus"]: {"asks_campus"}}
 
 
 def asked_of(message: str) -> tuple[str, list[str]]:
@@ -245,12 +245,48 @@ def test_the_judge_reads_the_parent_message_the_images_that_went_and_the_reply_w
     fee = [m for m in fake.judged if m.startswith(fee_asked)]
     assert len(fee) == 1  # FEE-ASKED-READY (FEE-STALE cùng câu nhưng ảnh qt-fee-9)
     assert asked_of(fee[0]) == (
-        f"{SENDS} Dạ gửi ạ. Không biết Ba/Mẹ có muốn ghé tham quan không ạ?",
-        ["consultant_sends_image", "says_cannot_send"],
+        f"{SENDS} Không biết Ba/Mẹ có muốn ghé tham quan không ạ?",
+        ["consultant_sends_image", "says_cannot_send", "announces_image"],
     )
     wait_age = [m for m in fake.judged if m.startswith("Tin phụ huynh: cho em hỏi học phí ạ\nẢnh đi kèm: không có\n")]
     assert [asked_of(m)[1] for m in wait_age] == [["consultant_sends_image", "promises_image", "asks_age", "asks_campus"]]
     assert not any("lịch học hè" in m for m in fake.judged)  # lượt chuyển tư vấn viên: câu cố định của code
+
+
+# Review 2026-10-24: câu mặc định khi model bỏ qua dòng [HỆ THỐNG] đạt ở lượt có ảnh học phí: chữ báo gửi khớp "gửi" của
+# "tư vấn viên gửi", và consultant_sends_image không tính bảng phí qua Zalo (đúng ở lượt không ảnh).
+CONSULTANT_FEE = ("Dạ học phí bên em tuỳ chương trình ạ. Nếu tiện, Ba/Mẹ để lại SĐT/Zalo để tư vấn viên gửi Ba/Mẹ "
+                  "bảng phí chi tiết kèm ưu đãi ạ.")
+SENDS_FEE = "Dạ em gửi Ba/Mẹ bảng học phí bên dưới ạ"
+RESENDS = "Dạ ảnh thời khoá biểu lúc nãy chưa gửi được, em gửi lại Ba/Mẹ ạ"
+
+
+@pytest.mark.parametrize(
+    ("code", "sentence", "judged", "exit_code"),
+    [
+        ("FEE-ASKED-READY", CONSULTANT_FEE, set(), 1),
+        ("FEE-ASKED-READY", SENDS_FEE, {"announces_image"}, 0),
+        ("GEN-FAIL-RESEND-REPLY", RESENDS, {"announces_image"}, 0),
+    ],
+    ids=["consultant-sends-the-fees", "announces-the-fees", "resends-the-timetable"],
+)
+def test_a_turn_with_images_is_graded_on_whether_the_reply_announces_them(
+    fake, monkeypatch, capsys, code, sentence, judged, exit_code
+):
+    with_steps(fake, monkeypatch)
+    turn = cases.MEDIA_CASES[code].steps[0]
+    fake.chat = lambda step, note: follows_the_rules(step, note).replace(SENDS, sentence if step is turn else SENDS)
+    fake.judge = judge_by({**JUDGE_TABLE, sentence: judged})
+
+    assert run(["media"]) == exit_code
+
+    out = capsys.readouterr().out
+    graded = out.split(f"--- {code} ---\n", 1)[1].split("\n--- ", 1)[0]
+    assert sentence in graded and f"announces_image={bool(judged)}" in graded, graded
+    assert ("✘ ảnh đi mà câu trả lời không báo em gửi" in graded) == bool(exit_code), graded
+    assert out.count("✘") == exit_code, out
+    asked = next(asked_of(m)[1] for m in fake.judged if sentence in asked_of(m)[0])
+    assert asked == ["consultant_sends_image", "says_cannot_send", "announces_image"]
 
 
 # Review 2026-10-24: các câu đúng theo prompt bị regex chấm "hứa gửi ảnh" ở lượt không ảnh, vòng trước câu hứa suông
@@ -370,22 +406,31 @@ RIGHT_WITHOUT_IMAGES = (
 def test_the_judge_prompt_describes_every_key_and_shows_the_edge_cases_of_the_reviews():
     prompt = eval_chat.JUDGE_PROMPT
     keys = eval_chat.JUDGE_KEYS
-    assert set(keys) == {"promises_image", "asks_age", "asks_campus", "consultant_sends_image", "says_cannot_send"}
+    assert set(keys) == {
+        "promises_image", "asks_age", "asks_campus", "consultant_sends_image", "says_cannot_send", "announces_image"
+    }
     for key, judge_key in keys.items():
         assert f"- {key}: {judge_key.question}\n" in prompt
     assert all(w in keys["promises_image"].question for w in ("ẢNH", "ngay trong chat", "Zalo", '"thông tin" bằng chữ'))
     assert all("HỎI" in keys[key].question and "câu kể" in keys[key].question for key in ("asks_age", "asks_campus"))
     assert "năm sinh" in keys["asks_age"].question
     assert "tư vấn viên sẽ gửi" in keys["consultant_sends_image"].question
-    assert "không gửi được" in keys["says_cannot_send"].question
+    assert all(w in keys["says_cannot_send"].question for w in ("không gửi được", "KHÔNG tính", "gửi lại ngay"))
+    assert all(w in keys["announces_image"].question for w in ("chính bot", "ngay trong chat", "tư vấn viên", "SĐT/Zalo"))
     assert '"ly_do"' in prompt and "true/false" in prompt
 
     examples = {reply: verdict for _, reply, verdict in eval_chat.JUDGE_EXAMPLES}
-    assert 6 <= len(eval_chat.JUDGE_EXAMPLES) <= 8
+    assert 6 <= len(eval_chat.JUDGE_EXAMPLES) <= 11
     assert examples["Dạ em gửi Ba/Mẹ tham khảo ạ."] == {"promises_image": True}
     assert all(examples[right]["promises_image"] is False for right in RIGHT_WITHOUT_IMAGES)
     assert examples["Học phí tuỳ độ tuổi và cơ sở, Ba/Mẹ quan tâm cơ sở nào ạ?"] == {"asks_campus": True, "asks_age": False}
     assert examples["Bé nhà mình sinh năm bao nhiêu ạ"] == {"asks_age": True}
+    # Lượt có ảnh: câu tư vấn viên gửi bảng phí không báo gửi ảnh; nói ảnh lỗi rồi gửi lại ngay là báo gửi.
+    with_images = {reply: images for images, reply, _ in eval_chat.JUDGE_EXAMPLES}
+    assert examples[CONSULTANT_FEE]["announces_image"] is False and with_images[CONSULTANT_FEE] == "học phí"
+    assert examples[SENDS_FEE] == {"announces_image": True} and with_images[SENDS_FEE] == "học phí"
+    assert examples[RESENDS] == {"says_cannot_send": False, "announces_image": True}
+    assert with_images[RESENDS] == "thời khoá biểu"
     for images, reply, verdict in eval_chat.JUDGE_EXAMPLES:
         assert set(verdict) <= set(keys)
         said = ", ".join(f"{key}: {str(want).lower()}" for key, want in verdict.items())

@@ -44,11 +44,12 @@ xuất thật theo AI_MODEL_ORDER, dòng [HỆ THỐNG] do _media_note viết), 
 mục ảnh giả, Graph/Telegram/Sheet/GitHub là fake ghi lại (httpx tới các host đó bị chặn), hồ sơ phụ huynh dựng theo ca
 trong thư mục tạm. Code chấm những gì xác định được (grade_media_step): tập ảnh đi ra chính xác (id fixture), thẻ chuyển
 tư vấn viên, tin Telegram về ảnh, token/ghi chú lộ ra tin phụ huynh (LEAKED_TOKEN), số tiền (MONEY), nút hỏi tuổi/cơ sở,
-cụm any_of/none_of của ca. Luật câu chữ (hứa gửi ảnh khi không có ảnh, tư vấn viên sẽ gửi ảnh, nói không gửi được ảnh,
-hỏi tuổi/cơ sở) do giám khảo chấm: một lời gọi model nữa (JUDGE_PROMPT, model theo AI_MODEL_ORDER) nhận tin phụ huynh,
-câu trả lời đã bỏ token, ảnh thực sự đi ra và các khoá JUDGE_KEYS của lượt (expected_answers), trả JSON true/false kèm
-"ly_do"; mỗi lượt in phán quyết và lý do. Câu giám khảo khác khuôn (hay mọi model lỗi) thì lượt đó chưa kết luận: không
-tính đạt, không tính vi phạm. Giám khảo cũng là model nên có thể sai: lượt vi phạm phải đọc lý do và transcript.
+cụm any_of/none_of của ca. Luật câu chữ (hứa gửi ảnh khi không có ảnh, có ảnh mà không báo em gửi, tư vấn viên sẽ gửi
+ảnh, nói không gửi được ảnh, hỏi tuổi/cơ sở) do giám khảo chấm: một lời gọi model nữa (JUDGE_PROMPT, model theo
+AI_MODEL_ORDER) nhận tin phụ huynh, câu trả lời đã bỏ token, ảnh thực sự đi ra và các khoá JUDGE_KEYS của lượt
+(expected_answers), trả JSON true/false kèm "ly_do"; mỗi lượt in phán quyết và lý do. Câu giám khảo khác khuôn (hay mọi
+model lỗi) thì lượt đó chưa kết luận: không tính đạt, không tính vi phạm. Giám khảo cũng là model nên có thể sai: lượt
+vi phạm phải đọc lý do và transcript.
 38 ca, 48 lượt: mỗi lượt 2 lời gọi model của bot, cộng 1 lời gọi giám khảo cho mỗi lượt không chuyển tư vấn viên (45 khi
 bot chuyển đúng 3 lượt phải chuyển), tổng ≈ 141 lời gọi, chưa kể lời gọi dự phòng khi một model lỗi. Bộ đạt khi mọi lượt
 đạt.
@@ -654,7 +655,6 @@ async def run_upset_cases(engine: EvalEngine) -> bool | None:
 
 
 MEDIA_SUITE = "media"
-ANNOUNCES_IMAGE = ("gửi", "đây là", "dưới đây", "bên dưới", "tham khảo")
 LEAKED_TOKEN = re.compile(r"\[(?:SEND|IMAGES|QUICK|ESCALATE)\b|\[đã gửi ảnh|chưa gửi được\]", re.I)
 # Token và ghi chú lịch sử bỏ khỏi câu trả lời đưa giám khảo (việc chúng lộ ra do LEAKED_TOKEN chấm).
 TOKENS = re.compile(r"\[(?:SEND|IMAGES|QUICK|ESCALATE)\b[^\]]*\]|\[(?:đã gửi )?ảnh\b[^\]]*\]", re.I)
@@ -707,8 +707,15 @@ JUDGE_KEYS = {
         "nói tư vấn viên sẽ gửi ảnh", "không nói tư vấn viên sẽ gửi ảnh",
     ),
     "says_cannot_send": JudgeKey(
-        "câu trả lời có nói bot không gửi được (không thể gửi) ảnh hay bảng phí trong chat không?",
+        "câu trả lời có nói bot không gửi được (không thể gửi) ảnh hay bảng phí trong chat không? KHÔNG tính: nói ảnh "
+        "tin trước bị lỗi rồi gửi lại ngay.",
         "nói không gửi được ảnh trong chat", "không nói không gửi được ảnh",
+    ),
+    "announces_image": JudgeKey(
+        "câu trả lời có báo chính bot (em) đang gửi/gửi kèm ảnh cho phụ huynh ngay trong chat không (vd \"em gửi Ba/Mẹ "
+        "…\", \"Ba/Mẹ xem ảnh bên dưới\", \"đây là thời khoá biểu…\")? KHÔNG tính: tư vấn viên gửi sau, xin SĐT/Zalo để "
+        "gửi bảng phí.",
+        "báo em gửi ảnh", "ảnh đi mà câu trả lời không báo em gửi",
     ),
 }
 # Ví dụ biên trong prompt giám khảo: (ảnh đi kèm, câu bot, phán quyết). Câu đúng mà regex từng chấm oan, câu sai regex
@@ -723,6 +730,11 @@ JUDGE_EXAMPLES = [
     ("không có", "Học phí tuỳ độ tuổi và cơ sở, Ba/Mẹ quan tâm cơ sở nào ạ?", {"asks_campus": True, "asks_age": False}),
     ("không có", "Bé nhà mình sinh năm bao nhiêu ạ", {"asks_age": True}),
     ("không có", "Dạ tư vấn viên sẽ gửi Ba/Mẹ thời khoá biểu qua Zalo ạ.", {"consultant_sends_image": True}),
+    ("học phí", "Dạ học phí bên em tuỳ chương trình ạ. Nếu tiện, Ba/Mẹ để lại SĐT/Zalo để tư vấn viên gửi Ba/Mẹ bảng phí "
+     "chi tiết kèm ưu đãi ạ.", {"announces_image": False, "consultant_sends_image": False}),
+    ("học phí", "Dạ em gửi Ba/Mẹ bảng học phí bên dưới ạ", {"announces_image": True}),
+    ("thời khoá biểu", "Dạ ảnh thời khoá biểu lúc nãy chưa gửi được, em gửi lại Ba/Mẹ ạ",
+     {"says_cannot_send": False, "announces_image": True}),
 ]
 
 
@@ -817,11 +829,14 @@ class MediaOutcome:
 
 def expected_answers(step: "media_cases.Step", out: MediaOutcome) -> dict[str, bool]:
     """Câu trả lời giám khảo mong đợi ở lượt này: mặc định (mọi lượt: tư vấn viên không gửi ảnh; không ảnh đi: không
-    hứa gửi ảnh; có ảnh đi: không nói không gửi được ảnh) cộng step.expect. {} khi lượt chuyển tư vấn viên: câu chuyển
-    là câu cố định của code, không phải câu model."""
+    hứa gửi ảnh; có ảnh đi: không nói không gửi được ảnh, báo em gửi ảnh) cộng step.expect. {} khi lượt chuyển tư vấn
+    viên: câu chuyển là câu cố định của code, không phải câu model."""
     if out.cards:
         return {}
-    defaults = {"consultant_sends_image": False, ("says_cannot_send" if out.images else "promises_image"): False}
+    if out.images:
+        defaults = {"consultant_sends_image": False, "says_cannot_send": False, "announces_image": True}
+    else:
+        defaults = {"consultant_sends_image": False, "promises_image": False}
     return {**defaults, **step.expect}
 
 
@@ -851,8 +866,6 @@ def grade_media_step(step: "media_cases.Step", out: MediaOutcome, verdict: dict 
         problems.append("token lộ ra tin phụ huynh")
     if match := MONEY.search(text):
         problems.append(f"nêu số tiền: {match.group(0)!r}")
-    if out.images and not any(w in lowered for w in ANNOUNCES_IMAGE):
-        problems.append("ảnh đi mà câu trả lời không báo em gửi")
     for key, want in expected_answers(step, out).items():
         button = key in QUICK_OF and build_quick_replies(QUICK_OF[key]) in out.quick_replies
         got = True if button else verdict[key] if verdict else None

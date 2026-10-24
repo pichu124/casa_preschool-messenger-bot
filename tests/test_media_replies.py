@@ -1136,6 +1136,42 @@ def test_a_first_sync_slower_than_the_wait_still_gets_an_answer_without_images(p
     assert len(first_sync_warnings(caplog)) == 1
 
 
+# Messenger tắt "đang soạn" sau ~20 giây, còn lượt chờ lần đồng bộ đầu tới MEDIA_FIRST_SYNC_WAIT (60 giây): phụ huynh
+# thấy bot im. Trong lúc chờ, bot bật lại "đang soạn" mỗi TYPING_REFRESH_EVERY giây.
+def test_waiting_for_the_first_sync_keeps_the_typing_indicator_on(parent, drive, monkeypatch):
+    known(interested_campus="Kim Mã", kid_age="3-5 tuổi")
+    typing = []
+
+    async def send_typing_indicator(recipient_id, action="typing_on"):
+        typing.append((recipient_id, action))
+
+    monkeypatch.setattr(main, "send_typing_indicator", send_typing_indicator)
+    monkeypatch.setattr(main, "TYPING_REFRESH_EVERY", 0.05)
+    drive.delay = 0.3
+
+    parent.response = AIResponse(text=REPLY, should_escalate=False, model_used="fake-model")
+
+    async def run():
+        task = media.start_sync_task()
+        try:
+            await main.process_message(CUSTOMER_ID, "Cho em xin thời khoá biểu ạ")
+            after = len(typing)
+            await asyncio.sleep(0.2)
+        finally:
+            task.cancel()
+        return after
+
+    after = asyncio.run(run())
+
+    assert parent.images() == [url("km-tkb-36-72")]
+    assert len(typing) >= 3 and set(typing) == {(CUSTOMER_ID, "typing_on")}, typing
+    assert len(typing) == after  # stopped with the wait
+
+    typing.clear()
+    parent.say("dạ vâng")  # first sync done: no wait, the one typing_on of every turn
+    assert typing == [(CUSTOMER_ID, "typing_on")]
+
+
 @pytest.mark.parametrize("off", ["MEDIA_SYNC_ENABLED", "LEADS_SHEET_WEBHOOK_URL"])
 def test_with_media_sync_off_a_message_does_not_wait(parent, drive, monkeypatch, caplog, off):
     drive.delay = 30

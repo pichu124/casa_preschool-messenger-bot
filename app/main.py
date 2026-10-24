@@ -985,10 +985,32 @@ async def process_message(
         await _answer_message(sender_id, text, attribution, phone_from_qr)
 
 
-async def _wait_for_first_media_sync(sender_id: str) -> None:
+# Messenger hides the typing indicator after ~20 s: a turn waiting for the first Drive sync turns it on again this often.
+TYPING_REFRESH_EVERY = 15.0
+
+
+async def _keep_typing(sender_id: str) -> None:
+    while True:
+        await asyncio.sleep(TYPING_REFRESH_EVERY)
+        try:
+            await send_typing_indicator(sender_id)
+        except Exception as e:
+            logger.warning(f"Typing indicator not sent to {sender_id}: {type(e).__name__}")
+
+
+async def _wait_for_first_media_sync(sender_id: str, keep_typing: bool = False) -> None:
     """Right after a start (deploy, Render Free waking up with an empty disk) the first Drive sync is still running:
-    answered before it ends, the turn has no images and the model is told so. Waits at most MEDIA_FIRST_SYNC_WAIT."""
-    if settings.MEDIA_SYNC_ENABLED and not await media.ready(settings.MEDIA_FIRST_SYNC_WAIT):
+    answered before it ends, the turn has no images and the model is told so. Waits at most MEDIA_FIRST_SYNC_WAIT,
+    with `keep_typing` turning the parent's typing indicator on again every TYPING_REFRESH_EVERY seconds."""
+    if not settings.MEDIA_SYNC_ENABLED:
+        return
+    typing = asyncio.create_task(_keep_typing(sender_id)) if keep_typing else None
+    try:
+        synced = await media.ready(settings.MEDIA_FIRST_SYNC_WAIT)
+    finally:
+        if typing:
+            typing.cancel()
+    if not synced:
         logger.warning(
             f"Media first sync not done after {settings.MEDIA_FIRST_SYNC_WAIT:g}s: answering {sender_id} without Drive images"
         )
@@ -1003,7 +1025,7 @@ async def _answer_message(sender_id: str, text: str, attribution: dict | None, p
     try:
         # Show typing indicator
         await send_typing_indicator(sender_id)
-        await _wait_for_first_media_sync(sender_id)
+        await _wait_for_first_media_sync(sender_id, keep_typing=True)
 
         # Get user profile for personalization
         profile = await get_user_profile(sender_id)

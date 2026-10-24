@@ -654,7 +654,8 @@ TOPICS_OF_IMAGE = {"fee": FEE_TOPICS, "timetable": (PROGRAMME_TOPIC,), "faciliti
 # A message naming the timetable or Cambridge (as media.fold writes it) asks for the timetable whatever its topics:
 # the extraction tags Cambridge as "Tiếng Anh/GV nước ngoài" and a timetable as "Giờ học/…". "lịch học thử" is the
 # trial week.
-TIMETABLE_NAMES = r"\bthoi (?:khoa|gian) bieu\b|\btkb\b|\blich hoc\b(?! thu)"
+# "lịch học thử" (the trial week) is not the timetable; "lịch học thứ 2–6" folds the same, a weekday follows it.
+TIMETABLE_NAMES = r"\bthoi (?:khoa|gian) bieu\b|\btkb\b|\blich hoc\b(?! thu\b(?! ?(?:\d|hai|ba|tu|nam|sau|bay)\b))"
 TIMETABLE_WORDS = re.compile(rf"\bcambridge\b|{TIMETABLE_NAMES}")
 # A message asking for both systems ("2 hệ", "cả hai hệ") or both campuses ("cả 2 cơ sở", "hai bên").
 BOTH_WORDS = re.compile(r"\b(?:ca )?(?:2|hai) (he|co so|ben|truong)\b")
@@ -853,7 +854,10 @@ def _plan_images(
     # Waiting only for what is missing, or for an offer not delivered yet: never for an image already sent or absent
     timetable_waits = months is None or bool(timetable_missing)
     waiting = {
-        "fee_asked": _waiting(wants_fee, not fee_ready, fees_offered),
+        # A reply announcing the fee to a parent who did not ask it waits for nothing (only sent when ready)
+        "fee_asked": _waiting(
+            wants_fee and (parent_asked_fee or bool(profile.get("fee_asked")) or fee_ready), not fee_ready, fees_offered
+        ),
         "timetable_asked": _waiting(wants_timetable, timetable_waits, timetable_offered),
         "facilities_asked": _waiting(wants_facilities, not campuses, bool(facilities_campus)),
     }

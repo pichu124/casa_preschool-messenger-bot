@@ -185,6 +185,9 @@ def test_kid_age_is_read_as_months(kid_age, months):
         ("sinh tháng 13/2022", None),
         ("sinh năm 2027", None),
         ("3 tuổi, sinh năm 2022", 36),
+        ("2022", 51),  # năm sinh trơn, không phải 2022 tuổi
+        ("4", 48),
+        ("30", None),
     ],
 )
 def test_kid_age_written_as_the_birth_date_is_read_as_months(kid_age, months):
@@ -300,6 +303,9 @@ def test_fee_without_the_age_goes_only_to_a_parent_asking_the_fee(parent, catalo
     sent = parent.say("trường có xe đưa đón không", reply="Dạ em gửi Ba/Mẹ chính sách học phí cơ sở Kim Mã ạ.")
 
     assert parent.images(sent) == []
+    # Phụ huynh không hỏi học phí: không chờ tuổi bé để rồi tự gửi ảnh học phí ở lượt sau
+    assert not customer_memory.get_profile(CUSTOMER_ID).get("fee_asked")
+    assert parent.images(parent.say("bé nhà em 4 tuổi ạ", extracted={"kid_age": "4 tuổi"})) == []
 
 
 def test_parent_not_leaving_the_phone_and_naming_the_fee_gets_it_when_the_reply_sends_it(parent, catalog):
@@ -611,6 +617,14 @@ def test_daily_schedule_question_gets_the_timetable(parent, catalog):
 
 def test_trial_week_schedule_is_not_a_timetable_question(parent, catalog):
     assert parent.images(parent.say("lịch học thử tuần sau thế nào ạ")) == []
+
+
+# "lịch học thứ 2–6" bỏ dấu giống "lịch học thử": thứ trong tuần vẫn là hỏi thời khoá biểu.
+@pytest.mark.parametrize("text", ["Lịch học thứ 2 đến thứ 6 thế nào ạ?", "lịch học thứ hai của bé ra sao ạ"])
+def test_weekday_schedule_question_gets_the_timetable(parent, catalog, text):
+    known(interested_campus="Kim Mã", kid_age="4 tuổi")
+
+    assert parent.images(parent.say(text)) == [url("km-tkb-36-72")]
 
 
 TRIAL_WEEK_SENT = "Dạ em gửi Ba/Mẹ lịch học thử tuần sau ạ."

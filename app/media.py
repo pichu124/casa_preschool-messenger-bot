@@ -91,7 +91,10 @@ def age_months(kid_age: str, today: date | None = None) -> int | None:
     BORN_MONTH_UNKNOWN); else None."""
     folded = fold(str(kid_age or "")).translate(_DASHES)
     if folded.isdigit():
-        return int(folded) * 12
+        # A bare number is years ("3"); a bare year ("2022") is the birth year, never 24264 months
+        if len(folded) == 4:
+            return age_months(f"sinh nam {folded}", today)
+        return int(folded) * 12 if int(folded) <= 7 else None
     m = _KID_AGE.search(folded)
     if not m:
         born = _BORN.search(folded)

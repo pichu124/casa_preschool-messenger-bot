@@ -984,6 +984,15 @@ async def process_message(
         await _answer_message(sender_id, text, attribution, phone_from_qr)
 
 
+async def _wait_for_first_media_sync(sender_id: str) -> None:
+    """Right after a start (deploy, Render Free waking up with an empty disk) the first Drive sync is still running:
+    answered before it ends, the turn has no images and the model is told so. Waits at most MEDIA_FIRST_SYNC_WAIT."""
+    if settings.MEDIA_SYNC_ENABLED and not await media.ready(settings.MEDIA_FIRST_SYNC_WAIT):
+        logger.warning(
+            f"Media first sync not done after {settings.MEDIA_FIRST_SYNC_WAIT:g}s: answering {sender_id} without Drive images"
+        )
+
+
 async def _answer_message(sender_id: str, text: str, attribution: dict | None, phone_from_qr: str | None):
     """Process an incoming message and respond.
 
@@ -993,6 +1002,7 @@ async def _answer_message(sender_id: str, text: str, attribution: dict | None, p
     try:
         # Show typing indicator
         await send_typing_indicator(sender_id)
+        await _wait_for_first_media_sync(sender_id)
 
         # Get user profile for personalization
         profile = await get_user_profile(sender_id)
@@ -1189,6 +1199,7 @@ async def test_chat(body: TestMessage, _: None = Depends(require_secret)):
     """Test AI response without Facebook (for development/debugging). Requires ?secret=. The model gets the same
     [HỆ THỐNG] image lines as on Messenger; no image is sent."""
     # Load profile + persisted history (same as process_message)
+    await _wait_for_first_media_sync(body.user_id)
     existing_profile = customer_memory.get_profile(body.user_id)
     customer_context = customer_memory.format_profile_for_prompt(existing_profile)
     history = customer_memory.get_conversation_history(body.user_id)

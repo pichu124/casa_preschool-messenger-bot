@@ -7,11 +7,15 @@ cả dòng [HỆ THỐNG] mà code đưa vào khối nhắc nhở. process_messa
 import asyncio
 import json
 import logging
+import time
 from datetime import date, datetime, timedelta, timezone
+from io import BytesIO
+from pathlib import Path
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from PIL import Image
 
 import app.main as main
 from app import customer_memory, escalation, media, messenger
@@ -137,6 +141,7 @@ def catalog(monkeypatch):
     monkeypatch.setattr(settings, "MEDIA_SYNC_ENABLED", True)
     monkeypatch.setattr(settings, "PUBLIC_BASE_URL", BASE_URL)
     monkeypatch.setattr(media, "_catalog", {**media._empty(), "items": {i["id"]: dict(i) for i in CATALOG}})
+    monkeypatch.setattr(media, "_first_sync", None)  # no first sync pending from a TestClient lifespan of another test
 
 
 def known(customer_id=CUSTOMER_ID, **fields):
@@ -995,3 +1000,170 @@ def test_test_chat_keeps_no_send_token_in_the_history(parent, catalog, monkeypat
 
     assert resp.status_code == 200
     assert parent.history()[-1] == "Dạ em gửi Ba/Mẹ bảng học phí ạ. [QUICK:visit_invite]"
+
+
+# --- lần đồng bộ đầu sau khởi động ---
+
+
+SHEET_URL = "https://script.google.com/macros/s/MEDIA-REPLIES-TEST/exec"
+TIMETABLE_NOTE = "[HỆ THỐNG] Sau câu trả lời này hệ thống gửi ảnh thời khoá biểu cơ sở Kim Mã"
+
+
+def _png() -> bytes:
+    out = BytesIO()
+    Image.new("RGB", (40, 30), (200, 30, 30)).save(out, "PNG")
+    return out.getvalue()
+
+
+class SlowDrive:
+    """Apps Script (type "media") và link tải Drive sau httpx. Apps Script trả lời sau `delay` giây, như sau khi
+    Render Free thức dậy: ổ đĩa trống, lần đồng bộ đầu chạy nền."""
+
+    def __init__(self):
+        self.delay = 0.3
+        files = [{"id": i["id"], "name": i["name"], "mimeType": "image/png", "modified": i["modified"],
+                  "path": i["path"]} for i in CATALOG]
+        self.answer = {"ok": True, "files": files}
+        self.listed = 0
+
+    async def respond(self, request: httpx.Request) -> httpx.Response:
+        if request.url.host == "script.google.com":
+            self.listed += 1
+            await asyncio.sleep(self.delay)
+            return httpx.Response(200, json=self.answer)
+        if request.url.host == "drive.google.com":
+            return httpx.Response(200, content=_png(), headers={"Content-Type": "image/png"})
+        raise AssertionError(f"unexpected request {request.url}")
+
+
+@pytest.fixture
+def drive(monkeypatch):
+    fake = SlowDrive()
+
+    async def handle_async(self, request):
+        return await fake.respond(request)
+
+    monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", handle_async)
+    monkeypatch.setattr(settings, "MEDIA_SYNC_ENABLED", True)
+    monkeypatch.setattr(settings, "LEADS_SHEET_WEBHOOK_URL", SHEET_URL)
+    monkeypatch.setattr(settings, "LEADS_SHEET_TOKEN", "sheet-token-media-replies")
+    monkeypatch.setattr(settings, "PUBLIC_BASE_URL", BASE_URL)
+    monkeypatch.setattr(settings, "MEDIA_FIRST_SYNC_WAIT", 30)
+    monkeypatch.setattr(media, "_first_sync", None)
+    return fake
+
+
+def right_after_start(parent, *texts) -> list[tuple[list, float]]:
+    """The bot starts (lifespan: media.start_sync_task) and the parent sends `texts` at once, one after the other;
+    (what the bot sent, seconds) per message."""
+    parent.response = AIResponse(text=REPLY, should_escalate=False, model_used="fake-model")
+
+    async def run():
+        task = media.start_sync_task()
+        turns = []
+        try:
+            for text in texts:
+                before, started = len(parent.sent), time.monotonic()
+                await main.process_message(CUSTOMER_ID, text)
+                turns.append((parent.sent[before:], time.monotonic() - started))
+        finally:
+            if task:
+                task.cancel()
+        return turns
+
+    return asyncio.run(run())
+
+
+def first_sync_warnings(caplog) -> list[str]:
+    return [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING and "first sync" in r.getMessage()]
+
+
+# Người vận hành 2026-10-24: sau mỗi lần deploy hay Render Free thức dậy, tin hỏi thời khoá biểu đầu tiên được trả
+# lời như chưa có ảnh ([ESCALATE]) vì lần đồng bộ đầu còn chạy nền. Lượt đó chờ đồng bộ xong rồi mới trả lời.
+def test_a_message_right_after_start_waits_for_the_first_sync_and_gets_the_timetable(parent, drive, caplog):
+    known(interested_campus="Kim Mã", kid_age="3-5 tuổi")
+
+    with caplog.at_level(logging.INFO):
+        [(sent, seconds)] = right_after_start(parent, "Cho em xin thời khoá biểu ạ")
+
+    assert sent == [("text", SHOWN, None), ("image", url("km-tkb-36-72"), VISIT_BUTTONS)]
+    assert TIMETABLE_NOTE in parent.notes[-1], parent.notes[-1]
+    assert seconds >= drive.delay
+    first = [r for r in caplog.records if r.name == "app.media" and "first sync" in r.getMessage()]
+    assert [r.levelname for r in first] == ["INFO"]
+    assert f"{len(CATALOG)} images" in first[0].getMessage(), first[0].getMessage()
+    assert first_sync_warnings(caplog) == []
+
+
+def test_a_first_sync_slower_than_the_wait_still_gets_an_answer_without_images(parent, drive, monkeypatch, caplog):
+    known(interested_campus="Kim Mã", kid_age="3-5 tuổi")
+    drive.delay = 30
+    monkeypatch.setattr(settings, "MEDIA_FIRST_SYNC_WAIT", 0.2)
+
+    with caplog.at_level(logging.WARNING):
+        [(sent, seconds)] = right_after_start(parent, "Cho em xin thời khoá biểu ạ")
+
+    assert parent.images(sent) == [] and sent[0][1] == SHOWN
+    assert 0.2 <= seconds < 5
+    assert len(first_sync_warnings(caplog)) == 1
+
+
+@pytest.mark.parametrize("off", ["MEDIA_SYNC_ENABLED", "LEADS_SHEET_WEBHOOK_URL"])
+def test_with_media_sync_off_a_message_does_not_wait(parent, drive, monkeypatch, caplog, off):
+    drive.delay = 30
+    monkeypatch.setattr(settings, off, False if off == "MEDIA_SYNC_ENABLED" else "")
+
+    with caplog.at_level(logging.WARNING):
+        [(sent, seconds)] = right_after_start(parent, "Cho em xin thời khoá biểu ạ")
+
+    assert sent[0][1] == SHOWN and seconds < 5
+    assert drive.listed == 0
+    assert first_sync_warnings(caplog) == []
+
+
+def test_a_failed_first_sync_answers_then_and_no_later_message_waits(parent, drive, caplog):
+    known(interested_campus="Kim Mã", kid_age="3-5 tuổi")
+    drive.answer = {"ok": False, "error": "Drive folder not found"}
+
+    with caplog.at_level(logging.INFO):
+        turns = right_after_start(parent, "Cho em xin thời khoá biểu ạ", "dạ vâng")
+
+    assert [parent.images(sent) for sent, _ in turns] == [[], []]
+    assert turns[0][1] >= drive.delay
+    assert turns[1][1] < 5  # the next sync is MEDIA_SYNC_MINUTES away: waiting for it would take MEDIA_FIRST_SYNC_WAIT
+    assert drive.listed == 1
+    assert any(r.levelname == "INFO" and "first sync" in r.getMessage() for r in caplog.records)
+    assert first_sync_warnings(caplog) == []
+
+
+def test_images_kept_on_disk_from_before_the_restart_are_used_without_waiting(parent, drive, monkeypatch, caplog):
+    known(interested_campus="Kim Mã", kid_age="3-5 tuổi")
+    folder = Path(settings.MEDIA_DIR)
+    folder.mkdir(parents=True)
+    for i in CATALOG:
+        (folder / f"{i['id']}.jpg").write_bytes(_png())
+    media._write_catalog({**media._empty(), "synced_at": "2026-10-23T08:00:00+07:00", "items": {i["id"]: i for i in CATALOG}})
+    monkeypatch.setattr(media, "_catalog", media.load_catalog())  # như lúc import sau khi restart
+    drive.delay = 30
+
+    with caplog.at_level(logging.WARNING):
+        [(sent, seconds)] = right_after_start(parent, "Cho em xin thời khoá biểu ạ")
+
+    assert parent.images(sent) == [url("km-tkb-36-72")]
+    assert seconds < 5
+    assert first_sync_warnings(caplog) == []
+
+
+def test_test_chat_right_after_start_waits_for_the_first_sync(parent, drive, monkeypatch):
+    monkeypatch.setattr(settings, "TELEGRAM_WEBHOOK_SECRET", "tg-secret_media_replies")
+    known(interested_campus="Kim Mã", kid_age="3-5 tuổi")
+    parent.response = AIResponse(text=REPLY, should_escalate=False, model_used="fake-model")
+
+    with TestClient(main.app) as client:
+        resp = client.post(
+            "/test-chat", params={"secret": "tg-secret_media_replies"},
+            json={"message": "Cho em xin thời khoá biểu ạ", "user_id": CUSTOMER_ID},
+        )
+
+    assert resp.status_code == 200
+    assert TIMETABLE_NOTE in parent.notes[-1], parent.notes[-1]

@@ -14,6 +14,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 import unicodedata
 from datetime import date, datetime, timedelta
 from io import BytesIO
@@ -180,6 +181,9 @@ def load_catalog() -> dict:
 _catalog = load_catalog()
 _lock = asyncio.Lock()
 _off_warned = False
+# Set once the first sync since start_sync_task has ended (done or failed), at once when sync is off or images of
+# the last run are on disk; None before start_sync_task (no app started).
+_first_sync: asyncio.Event | None = None
 
 
 def _configured() -> bool:
@@ -318,15 +322,40 @@ async def _apply(files: list[dict]) -> dict:
                    removed=removed, skipped=skipped, failed=failed)
 
 
-async def sync_forever() -> None:
+async def sync_forever(first_sync: asyncio.Event) -> None:
+    started = time.monotonic()
+    try:
+        report = await sync_media()
+    finally:
+        first_sync.set()
+    outcome = "done" if report["ok"] else f"failed ({report['error']})"
+    logger.info(f"Media first sync since start {outcome} in {time.monotonic() - started:.1f}s: {report['total']} images")
     while True:
-        await sync_media()
         await asyncio.sleep(max(1, settings.MEDIA_SYNC_MINUTES) * 60)
+        await sync_media()
 
 
 def start_sync_task() -> asyncio.Task | None:
     """Sync now and every MEDIA_SYNC_MINUTES in the background (lifespan of app/main.py); None when off."""
-    return asyncio.create_task(sync_forever()) if _enabled() else None
+    global _first_sync
+    enabled = _enabled()
+    _first_sync = asyncio.Event()
+    if not enabled or _catalog["items"]:
+        _first_sync.set()
+    return asyncio.create_task(sync_forever(_first_sync)) if enabled else None
+
+
+async def ready(timeout: float) -> bool:
+    """Wait at most `timeout` seconds for the first sync since start (see _first_sync); True once it has ended.
+    Never raises."""
+    first_sync = _first_sync
+    if first_sync is None or first_sync.is_set():
+        return True
+    try:
+        await asyncio.wait_for(first_sync.wait(), timeout)
+    except TimeoutError:
+        return False
+    return True
 
 
 # --- lookups ---

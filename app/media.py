@@ -78,15 +78,29 @@ _KID_AGE = re.compile(
 )
 
 
-def age_months(kid_age: str) -> int | None:
+# A birth date: "sinh năm 2022", "sinh tháng 3/2022", "sinh tháng 3 năm 2022", "sinh 12/2023", "sinh ngày 5/3/2022".
+_BORN = re.compile(r"\bsinh (?:nam |(?:ngay )?(?:\d{1,2}/)?(?:thang )?(\d{1,2})(?:/|-| nam | ))?((?:19|20)\d{2})\b")
+# The month of a birth year said without it: mid-year, at most 6 months off.
+BORN_MONTH_UNKNOWN = 7
+
+
+def age_months(kid_age: str, today: date | None = None) -> int | None:
     """Months of a kid age as parents and the profile write it: "20 tháng" -> 20, "3 tuổi" -> 36, "2-3 tuổi" -> 24
-    (the lower end), "dưới 2 tuổi" -> 18, "2 tuổi 3 tháng" -> 27, a bare number is years ("3" -> 36); else None."""
+    (the lower end), "dưới 2 tuổi" -> 18, "2 tuổi 3 tháng" -> 27, a bare number is years ("3" -> 36), a birth date
+    up to `today` (Vietnam's today by default; "sinh tháng 3/2022" -> 55 in October 2026, a year alone counts from
+    BORN_MONTH_UNKNOWN); else None."""
     folded = fold(str(kid_age or "")).translate(_DASHES)
     if folded.isdigit():
         return int(folded) * 12
     m = _KID_AGE.search(folded)
     if not m:
-        return None
+        born = _BORN.search(folded)
+        if not born:
+            return None
+        today = today or datetime.now(VN_TZ).date()
+        month = int(born[1] or BORN_MONTH_UNKNOWN)
+        months = (today.year - int(born[2])) * 12 + today.month - month
+        return months if 1 <= month <= 12 and months >= 0 else None
     value = float(m[2].replace(",", "."))
     if m[3] == "thang":
         return int(value)

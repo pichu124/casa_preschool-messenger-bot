@@ -777,7 +777,7 @@ def _plan_images(
     campuses, unknown_systems = _campuses(profile, extracted, text)
     if extracted.get("kid_age"):
         age = str(extracted["kid_age"])
-    elif media.age_months(text) in SAID_AGE_MONTHS:
+    elif media.age_months(text, today) in SAID_AGE_MONTHS:
         age = text
     else:
         age = str(profile.get("kid_age") or "")
@@ -809,7 +809,7 @@ def _plan_images(
     timetable_campuses = [c for c in campuses if media.has_timetables(c)]
     has_timetable = media.has_timetables() if unknown_systems or not campuses else bool(timetable_campuses)
     wants_timetable = (asked_timetable or bool(profile.get("timetable_asked"))) and has_timetable
-    months = media.age_months(age) if age else None
+    months = media.age_months(age, today) if age else None
     timetable_missing = tuple(
         f"cơ sở hệ {media.SYSTEM_NAMES[s]} Ba/Mẹ quan tâm ({' hay '.join(_campuses_of(s))})" for s in unknown_systems
     ) or ("cơ sở Ba/Mẹ quan tâm",) * (not campuses)

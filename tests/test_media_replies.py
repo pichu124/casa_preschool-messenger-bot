@@ -161,13 +161,34 @@ def known(customer_id=CUSTOMER_ID, **fields):
         ("2 tuổi 3 tháng", 27),
         ("2,5 tuổi", 30),
         ("3", 36),
-        ("sinh năm 2023", None),
+        ("sinh năm", None),
         ("bé nhà em", None),
         ("", None),
     ],
 )
 def test_kid_age_is_read_as_months(kid_age, months):
     assert media.age_months(kid_age) == months
+
+
+# Review vòng thời khoá biểu v2: tuổi ghi theo năm sinh không đọc được, timetable_asked kẹt và bot mỗi lượt dặn hỏi
+# tuổi bé dù phụ huynh đã nói. Chỉ có năm: tính như sinh giữa năm (tháng 7).
+@pytest.mark.parametrize(
+    ("kid_age", "months"),
+    [
+        ("sinh năm 2022", 51),
+        ("Bé sinh năm 2024 ạ", 27),
+        ("bé sinh tháng 3/2022", 55),
+        ("sinh tháng 3 năm 2022", 55),
+        ("sinh 12/2023", 34),
+        ("sinh ngày 5/3/2022", 55),
+        ("sinh 2022", 51),
+        ("sinh tháng 13/2022", None),
+        ("sinh năm 2027", None),
+        ("3 tuổi, sinh năm 2022", 36),
+    ],
+)
+def test_kid_age_written_as_the_birth_date_is_read_as_months(kid_age, months):
+    assert media.age_months(kid_age, OCT_23) == months
 
 
 @pytest.mark.parametrize(
@@ -391,6 +412,24 @@ def test_programme_question_without_campus_or_age_sends_no_timetable_but_asks_fo
 
     sent = parent.say("Bé 20 tháng, em quan tâm Mỹ Đình", extracted={"kid_age": "20 tháng", "interested_campus": "Mỹ Đình"})
     assert parent.images(sent) == [url("md-tkb-15-36")]
+
+
+@pytest.mark.parametrize(
+    ("kid_age", "campus", "timetable"),
+    [("bé sinh tháng 3/2022", "Kim Mã", "km-tkb-36-72"), ("sinh năm 2024", "Mỹ Đình", "md-tkb-15-36")],
+)
+def test_timetable_goes_for_a_kid_age_written_as_the_birth_date(parent, catalog, kid_age, campus, timetable):
+    known(kid_age=kid_age, interested_campus=campus)
+
+    assert parent.images(parent.say("Cho em xin thời khoá biểu ạ")) == [url(timetable)]
+    assert "tuổi bé" not in parent.notes[-1], parent.notes[-1]
+    assert not customer_memory.get_profile(CUSTOMER_ID).get("timetable_asked")
+
+
+def test_birth_year_said_in_the_message_is_the_kids_age(parent, catalog):
+    known(interested_campus="Kim Mã")
+
+    assert parent.images(parent.say("Bé nhà em sinh năm 2022, cho em xin thời khoá biểu ạ")) == [url("km-tkb-36-72")]
 
 
 def test_timetable_with_the_age_known_asks_only_the_campus(parent, catalog):

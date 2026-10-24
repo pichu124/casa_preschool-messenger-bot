@@ -1,6 +1,7 @@
 import asyncio
 import hmac
 import logging
+import mimetypes
 import re
 import unicodedata
 from contextlib import asynccontextmanager
@@ -593,11 +594,14 @@ def _extract_quick_reply(text: str) -> tuple[str, str]:
     return QUICK_PATTERN.sub("", text).strip(), (keys[-1].strip() if keys else "")
 
 
-def _public_image_url(url: str) -> str:
-    """Q&A images given as "static/<file>" are served by this app at /static."""
-    if url.startswith("static/"):
-        return f"{settings.PUBLIC_BASE_URL.rstrip('/')}/{url}"
-    return url
+def _qa_image(ref: str) -> Path | str | None:
+    """What send_image sends for a Q&A image: "static/<file>" is that image file of STATIC_DIR, uploaded (None when
+    it is not one: missing, not an image, or outside STATIC_DIR as "static/../<file>"); any other is a URL."""
+    if not ref.startswith("static/"):
+        return ref
+    path = (STATIC_DIR / ref.removeprefix("static/")).resolve()
+    is_image = (mimetypes.guess_type(path.name)[0] or "").startswith("image/")
+    return path if path.is_relative_to(STATIC_DIR) and path.is_file() and is_image else None
 
 
 def _last_bot_message(history: list[dict]) -> str:
@@ -914,7 +918,7 @@ async def _remind_stale_fee(system: str, fee: media.FeeImage, today: date) -> No
 _image_failure_alerted_at: datetime | None = None
 
 
-async def _alert_image_failure(offer: Offer, image_url: str, error: Exception) -> None:
+async def _alert_image_failure(offer: Offer, error: Exception) -> None:
     """Tell the admin group, at most once every IMAGE_FAILURE_ALERT_EVERY, that a Drive image did not reach a parent:
     which image and what Graph said (GraphError carries no access token); nothing of the parent. In memory."""
     global _image_failure_alerted_at
@@ -925,8 +929,7 @@ async def _alert_image_failure(offer: Offer, image_url: str, error: Exception) -
     status = getattr(error, "status", None)
     said = f"HTTP {status}: {error.message}" if status else type(error).__name__
     await _send_telegram(
-        f"⚠️ Gửi ảnh {offer.label} cho phụ huynh bị lỗi ({said}). Kiểm PUBLIC_BASE_URL trên Render "
-        f"({settings.PUBLIC_BASE_URL or 'chưa đặt'}) và mở thử URL ảnh: {image_url} . Báo tối đa 1 lần mỗi giờ."
+        f"⚠️ Gửi ảnh {offer.label} cho phụ huynh bị lỗi ({said}). Báo tối đa 1 lần mỗi giờ."
     )
 
 
@@ -934,27 +937,35 @@ async def _send_reply_with_images(
     sender_id: str, text: str, quick_replies: list[dict] | None, qa_images: list[str], offers: list[Offer]
 ) -> tuple[list[Offer], list[Offer]]:
     """The reply, then the images (at most MAX_IMAGES; an offer that does not fit waits for another turn), the quick
-    replies on the last message sent. Returns the offers delivered and the offers tried (delivered or failed); an
-    image Messenger refuses is logged and skipped, a Drive one also told to the admin group. An offer none of whose
-    images went is told to the parent (the model was told it follows its reply): IMAGES_FAILED_MESSAGE when no Drive
-    image went, else SOME_IMAGES_FAILED_MESSAGE naming the offers that failed."""
-    qa_images = qa_images[:MAX_IMAGES]
-    chosen, room = [], MAX_IMAGES - len(qa_images)
+    replies on the last message sent. Drive images go as their file in MEDIA_DIR, Q&A ones as _qa_image says (one
+    that is not an image file of STATIC_DIR is logged and dropped). Returns the offers delivered and the offers tried
+    (delivered or failed); an image Messenger refuses is logged and skipped, a Drive one also told to the admin
+    group. An offer none of whose images went is told to the parent (the model was told it follows its reply):
+    IMAGES_FAILED_MESSAGE when no Drive image went, else SOME_IMAGES_FAILED_MESSAGE naming the offers that failed."""
+    qa_sent = []
+    for ref in qa_images:
+        image = _qa_image(ref)
+        if image is None:
+            logger.warning(f"Q&A image {ref} not sent: not an image file in {STATIC_DIR}")
+        else:
+            qa_sent.append((None, ref, image))
+    qa_sent = qa_sent[:MAX_IMAGES]
+    chosen, room = [], MAX_IMAGES - len(qa_sent)
     for offer in offers:
         if len(offer.urls) <= room:
             chosen.append(offer)
             room -= len(offer.urls)
-    images = [(None, _public_image_url(u)) for u in qa_images] + [(o, u) for o in chosen for u in o.urls]
+    images = qa_sent + [(o, u, media.image_file(_image_id(u))) for o in chosen for u in o.urls]
     if text:
         await send_message(sender_id, text, quick_replies=None if images else quick_replies)
     delivered = set()
-    for n, (offer, image_url) in enumerate(images, 1):
+    for n, (offer, ref, image) in enumerate(images, 1):
         try:
-            await send_image(sender_id, image_url, quick_replies=quick_replies if n == len(images) else None)
+            await send_image(sender_id, image, quick_replies=quick_replies if n == len(images) else None)
         except Exception as e:
-            logger.warning(f"Image {offer.key if offer else image_url} not sent to {sender_id}: {type(e).__name__}")
+            logger.warning(f"Image {offer.key if offer else ref} not sent to {sender_id}: {type(e).__name__}")
             if offer:
-                await _alert_image_failure(offer, image_url, e)
+                await _alert_image_failure(offer, e)
             continue
         if offer:
             delivered.add(offer.key)
@@ -1318,11 +1329,7 @@ def _is_media_command(message: dict) -> bool:
 
 async def _sync_media_and_report():
     report = await media.sync_media()
-    summary = media.sync_summary(report, datetime.now(VN_TZ).date())
-    if report["error"] != "off" and report["total"]:
-        reason = await media.check_link()
-        summary += f"\nLink ảnh: {f'lỗi ({reason})' if reason else 'OK'}"
-    await _send_telegram(summary)
+    await _send_telegram(media.sync_summary(report, datetime.now(VN_TZ).date()))
 
 
 @app.post("/telegram-webhook")

@@ -48,7 +48,7 @@ def test_every_pair_has_valid_shape():
         assert isinstance(p["answer"], str) and p["answer"].strip()
         assert isinstance(p.get("keywords", []), list)
         for url in p.get("images", []):
-            # "static/<file>": bot tự phục vụ tại {PUBLIC_BASE_URL}/static/<file>, nên file phải có trong repo
+            # "static/<file>": bot tải file đó lên Messenger, nên file phải có trong repo
             assert url.startswith(("http://", "https://")) or (
                 url.startswith("static/") and (DB_PATH.parents[1] / url).is_file()
             ), url
@@ -268,7 +268,7 @@ def test_menu_answer_matches_the_sample_menu_image():
 
 
 def test_menu_reply_sends_the_real_menu_image_parents_can_open(monkeypatch):
-    """Model đọc dòng Images của cặp thực đơn trong Q&A thật; bot gửi ảnh tới URL công khai, và URL đó mở được."""
+    """Model đọc dòng Images của cặp thực đơn trong Q&A thật; bot gửi file ảnh đó, file cũng mở được ở /static."""
     images_line = re.compile(rf"Q: {re.escape(MENU_QUESTION)}[^\n]*\n   A: [^\n]*\n   Images: ([^\n]+)")
 
     class MenuModel(AIProvider):
@@ -281,13 +281,12 @@ def test_menu_reply_sends_the_real_menu_image_parents_can_open(monkeypatch):
     async def send_message(recipient_id, text, quick_replies=None):
         sent.append(("text", text))
 
-    async def send_image(recipient_id, image_url, quick_replies=None):
-        sent.append(("image", image_url))
+    async def send_image(recipient_id, image, quick_replies=None):
+        sent.append(("image", image))
 
     async def nothing(*args, **kwargs):
         return {}
 
-    monkeypatch.setattr(settings, "PUBLIC_BASE_URL", "https://casa.example/")
     monkeypatch.setattr(settings, "AI_MODEL_ORDER", ["menu"])
     monkeypatch.setattr(main.ai_engine, "_providers", {"menu": MenuModel()})
     monkeypatch.setattr(main.ai_engine, "extract_customer_info", nothing)
@@ -301,7 +300,7 @@ def test_menu_reply_sends_the_real_menu_image_parents_can_open(monkeypatch):
 
     assert sent == [
         ("text", "Dạ đây là thực đơn mẫu của Casa ạ."),
-        ("image", "https://casa.example/static/thuc-don-mau.jpg"),
+        ("image", main.STATIC_DIR / "thuc-don-mau.jpg"),
     ]
     resp = TestClient(main.app).get("/static/thuc-don-mau.jpg")
     assert resp.status_code == 200 and resp.headers["content-type"] == "image/jpeg"

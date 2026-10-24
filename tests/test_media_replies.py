@@ -640,7 +640,10 @@ def test_parent_told_the_images_failed_when_every_drive_image_promised_failed(pa
         ("text", "Dạ em gửi Ba/Mẹ thời khoá biểu lớp của bé để tham khảo ạ.", None),
         ("text", main.IMAGES_FAILED_MESSAGE, VISIT_BUTTONS),
     ]
-    assert main.IMAGES_FAILED_MESSAGE == "Dạ ảnh em gửi đang bị lỗi, Ba/Mẹ đợi em chút, tư vấn viên sẽ gửi lại ạ."
+    assert main.IMAGES_FAILED_MESSAGE == "Dạ ảnh em gửi đang bị lỗi chưa tới được, Ba/Mẹ nhắn lại em sau ít phút để em gửi lại nhé ạ."
+    # Tin Telegram không nêu phụ huynh nào, nên câu xin lỗi không hứa tư vấn viên gửi lại; ảnh chưa tính là đã gửi,
+    # phụ huynh hỏi lại thì bot gửi lại.
+    assert "tư vấn viên" not in main.IMAGES_FAILED_MESSAGE
 
 
 def test_no_apology_when_one_of_the_images_went(parent, catalog):

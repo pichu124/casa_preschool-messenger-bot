@@ -669,7 +669,7 @@ IMAGE_WORDS = {
 FACILITY_IMAGES = 4
 MAX_IMAGES = 5
 # Sent after the reply when it said images follow and every Drive image of the turn failed.
-IMAGES_FAILED_MESSAGE = "Dạ ảnh em gửi đang bị lỗi, Ba/Mẹ đợi em chút, tư vấn viên sẽ gửi lại ạ."
+IMAGES_FAILED_MESSAGE = "Dạ ảnh em gửi đang bị lỗi chưa tới được, Ba/Mẹ nhắn lại em sau ít phút để em gửi lại nhé ạ."
 IMAGE_FAILURE_ALERT_EVERY = timedelta(hours=1)
 # The sample menu of the Q&A (data/qa_database.json): sent only while Drive has no menu image.
 QA_MENU_IMAGE = "static/thuc-don-mau.jpg"

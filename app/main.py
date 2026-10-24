@@ -924,11 +924,11 @@ async def _alert_image_failure(offer: Offer, image_url: str, error: Exception) -
 
 async def _send_reply_with_images(
     sender_id: str, text: str, quick_replies: list[dict] | None, qa_images: list[str], offers: list[Offer]
-) -> list[Offer]:
+) -> tuple[list[Offer], list[Offer]]:
     """The reply, then the images (at most MAX_IMAGES; an offer that does not fit waits for another turn), the quick
-    replies on the last message sent. Returns the offers delivered; an image Messenger refuses is logged and skipped,
-    a Drive one also told to the admin group; when Drive images were planned and none of them went, the parent gets
-    IMAGES_FAILED_MESSAGE (the model was told they follow its reply)."""
+    replies on the last message sent. Returns the offers delivered and the offers tried (delivered or failed); an
+    image Messenger refuses is logged and skipped, a Drive one also told to the admin group; when Drive images were
+    planned and none of them went, the parent gets IMAGES_FAILED_MESSAGE (the model was told they follow its reply)."""
     qa_images = qa_images[:MAX_IMAGES]
     chosen, room = [], MAX_IMAGES - len(qa_images)
     for offer in offers:
@@ -952,12 +952,13 @@ async def _send_reply_with_images(
             delivered.add(offer.key)
     if failed and not delivered:
         await send_message(sender_id, IMAGES_FAILED_MESSAGE, quick_replies=quick_replies)
-    return [o for o in chosen if o.key in delivered]
+    return [o for o in chosen if o.key in delivered], chosen
 
 
-def _record_images(sender_id: str, profile: dict, delivered: list[Offer], waiting: dict) -> None:
-    """media_sent gets the offers delivered; the WAITING_FLAGS stay true only while still waiting."""
-    kinds = {o.kind for o in delivered}
+def _record_images(sender_id: str, profile: dict, delivered: list[Offer], tried: list[Offer], waiting: dict) -> None:
+    """media_sent gets the offers delivered; the WAITING_FLAGS stay true only while still waiting: an offer tried and
+    failed does not wait (sent again only when the parent asks again), one that did not fit does."""
+    kinds = {o.kind for o in tried}
     fields = {
         flag: waiting.get(flag) == "missing" or (waiting.get(flag) == "offered" and kind not in kinds)
         for flag, kind in WAITING_FLAGS.items()
@@ -1083,8 +1084,8 @@ async def _answer_message(sender_id: str, text: str, attribution: dict | None, p
             if settings.MEDIA_SYNC_ENABLED:
                 logger.info(f"Drive images planned for {sender_id}: {[o.key for o in offers]}")
             # Messenger shows quick replies only under the latest message: they go on the last one sent
-            delivered = await _send_reply_with_images(sender_id, clean_text, quick_replies, image_urls, offers)
-            _record_images(sender_id, existing_profile, delivered, waiting)
+            delivered, tried = await _send_reply_with_images(sender_id, clean_text, quick_replies, image_urls, offers)
+            _record_images(sender_id, existing_profile, delivered, tried, waiting)
             if delivered:
                 logger.info(f"Drive images sent to {sender_id}: {[o.key for o in delivered]}")
                 reply_text += "".join(f" [đã gửi ảnh {o.label}]" for o in delivered)

@@ -911,6 +911,31 @@ def test_no_apology_when_one_of_the_images_went(parent, catalog):
     assert len(image_alerts(parent)) == 1
 
 
+# Thử thật trên Render 2026-10-24 (PUBLIC_BASE_URL sai, Graph "(#100) Upload failed"): ảnh cơ sở vật chất Chùa Láng
+# lỗi, cờ facilities_asked còn chờ nên lượt sau (phụ huynh chỉ bấm "Dưới 2 tuổi") bot lại gửi, lại lỗi, lại xin lỗi.
+# Ảnh lỗi không tự thử lại: chỉ gửi lại khi phụ huynh hỏi lại.
+def test_failed_images_are_not_tried_again_until_the_parent_asks_again(parent, catalog, monkeypatch):
+    chua_lang = [item(f"cl-csvc-{i}", f"IMG_{i:02}.jpg", QT, "CƠ SỞ CHÙA LÁNG", CSVC) for i in range(1, 7)]
+    monkeypatch.setitem(media._catalog, "items", {**media._catalog["items"], **{i["id"]: i for i in chua_lang}})
+    photos = [url(f"cl-csvc-{i}") for i in range(1, 5)]
+    asks_photos = {"topics": ["Cơ sở vật chất"]}
+    facilities_sent = "Sau câu trả lời này hệ thống gửi ảnh cơ sở vật chất cơ sở Chùa Láng"
+
+    assert parent.images(parent.say("Cho em xin ảnh trường ạ", extracted=asks_photos)) == []
+    parent.failing = set(photos)
+    sent = parent.say("Chùa Láng", reply="Dạ em gửi Ba/Mẹ ảnh cơ sở Chùa Láng ạ.",
+                      extracted={"interested_campus": "Chùa Láng"})
+    assert facilities_sent in parent.notes[-1], parent.notes[-1]
+    assert sent == [("text", "Dạ em gửi Ba/Mẹ ảnh cơ sở Chùa Láng ạ.", None), ("text", main.IMAGES_FAILED_MESSAGE, None)]
+
+    sent = parent.say("Dưới 2 tuổi", extracted={"kid_age": "dưới 2 tuổi"})
+    assert sent == [("text", SHOWN, VISIT_BUTTONS)]
+    assert facilities_sent not in parent.notes[-1], parent.notes[-1]
+
+    parent.failing = set()
+    assert parent.images(parent.say("Cho em xin ảnh trường ạ", extracted=asks_photos)) == photos
+
+
 def test_every_turn_logs_the_drive_images_it_plans_to_send(parent, catalog, caplog):
     known(kid_age="4 tuổi", interested_campus="Kim Mã")
 

@@ -1021,20 +1021,17 @@ async def _keep_typing(sender_id: str) -> None:
 
 async def _wait_for_first_media_sync(sender_id: str, keep_typing: bool = False) -> None:
     """Right after a start (deploy, Render Free waking up with an empty disk) the first Drive sync is still running:
-    answered before it ends, the turn has no images and the model is told so. Waits at most MEDIA_FIRST_SYNC_WAIT,
-    with `keep_typing` turning the parent's typing indicator on again every TYPING_REFRESH_EVERY seconds."""
+    answered before it ends, the turn has no images and the model is told so. Waits at most until
+    MEDIA_FIRST_SYNC_WAIT seconds after the sync started (media.ready), with `keep_typing` turning the parent's typing
+    indicator on again every TYPING_REFRESH_EVERY seconds."""
     if not settings.MEDIA_SYNC_ENABLED:
         return
     typing = asyncio.create_task(_keep_typing(sender_id)) if keep_typing else None
     try:
-        synced = await media.ready(settings.MEDIA_FIRST_SYNC_WAIT)
+        await media.ready(settings.MEDIA_FIRST_SYNC_WAIT)
     finally:
         if typing:
             typing.cancel()
-    if not synced:
-        logger.warning(
-            f"Media first sync not done after {settings.MEDIA_FIRST_SYNC_WAIT:g}s: answering {sender_id} without Drive images"
-        )
 
 
 async def _answer_message(sender_id: str, text: str, attribution: dict | None, phone_from_qr: str | None):

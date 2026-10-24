@@ -190,6 +190,8 @@ _off_warned = False
 # Set once the first sync since start_sync_task has ended (done or failed), at once when sync is off or images of
 # the last run are on disk; None before start_sync_task (no app started).
 _first_sync: asyncio.Event | None = None
+_first_sync_started = 0.0  # time.monotonic() at start_sync_task
+_first_sync_late_warned = False
 # time.monotonic() of the last broken-link alert (check_link); in memory
 _link_alerted_at: float | None = None
 
@@ -347,23 +349,30 @@ async def sync_forever(first_sync: asyncio.Event) -> None:
 
 def start_sync_task() -> asyncio.Task | None:
     """Sync now and every MEDIA_SYNC_MINUTES in the background (lifespan of app/main.py); None when off."""
-    global _first_sync
+    global _first_sync, _first_sync_started, _first_sync_late_warned
     enabled = _enabled()
-    _first_sync = asyncio.Event()
+    _first_sync, _first_sync_started, _first_sync_late_warned = asyncio.Event(), time.monotonic(), False
     if not enabled or _catalog["items"]:
         _first_sync.set()
     return asyncio.create_task(sync_forever(_first_sync)) if enabled else None
 
 
 async def ready(timeout: float) -> bool:
-    """Wait at most `timeout` seconds for the first sync since start (see _first_sync); True once it has ended.
-    Never raises."""
+    """Wait for the first sync since start (see _first_sync) until `timeout` seconds after it started, one deadline
+    for every caller: one coming later does not wait. True once it has ended; the first caller it is not ready for
+    logs a WARNING. Never raises."""
+    global _first_sync_late_warned
     first_sync = _first_sync
     if first_sync is None or first_sync.is_set():
         return True
     try:
-        await asyncio.wait_for(first_sync.wait(), timeout)
+        await asyncio.wait_for(first_sync.wait(), max(0.0, _first_sync_started + timeout - time.monotonic()))
     except TimeoutError:
+        if not _first_sync_late_warned:
+            _first_sync_late_warned = True
+            logger.warning(
+                f"Media first sync not done {timeout:g}s after start: answering without Drive images until it is"
+            )
         return False
     return True
 

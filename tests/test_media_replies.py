@@ -1197,6 +1197,36 @@ def test_a_first_sync_slower_than_the_wait_still_gets_an_answer_without_images(p
     assert len(first_sync_warnings(caplog)) == 1
 
 
+# Review 2026-10-24: mỗi tin tới trong lúc lần đồng bộ đầu còn chạy đều chờ đủ MEDIA_FIRST_SYNC_WAIT (60 giây), tin
+# sau chờ thêm 60 giây nữa. Hạn là một: lúc bắt đầu lần đồng bộ đầu + MEDIA_FIRST_SYNC_WAIT; tin tới sau hạn không chờ.
+def test_every_message_waits_for_the_first_sync_until_one_deadline(parent, drive, monkeypatch, caplog):
+    known(interested_campus="Kim Mã", kid_age="3-5 tuổi")
+    drive.delay = 30
+    monkeypatch.setattr(settings, "MEDIA_FIRST_SYNC_WAIT", 0.6)
+    parent.response = AIResponse(text=REPLY, should_escalate=False, model_used="fake-model")
+
+    async def run():
+        task = media.start_sync_task()
+        seconds = []
+        try:
+            await asyncio.sleep(0.3)
+            for text in ("Cho em xin thời khoá biểu ạ", "dạ vâng", "học phí bao nhiêu ạ"):
+                started = time.monotonic()
+                await main.process_message(CUSTOMER_ID, text)
+                seconds.append(time.monotonic() - started)
+        finally:
+            task.cancel()
+        return seconds
+
+    with caplog.at_level(logging.WARNING):
+        first, *later = asyncio.run(run())
+
+    assert 0.2 <= first < 0.5  # came 0.3 s after the sync started: waits what is left of the 0.6 s
+    assert all(s < 0.3 for s in later), later
+    assert parent.images() == []
+    assert len(first_sync_warnings(caplog)) == 1
+
+
 # Messenger tắt "đang soạn" sau ~20 giây, còn lượt chờ lần đồng bộ đầu tới MEDIA_FIRST_SYNC_WAIT (60 giây): phụ huynh
 # thấy bot im. Trong lúc chờ, bot bật lại "đang soạn" mỗi TYPING_REFRESH_EVERY giây.
 def test_waiting_for_the_first_sync_keeps_the_typing_indicator_on(parent, drive, monkeypatch):

@@ -85,8 +85,10 @@ class Step:
     images: tuple[str, ...] = ()  # id ảnh đi ra lượt này, chính xác (không thừa, không thiếu)
     escalate: bool = False  # có thẻ Telegram chuyển tư vấn viên
     alerts: tuple[str, ...] = ()  # tin Telegram cho admin về ảnh (chuỗi con); trống = không tin nào
-    asks: tuple[str, ...] = ()  # "age", "campus": câu trả lời phải hỏi
-    not_asks: tuple[str, ...] = ()  # không được hỏi lại điều đã biết
+    # Câu trả lời giám khảo (khoá của eval_chat.JUDGE_KEYS) mong đợi ở lượt này, vd {"asks_age": True}; thêm vào mặc định
+    # của eval_chat.expected_answers (không ảnh: không hứa gửi ảnh; có ảnh: không nói không gửi được ảnh; mọi lượt: không
+    # nói tư vấn viên sẽ gửi ảnh).
+    expect: dict = field(default_factory=dict)
     any_of: list[tuple[str, ...]] = field(default_factory=list)  # mỗi nhóm phải có ít nhất 1 cụm
     none_of: tuple[str, ...] = ()
     # Trích xuất đúng mong đợi của tin này: chỉ model giả của tests/test_eval_media.py dùng (eval thật chỉ in ra
@@ -106,7 +108,6 @@ class MediaCase:
 ASK_PHONE_BOT = "Nếu tiện, Ba/Mẹ để lại SĐT/Zalo để em gửi bảng học phí chi tiết nhé ạ? [QUICK:phone]"
 OK_BOT = "Dạ vâng ạ, Casa có Cambridge Early Years kết hợp Montessori cho các con. Ba/Mẹ muốn tìm hiểu thêm điều gì ạ?"
 ALREADY_SENT = ("ở trên", "phía trên", "bên trên", "đã gửi", "vừa gửi")
-NO_FEE_IMAGE = ("không gửi bảng", "không gửi được", "không thể gửi", "không gửi học phí")
 ASKS_PHONE = ("sđt", "số điện thoại", "zalo")
 SENT_AT = "2026-10-24T02:00:00+00:00"
 
@@ -135,26 +136,25 @@ MEDIA_CASES: dict[str, MediaCase] = {
     # --- học phí ---
     "FEE-ASKED-READY": MediaCase(
         profile=MD3, history=[SAID_MD3],
-        steps=[Step("học phí bên mình thế nào em", images=("qt-fee-10",), any_of=[("gửi",)], none_of=NO_FEE_IMAGE,
-                    extract=FEE)],
+        steps=[Step("học phí bên mình thế nào em", images=("qt-fee-10",), any_of=[("gửi",)], extract=FEE)],
     ),
     "FEE-WAIT-AGE": MediaCase(
         profile={"interested_campus": "Kim Mã"}, history=[("em quan tâm cơ sở Kim Mã", OK_BOT)],
         steps=[
-            Step("cho em hỏi học phí ạ", asks=("age",), not_asks=("campus",), extract=FEE),
+            Step("cho em hỏi học phí ạ", expect={"asks_age": True, "asks_campus": False}, extract=FEE),
             Step(tap="age:2", images=("sn-fee-10",), any_of=[("gửi",)], extract={"kid_age": "3-5 tuổi"}),
         ],
     ),
     "FEE-WAIT-CAMPUS": MediaCase(
         profile={"kid_age": "20 tháng"}, history=[("bé nhà em 20 tháng", OK_BOT)],
         steps=[
-            Step("học phí của trường bao nhiêu ạ", asks=("campus",), not_asks=("age",), extract=FEE),
+            Step("học phí của trường bao nhiêu ạ", expect={"asks_campus": True, "asks_age": False}, extract=FEE),
             Step(tap="campus:0", images=("qt-fee-10",), any_of=[("gửi",)], extract={"interested_campus": "Chùa Láng"}),
         ],
     ),
     "FEE-BOTH-SYSTEMS": MediaCase(
         profile={"kid_age": "3 tuổi"}, history=[("bé nhà em 3 tuổi", OK_BOT)],
-        steps=[Step("cho mình xin học phí 2 hệ nhé", images=("sn-fee-10", "qt-fee-10"), not_asks=("campus",),
+        steps=[Step("cho mình xin học phí 2 hệ nhé", images=("sn-fee-10", "qt-fee-10"), expect={"asks_campus": False},
                     any_of=[("gửi",)], extract=FEE)],
     ),
     "FEE-SENT-AGAIN": MediaCase(
@@ -175,20 +175,20 @@ MEDIA_CASES: dict[str, MediaCase] = {
         profile={"interested_campus": "Mỹ Đình", "phone_declined": True},
         history=[("em quan tâm cơ sở Mỹ Đình", ASK_PHONE_BOT), ("em chưa muốn để số ạ", OK_BOT)],
         steps=[Step("thôi em cứ báo học phí đi", images=("qt-fee-10",), any_of=[("gửi",)],
-                    none_of=NO_FEE_IMAGE + ASKS_PHONE, extract=FEE)],
+                    none_of=ASKS_PHONE, extract=FEE)],
     ),
     "FEE-REFUSE-PHONE-NO-CAMPUS": MediaCase(
         profile={"kid_age": "3 tuổi", "phone_declined": True},
         history=[("bé nhà em 3 tuổi", ASK_PHONE_BOT)],
-        steps=[Step("thôi mình chưa muốn để số đâu, em cứ báo học phí đi", asks=("campus",), none_of=ASKS_PHONE,
-                    extract={**FEE, "phone_declined": True})],
+        steps=[Step("thôi mình chưa muốn để số đâu, em cứ báo học phí đi", expect={"asks_campus": True},
+                    none_of=ASKS_PHONE, extract={**FEE, "phone_declined": True})],
     ),
     "FEE-ASKED-BEFORE-THEN-REFUSE": MediaCase(
         profile={"interested_campus": "Mỹ Đình", "fee_asked": True},
         history=[("học phí bên Mỹ Đình thế nào em", "Dạ học phí tuỳ độ tuổi của bé ạ. Nếu tiện, Ba/Mẹ để lại "
                   "SĐT/Zalo để tư vấn viên gửi bảng phí chi tiết nhé? [QUICK:phone]")],
         steps=[Step("thôi không để số đâu em", images=("qt-fee-10",), any_of=[("gửi",)],
-                    none_of=NO_FEE_IMAGE + ASKS_PHONE, extract={"phone_declined": True})],
+                    none_of=ASKS_PHONE, extract={"phone_declined": True})],
     ),
     "FEE-STALE": MediaCase(
         profile=MD3, history=[SAID_MD3], catalog="stale_fee",
@@ -198,12 +198,13 @@ MEDIA_CASES: dict[str, MediaCase] = {
     "FEE-NO-NUMBER": MediaCase(
         profile=KM4, history=[("bé nhà em 4 tuổi, em quan tâm Kim Mã", OK_BOT)],
         steps=[Step("học phí 1 tháng bao nhiêu tiền vậy em, báo con số cụ thể giúp mình", images=("sn-fee-10",),
-                    none_of=NO_FEE_IMAGE, extract=FEE)],
+                    extract=FEE)],
     ),
     # --- thời khoá biểu ---
     "TKB-WAIT-BOTH": MediaCase(
         steps=[
-            Step("cho mình tham khảo thời khoá biểu của các con nhé", asks=("campus", "age"), extract=PROGRAMME),
+            Step("cho mình tham khảo thời khoá biểu của các con nhé", expect={"asks_campus": True, "asks_age": True},
+                 extract=PROGRAMME),
             Step("Kim Mã, bé nhà mình 3 tuổi", images=("km-tkb-36-72",), any_of=[("gửi",)],
                  extract={"interested_campus": "Kim Mã", "kid_age": "3 tuổi"}),
         ],
@@ -211,14 +212,14 @@ MEDIA_CASES: dict[str, MediaCase] = {
     "TKB-WAIT-AGE": MediaCase(
         profile={"interested_campus": "Mỹ Đình"}, history=[("em quan tâm cơ sở Mỹ Đình", OK_BOT)],
         steps=[
-            Step("cho em xin thời khoá biểu của lớp", asks=("age",), not_asks=("campus",), extract=PROGRAMME),
+            Step("cho em xin thời khoá biểu của lớp", expect={"asks_age": True, "asks_campus": False}, extract=PROGRAMME),
             Step(tap="age:0", images=("md-tkb-15-36",), any_of=[("gửi",)], extract={"kid_age": "dưới 2 tuổi"}),
         ],
     ),
     "TKB-WAIT-CAMPUS": MediaCase(
         profile={"kid_age": "4 tuổi"}, history=[("bé nhà em 4 tuổi", OK_BOT)],
         steps=[
-            Step("cho em xin TKB của các con ạ", asks=("campus",), not_asks=("age",), extract=PROGRAMME),
+            Step("cho em xin TKB của các con ạ", expect={"asks_campus": True, "asks_age": False}, extract=PROGRAMME),
             Step(tap="campus:0", images=("cl-tkb-36-60",), any_of=[("gửi",)], extract={"interested_campus": "Chùa Láng"}),
         ],
     ),
@@ -239,8 +240,9 @@ MEDIA_CASES: dict[str, MediaCase] = {
     # Hội thoại thật 2026-10-24: thời khoá biểu "Chùa Láng và Kim Mã", chọn tuổi bằng nút, rồi xin "2 hệ".
     "TKB-MULTI-CAMPUS": MediaCase(
         steps=[
-            Step("Cho mình tham khảo thời khoá biểu nhé", asks=("campus", "age"), extract=PROGRAMME),
-            Step("Chùa Láng và Kim Mã", asks=("age",), not_asks=("campus",),
+            Step("Cho mình tham khảo thời khoá biểu nhé", expect={"asks_campus": True, "asks_age": True},
+                 extract=PROGRAMME),
+            Step("Chùa Láng và Kim Mã", expect={"asks_age": True, "asks_campus": False},
                  extract={"interested_campus": "Chùa Láng, Kim Mã"}),
             Step(tap="age:2", images=("cl-tkb-36-60", "km-tkb-36-72"), any_of=[("gửi",)], extract={"kid_age": "3-5 tuổi"}),
             Step("Gửi thời khoá biểu 2 hệ nhé", any_of=[ALREADY_SENT], extract=PROGRAMME),
@@ -249,7 +251,8 @@ MEDIA_CASES: dict[str, MediaCase] = {
     "TKB-BOTH-SYSTEMS-UNKNOWN": MediaCase(
         profile={"kid_age": "4 tuổi"}, history=[("bé nhà em 4 tuổi", OK_BOT)],
         steps=[
-            Step("Gửi thời khoá biểu 2 hệ nhé", images=("km-tkb-36-72",), asks=("campus",), extract=PROGRAMME),
+            Step("Gửi thời khoá biểu 2 hệ nhé", images=("km-tkb-36-72",), expect={"asks_campus": True},
+                 extract=PROGRAMME),
             Step(tap="campus:1", images=("md-tkb-36-60",), any_of=[("gửi",)], extract={"interested_campus": "Mỹ Đình"}),
         ],
     ),
@@ -280,14 +283,15 @@ MEDIA_CASES: dict[str, MediaCase] = {
     ),
     "TKB-BIRTH-YEAR": MediaCase(
         profile={"interested_campus": "Mỹ Đình"}, history=[("em quan tâm cơ sở Mỹ Đình", OK_BOT)],
-        steps=[Step("bé nhà em sinh năm 2022, cho em xem thời khoá biểu", images=("md-tkb-36-60",), not_asks=("age",),
-                    any_of=[("gửi",)], extract={"kid_age": "sinh năm 2022", **PROGRAMME})],
+        steps=[Step("bé nhà em sinh năm 2022, cho em xem thời khoá biểu", images=("md-tkb-36-60",),
+                    expect={"asks_age": False}, any_of=[("gửi",)], extract={"kid_age": "sinh năm 2022", **PROGRAMME})],
     ),
     # --- cơ sở vật chất ---
     "CSVC-WAIT-CAMPUS": MediaCase(
         profile={"kid_age": "3 tuổi"}, history=[("bé nhà em 3 tuổi", OK_BOT)],
         steps=[
-            Step("trường có sân chơi không ạ, cho em xem ảnh trường với", asks=("campus",), extract=FACILITIES),
+            Step("trường có sân chơi không ạ, cho em xem ảnh trường với", expect={"asks_campus": True},
+                 extract=FACILITIES),
             Step(tap="campus:2", images=csvc4("km"), any_of=[("gửi",)], extract={"interested_campus": "Kim Mã"}),
         ],
     ),

@@ -6,18 +6,32 @@ Bản dữ liệu (đọc được bằng code) là `MATRIX` và `MEDIA_CASES` t
 
 ## Bộ kiểm
 
-- `eval`: câu chữ hoặc hành vi của model quyết định kết quả (chủ đề trích xuất, tuổi/cơ sở đọc được, token `[SEND:]`, `[ESCALATE]`, câu hỏi lại). Chạy `.venv/bin/python scripts/eval_chat.py media` với API key thật (tốn phí: 38 ca, 48 lượt, mỗi lượt 2 lời gọi model). Bộ này gọi `app.main.process_message` như tin Messenger thật, với model theo `AI_MODEL_ORDER` có key; Graph, Telegram, Sheet, GitHub là fake ghi lại (request httpx tới các host đó bị chặn); `MEDIA_SYNC_ENABLED=true` với danh mục ảnh giả (`catalog_items`: học phí 2 hệ, thực đơn 2 hệ, thời khoá biểu 3 cơ sở theo nhóm tuổi, cơ sở vật chất 3 cơ sở); hồ sơ phụ huynh dựng theo từng ca trong thư mục tạm, không đụng `data/customers.json`; hôm nay là 24/10/2026. Exit 0 đạt, 1 có lượt vi phạm, 2 chưa kết luận (chưa có API key, mọi model lỗi).
+- `eval`: câu chữ hoặc hành vi của model quyết định kết quả (chủ đề trích xuất, tuổi/cơ sở đọc được, token `[SEND:]`, `[ESCALATE]`, câu hỏi lại). Chạy `.venv/bin/python scripts/eval_chat.py media` với API key thật (tốn phí: 38 ca, 48 lượt; mỗi lượt 2 lời gọi model của bot, cộng 1 lời gọi giám khảo cho mỗi lượt không chuyển tư vấn viên, 45 lượt khi bot chuyển đúng 3 lượt phải chuyển: ≈ 141 lời gọi, chưa kể lời gọi dự phòng khi một model lỗi). Bộ này gọi `app.main.process_message` như tin Messenger thật, với model theo `AI_MODEL_ORDER` có key; Graph, Telegram, Sheet, GitHub là fake ghi lại (request httpx tới các host đó bị chặn); `MEDIA_SYNC_ENABLED=true` với danh mục ảnh giả (`catalog_items`: học phí 2 hệ, thực đơn 2 hệ, thời khoá biểu 3 cơ sở theo nhóm tuổi, cơ sở vật chất 3 cơ sở); hồ sơ phụ huynh dựng theo từng ca trong thư mục tạm, không đụng `data/customers.json`; hôm nay là 24/10/2026. Exit 0 đạt, 1 có lượt vi phạm, 2 chưa kết luận (chưa có API key, mọi model lỗi, hoặc không vi phạm nào mà có lượt giám khảo chưa ra phán quyết).
 - `pytest`: kết quả do code quyết định khi chủ đề/token đã biết; test dùng model giả (`tests/test_media_replies.py`).
 - `harness`: cần app thật qua HTTP (Graph trả lỗi thật, ảnh phục vụ ở `/static/media`, biến môi trường lúc khởi động); skill `verify-casa-bot`, mã ghi ở hành trình tương ứng trong `features/media.md`.
 
 ## Mỗi lượt eval chấm gì
 
+Code chấm mọi thứ xác định được:
+
 - Ảnh đi ra đúng tập id fixture của lượt (không thừa, không thiếu), kể cả ảnh mẫu `static/thuc-don-mau.jpg` của Q&A.
 - Có/không thẻ Telegram chuyển tư vấn viên; tin Telegram cho admin về ảnh (vd ảnh học phí tháng cũ) đúng như ca đòi, không có tin thừa.
-- Lượt không chuyển tư vấn viên: không lộ token (`[SEND:`, `[IMAGES:`, `[QUICK:`, `[ESCALATE]`, `[đã gửi ảnh`, `chưa gửi được]`) ra tin phụ huynh; không nêu số tiền; không có ảnh đi thì không câu khẳng định "em gửi"/"em sẽ gửi"/"gửi Ba/Mẹ …"/"bên dưới"/"dưới đây", kể cả câu không nêu ảnh ("Dạ em gửi Ba/Mẹ tham khảo ạ.", "Em sẽ gửi lại Ba/Mẹ ngay khi hệ thống ổn ạ."); chỉ bỏ qua câu gửi thứ rõ ràng không phải ảnh ("em gửi Ba/Mẹ thông tin/lịch hẹn/địa chỉ/số hotline …") mà không có từ chỉ ảnh (ảnh, hình, bảng, thời khoá biểu, lịch học, thực đơn, cơ sở vật chất, học phí), "để em gửi …" khi hỏi thông tin, câu hỏi, và câu nói ảnh đã gửi ở trên; có ảnh đi thì câu trả lời báo gửi; không "tư vấn viên … gửi" ảnh, thời khoá biểu, thực đơn (và học phí khi có dòng ảnh học phí); có ảnh học phí thì không "không gửi được bảng phí"; hỏi đúng tuổi bé/cơ sở còn thiếu (nút, hoặc vế câu nhắc tới nó mà có dấu hỏi, dạng hỏi của chính nó như "mấy tuổi"/"cơ sở nào"/"Kim Mã hay …", hay lời xin "cho em xin/biết/hỏi", "Ba/Mẹ cho em" ở vế đó hoặc vế trước trong câu; vế câu kể như "Học phí tuỳ độ tuổi và cơ sở, …" hay "Học phí cụ thể bao nhiêu sẽ tuỳ theo độ tuổi của bé ạ" không tính là hỏi tuổi), không hỏi lại điều đã biết; cụm phải có/không được có của từng ca.
+- Lượt không chuyển tư vấn viên: không lộ token hay ghi chú (`[SEND:`, `[IMAGES:`, `[QUICK:`, `[ESCALATE]`, `[đã gửi ảnh`, `chưa gửi được]`) ra tin phụ huynh; không nêu số tiền; có ảnh đi thì câu trả lời có chữ báo gửi ("gửi", "đây là", "bên dưới", "dưới đây", "tham khảo"); nút trả lời nhanh hỏi tuổi bé/cơ sở; cụm phải có/không được có của từng ca.
+
+Luật câu chữ do giám khảo chấm (LLM-as-judge, `JUDGE_PROMPT` trong `scripts/eval_chat.py`): regex tiếng Việt đổi qua đổi lại giữa chấm oan câu đúng và bỏ lọt câu sai qua 4 vòng review, nên bộ media không còn regex ngữ nghĩa. Mỗi lượt không chuyển tư vấn viên là 1 lời gọi model nữa (model theo `AI_MODEL_ORDER`, cùng provider và key như bot; provider cố định temperature 0.3). Giám khảo nhận tin phụ huynh, câu trả lời của bot đã bỏ token, các ảnh thực sự đi ra lượt đó, và các khoá có/không của lượt; trả JSON `{khoá: true/false, …, "ly_do": "…"}` đúng các khoá được hỏi. Khoá:
+
+- `promises_image`: nói/ngụ ý bot đang/sẽ gửi ảnh (bảng phí, thời khoá biểu, thực đơn, ảnh trường…) ngay trong chat; không tính tư vấn viên gửi sau qua Zalo khi phụ huynh để số, gửi "thông tin" bằng chữ, nói ảnh đã gửi ở trên, lời hỏi/mời.
+- `asks_age`, `asks_campus`: HỎI thật tuổi bé / cơ sở quan tâm (câu kể như "Học phí tuỳ độ tuổi và cơ sở, …" không tính). Nút trả lời nhanh tuổi/cơ sở cũng tính là hỏi (code thấy được).
+- `consultant_sends_image`: nói tư vấn viên sẽ gửi ảnh, thời khoá biểu, thực đơn, ảnh trường (không tính bảng phí qua Zalo sau khi để số).
+- `says_cannot_send`: nói không gửi được ảnh trong chat.
+
+Mặc định của mọi lượt không chuyển tư vấn viên (`expected_answers`): `consultant_sends_image` false; không ảnh đi thì `promises_image` false; có ảnh đi thì `says_cannot_send` false. Ca thêm kỳ vọng riêng bằng `Step.expect` (vd `{"asks_age": True, "asks_campus": False}`). Prompt có 8 ví dụ biên lấy từ các vòng review ("Dạ em gửi Ba/Mẹ tham khảo ạ." là hứa; "… để tư vấn viên gửi Ba/Mẹ bảng phí xe đưa đón ạ.", "Dạ em gửi Ba/Mẹ một số thông tin về xe đưa đón ạ.", "Dạ em gửi Ba/Mẹ lịch tham quan ạ." không hứa; "Học phí tuỳ độ tuổi và cơ sở, Ba/Mẹ quan tâm cơ sở nào ạ?" hỏi cơ sở, không hỏi tuổi; "Bé nhà mình sinh năm bao nhiêu ạ" hỏi tuổi).
+
+Mỗi lượt in phán quyết và lý do (`giám khảo (<model>): khoá=…; lý do: …`). Câu giám khảo khác khuôn JSON hoặc mọi model lỗi thì lượt đó chưa kết luận (`? giám khảo … không ra phán quyết`): không tính đạt, không tính vi phạm; vi phạm code của lượt đó vẫn tính. Giám khảo cũng là model nên có thể sai: lượt vi phạm phải đọc lý do và transcript trước khi sửa bot.
+
 - Trạng thái dòng `[HỆ THỐNG]` gặp trong bộ (test với model giả đòi đủ cả 6): chắc chắn gửi ("Sau câu trả lời này …"), tuỳ chủ đề ("Nếu phụ huynh hỏi …: sau câu trả lời …"), thiếu thông tin ("… nên chưa gửi ảnh …"), đã gửi ("… đã gửi ở tin trước …"), hỏi cơ sở cho ảnh cơ sở vật chất, ảnh lỗi ở tin trước ("Ảnh … tin trước chưa gửi được …").
 
-Heuristic chỉ để lọc nhanh: vẫn đọc transcript (`PH:`, `BOT (<model>):`, `ảnh: …; trích xuất: …`).
+Heuristic và giám khảo chỉ để lọc nhanh: vẫn đọc transcript (`PH:`, `BOT (<model>):`, `ảnh: …; trích xuất: …`, `giám khảo …`).
 
 ## Chưa kiểm được
 

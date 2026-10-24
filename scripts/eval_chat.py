@@ -42,14 +42,23 @@ Bộ media (ma trận docs/ma-tran-gui-anh.md, dữ liệu MEDIA_CASES trong scr
 phụ huynh" với luồng THẬT của bot: mỗi lượt gọi app.main.process_message như tin Messenger (model chat và model trích
 xuất thật theo AI_MODEL_ORDER, dòng [HỆ THỐNG] do _media_note viết), trong IsolatedBot: MEDIA_SYNC_ENABLED bật với danh
 mục ảnh giả, Graph/Telegram/Sheet/GitHub là fake ghi lại (httpx tới các host đó bị chặn), hồ sơ phụ huynh dựng theo ca
-trong thư mục tạm. Mỗi lượt chấm tập ảnh đi ra chính xác (id fixture), thẻ chuyển tư vấn viên, tin Telegram về ảnh, và
-câu chữ (grade_media_step): không hứa gửi khi không có ảnh, không "tư vấn viên … gửi" ảnh, hỏi đúng tuổi/cơ sở còn
-thiếu, không số tiền, không lộ token. 38 ca, 48 lượt, mỗi lượt 2 lời gọi model. Bộ đạt khi mọi lượt đạt.
+trong thư mục tạm. Code chấm những gì xác định được (grade_media_step): tập ảnh đi ra chính xác (id fixture), thẻ chuyển
+tư vấn viên, tin Telegram về ảnh, token/ghi chú lộ ra tin phụ huynh (LEAKED_TOKEN), số tiền (MONEY), nút hỏi tuổi/cơ sở,
+cụm any_of/none_of của ca. Luật câu chữ (hứa gửi ảnh khi không có ảnh, tư vấn viên sẽ gửi ảnh, nói không gửi được ảnh,
+hỏi tuổi/cơ sở) do giám khảo chấm: một lời gọi model nữa (JUDGE_PROMPT, model theo AI_MODEL_ORDER) nhận tin phụ huynh,
+câu trả lời đã bỏ token, ảnh thực sự đi ra và các khoá JUDGE_KEYS của lượt (expected_answers), trả JSON true/false kèm
+"ly_do"; mỗi lượt in phán quyết và lý do. Câu giám khảo khác khuôn (hay mọi model lỗi) thì lượt đó chưa kết luận: không
+tính đạt, không tính vi phạm. Giám khảo cũng là model nên có thể sai: lượt vi phạm phải đọc lý do và transcript.
+38 ca, 48 lượt: mỗi lượt 2 lời gọi model của bot, cộng 1 lời gọi giám khảo cho mỗi lượt không chuyển tư vấn viên (45 khi
+bot chuyển đúng 3 lượt phải chuyển), tổng ≈ 141 lời gọi, chưa kể lời gọi dự phòng khi một model lỗi. Bộ đạt khi mọi lượt
+đạt.
 
 Exit: 0 = mọi heuristic đạt và các bộ (nếu chạy) đạt ngưỡng; 1 = có lượt vi phạm hoặc một bộ dưới ngưỡng;
-2 = INCONCLUSIVE (chưa có API key, mọi model đều lỗi) hoặc sai tên kịch bản.
+2 = INCONCLUSIVE (chưa có API key, mọi model đều lỗi, hoặc không vi phạm nào mà có lượt media giám khảo chưa kết luận)
+hoặc sai tên kịch bản.
 """
 import asyncio
+import json
 import logging
 import os
 import re
@@ -645,42 +654,10 @@ async def run_upset_cases(engine: EvalEngine) -> bool | None:
 
 
 MEDIA_SUITE = "media"
-# Câu báo gửi ảnh: "em gửi", "em xin gửi", "em sẽ gửi", "gửi Ba/Mẹ …", "bên dưới"… (không tính "để em gửi đúng …",
-# lời hỏi để gửi), dù câu không nêu ảnh ("Dạ em gửi Ba/Mẹ tham khảo ạ."). Chỉ bỏ qua khi thứ được gửi rõ ràng không
-# phải ảnh (NOT_AN_IMAGE: "em gửi Ba/Mẹ thông tin …") và câu không có từ chỉ ảnh (PROMISED_IMAGE).
-PROMISES_IMAGE = re.compile(
-    r"(?<!để )\bem (?:xin |sẽ )?gửi\b|(?<!để em )\bgửi (?:lại )?ba/mẹ\b|bên dưới|dưới đây|ngay sau đây|gửi kèm", re.I
-)
-NOT_AN_IMAGE = re.compile(
-    r"\bgửi (?:lại )?(?:cho )?(?:ba/mẹ )?(?:thông tin|lịch hẹn|địa chỉ|(?:số )?hotline|số điện thoại|link|đường dẫn)\b",
-    re.I,
-)
-SAYS_SENT_BEFORE = ("ở trên", "phía trên", "bên trên", "đã gửi", "vừa gửi", "tin trước")
 ANNOUNCES_IMAGE = ("gửi", "đây là", "dưới đây", "bên dưới", "tham khảo")
-IMAGE_WORDS = r"ảnh|hình|thời kh(?:oá|óa) biểu|tkb|lịch học|cơ sở vật chất|thực đơn"
-FEE_WORDS = r"học phí|bảng phí"
-PROMISED_IMAGE = re.compile(
-    r"\bảnh\b(?! hưởng)|\bhình\b(?! thức)|\bbảng\b|thời kh(?:oá|óa) biểu|tkb|lịch học|cơ sở vật chất|thực đơn|học phí|"
-    r"bên dưới|dưới đây|ngay sau đây|gửi kèm", re.I
-)
 LEAKED_TOKEN = re.compile(r"\[(?:SEND|IMAGES|QUICK|ESCALATE)\b|\[đã gửi ảnh|chưa gửi được\]", re.I)
-ASKS_FOR = {
-    "age": re.compile(r"mấy tuổi|bao nhiêu tuổi|tuổi (?:của )?(?:bé|con)|mấy tháng|bao nhiêu tháng|năm sinh|sinh năm|"
-                      r"sinh tháng|độ tuổi", re.I),
-    "campus": re.compile(r"cơ sở nào|quan tâm cơ sở|cơ sở ba/mẹ|(?:chùa láng|mỹ đình|kim mã) hay|"
-                         r"hay (?:cơ sở )?(?:chùa láng|mỹ đình|kim mã)", re.I),
-}
-# Một vế câu (tách ở "," ";") nhắc tới tuổi/cơ sở (ASKS_FOR) là hỏi khi chính vế đó có dấu hỏi hay dạng hỏi của điều
-# đó (ASKING_FORM: "mấy tuổi", "cơ sở nào", "Kim Mã hay …"), hoặc nó hay một vế trước trong câu có lời xin (REQUEST).
-# "Học phí tuỳ độ tuổi và cơ sở, Ba/Mẹ quan tâm cơ sở nào ạ?" hỏi cơ sở, không hỏi tuổi; "Học phí cụ thể bao nhiêu sẽ
-# tuỳ theo độ tuổi của bé ạ" không hỏi gì ("bao nhiêu" là của học phí).
-REQUEST = re.compile(r"cho em (?:xin|biết|hỏi)|ba/mẹ cho em", re.I)
-ASKING_FORM = {
-    "age": re.compile(r"(?:mấy|bao nhiêu) (?:tuổi|tháng)|(?:sinh|độ tuổi)[^,;]{0,12}\b(?:nào|hay)\b", re.I),
-    "campus": re.compile(r"cơ sở nào(?! cũng)|(?:chùa láng|mỹ đình|kim mã) hay|hay (?:cơ sở )?(?:chùa láng|mỹ đình|kim mã)",
-                         re.I),
-}
-CLAUSE_END = re.compile(r"[,;]")
+# Token và ghi chú lịch sử bỏ khỏi câu trả lời đưa giám khảo (việc chúng lộ ra do LEAKED_TOKEN chấm).
+TOKENS = re.compile(r"\[(?:SEND|IMAGES|QUICK|ESCALATE)\b[^\]]*\]|\[(?:đã gửi )?ảnh\b[^\]]*\]", re.I)
 # Trạng thái của từng dòng [HỆ THỐNG] (media_note trong app/ai_engine.py) theo câu chữ của dòng.
 NOTE_STATES = {
     "sure": "Sau câu trả lời này hệ thống gửi ảnh",
@@ -697,6 +674,120 @@ BLOCKED_HOSTS = (
 )
 
 
+@dataclass(frozen=True)
+class JudgeKey:
+    question: str  # câu hỏi có/không gửi giám khảo
+    when_true: str  # vi phạm khi giám khảo trả true mà lượt mong đợi false
+    when_false: str  # vi phạm khi giám khảo trả false mà lượt mong đợi true
+
+
+# Luật câu chữ của bộ media do giám khảo (một model AI) chấm thay regex: regex tiếng Việt đổi qua đổi lại giữa chấm oan
+# câu đúng và bỏ lọt câu sai (4 vòng review 2026-10-24).
+JUDGE_KEYS = {
+    "promises_image": JudgeKey(
+        "câu trả lời có nói hoặc ngụ ý bot đang/sẽ gửi ẢNH (bảng phí, thời khoá biểu, thực đơn, ảnh trường…) cho phụ "
+        "huynh ngay trong chat không? \"Em gửi Ba/Mẹ …\" mà không nói gửi gì cũng tính. KHÔNG tính: tư vấn viên gửi sau "
+        "qua Zalo khi phụ huynh để số; gửi \"thông tin\" bằng chữ; nói ảnh đã gửi ở trên; lời hỏi, lời mời (\"Ba/Mẹ có "
+        "muốn em gửi … không ạ?\").",
+        "hứa gửi ảnh mà không có ảnh đi", "không báo gửi ảnh",
+    ),
+    "asks_age": JudgeKey(
+        "câu trả lời có HỎI phụ huynh tuổi, tháng tuổi hay năm sinh của bé không (câu hỏi hoặc lời xin thật, có hay "
+        "không có dấu hỏi; câu kể như \"học phí tuỳ độ tuổi\" không tính)?",
+        "hỏi lại tuổi bé đã biết", "không hỏi tuổi bé",
+    ),
+    "asks_campus": JudgeKey(
+        "câu trả lời có HỎI phụ huynh quan tâm cơ sở nào (Chùa Láng, Mỹ Đình, Kim Mã) không (câu hỏi hoặc lời xin thật; "
+        "câu kể như \"học phí tuỳ cơ sở\" không tính)?",
+        "hỏi lại cơ sở đã biết", "không hỏi cơ sở",
+    ),
+    "consultant_sends_image": JudgeKey(
+        "câu trả lời có nói tư vấn viên sẽ gửi ảnh, thời khoá biểu, thực đơn hay ảnh trường không? KHÔNG tính: tư vấn "
+        "viên gửi bảng phí qua Zalo sau khi phụ huynh để số.",
+        "nói tư vấn viên sẽ gửi ảnh", "không nói tư vấn viên sẽ gửi ảnh",
+    ),
+    "says_cannot_send": JudgeKey(
+        "câu trả lời có nói bot không gửi được (không thể gửi) ảnh hay bảng phí trong chat không?",
+        "nói không gửi được ảnh trong chat", "không nói không gửi được ảnh",
+    ),
+}
+# Ví dụ biên trong prompt giám khảo: (ảnh đi kèm, câu bot, phán quyết). Câu đúng mà regex từng chấm oan, câu sai regex
+# từng bỏ lọt.
+JUDGE_EXAMPLES = [
+    ("không có", "Dạ em gửi Ba/Mẹ tham khảo ạ.", {"promises_image": True}),
+    ("không có", "Nếu tiện, Ba/Mẹ để lại SĐT/Zalo để tư vấn viên gửi Ba/Mẹ bảng phí xe đưa đón ạ.",
+     {"promises_image": False, "consultant_sends_image": False}),
+    ("không có", "Dạ em gửi Ba/Mẹ một số thông tin về xe đưa đón ạ.", {"promises_image": False}),
+    ("không có", "Dạ em gửi Ba/Mẹ lịch tham quan ạ.", {"promises_image": False}),
+    ("không có", "Dạ ảnh học phí em đã gửi Ba/Mẹ ở tin phía trên ạ.", {"promises_image": False}),
+    ("không có", "Học phí tuỳ độ tuổi và cơ sở, Ba/Mẹ quan tâm cơ sở nào ạ?", {"asks_campus": True, "asks_age": False}),
+    ("không có", "Bé nhà mình sinh năm bao nhiêu ạ", {"asks_age": True}),
+    ("không có", "Dạ tư vấn viên sẽ gửi Ba/Mẹ thời khoá biểu qua Zalo ạ.", {"consultant_sends_image": True}),
+]
+
+
+def _judge_example(images: str, reply: str, verdict: dict) -> str:
+    return f'- Ảnh đi kèm: {images}. Bot: "{reply}" → ' + ", ".join(f"{k}: {str(v).lower()}" for k, v in verdict.items())
+
+
+JUDGE_PROMPT_START = "Bạn là giám khảo"
+JUDGE_PROMPT = (
+    f"{JUDGE_PROMPT_START} chấm câu trả lời của bot tư vấn trường mầm non Casa dei Bambini gửi phụ huynh qua Messenger. "
+    "Bạn nhận tin phụ huynh, các ảnh hệ thống THỰC SỰ gửi kèm lượt đó, câu trả lời của bot và vài câu hỏi có/không. "
+    "Chấm theo đúng câu chữ của câu trả lời, không đoán ý.\n\nCâu hỏi:\n"
+    + "".join(f"- {key}: {k.question}\n" for key, k in JUDGE_KEYS.items())
+    + "\nVí dụ:\n" + "".join(_judge_example(*example) + "\n" for example in JUDGE_EXAMPLES)
+    + '\nCHỈ trả về một JSON object gồm đúng các khoá được hỏi (giá trị true/false) và "ly_do" (một câu ngắn tiếng '
+    "Việt). KHÔNG markdown, KHÔNG giải thích ngoài JSON."
+)
+KIND_NAMES = {"fee": "học phí", "timetable": "thời khoá biểu", "facilities": "cơ sở vật chất", "menu": "thực đơn"}
+IMAGE_KINDS = {
+    media_cases.QA_MENU_IMAGE: "menu",
+    **{i["id"]: i["kind"] for v in media_cases.CATALOG_VARIANTS for i in media_cases.catalog_items(v)},
+}
+# Nút trả lời nhanh của câu hỏi: code biết chắc bot có kèm nút đó hay không.
+QUICK_OF = {"asks_age": "age", "asks_campus": "campus"}
+
+
+def judge_message(parent: str, reply: str, images: list[str], keys: list[str]) -> str:
+    sent = ", ".join(f"{KIND_NAMES.get(IMAGE_KINDS.get(i, ''), 'ảnh')} ({i})" for i in images) or "không có"
+    answer = "{" + "".join(f'"{key}": true/false, ' for key in keys) + '"ly_do": "..."}'
+    return (
+        f"Tin phụ huynh: {parent}\nẢnh đi kèm: {sent}\nCâu trả lời của bot:\n{reply}\n\n"
+        f"Câu hỏi: {', '.join(keys)}\nTrả về: {answer}"
+    )
+
+
+def parse_verdict(raw: str, keys: list[str]) -> dict | None:
+    """Phán quyết của giám khảo: JSON object có đúng `keys` (bool) và "ly_do" (chuỗi), cho phép một khối ```json bọc
+    ngoài; câu khác khuôn thì None (lượt chưa kết luận)."""
+    text = raw.strip()
+    if fenced := re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", text, re.S):
+        text = fenced.group(1)
+    try:
+        verdict = json.loads(text)
+    except ValueError:
+        return None
+    if not isinstance(verdict, dict) or set(verdict) != {*keys, "ly_do"} or not isinstance(verdict["ly_do"], str):
+        return None
+    return verdict if all(isinstance(verdict[key], bool) for key in keys) else None
+
+
+async def judge_reply(engine: AIEngine, message: str) -> tuple[str | None, str]:
+    """(câu thô, tên model) của model đầu tiên trả lời theo AI_MODEL_ORDER; (None, "none") khi mọi model lỗi.
+    Provider của app/ai_engine.py cố định temperature=0.3, giám khảo dùng y như vậy."""
+    for name in settings.AI_MODEL_ORDER:
+        name = name.strip()
+        if not (provider := engine._get_provider(name)):
+            continue
+        try:
+            raw = await engine._generate(provider, JUDGE_PROMPT, message, [], max_tokens=provider.token_budget["json"])
+            return raw, name
+        except Exception as e:
+            print(f"  ! giám khảo {name} lỗi: {type(e).__name__}: {e}")
+    return None, "none"
+
+
 def note_states(note: str) -> set[str]:
     return {state for line in note.splitlines() for state, words in NOTE_STATES.items() if words in line}
 
@@ -705,23 +796,6 @@ def media_image_id(url: str) -> str:
     """Id fixture của ảnh Drive (…/static/media/<id>.jpg), hoặc đường dẫn ảnh Q&A ("static/thuc-don-mau.jpg")."""
     path = url.removeprefix(media_cases.BASE_URL + "/")
     return path.removeprefix("static/media/").removesuffix(".jpg") if path.startswith("static/media/") else path
-
-
-def asks_for(what: str, text: str, quick_replies: list) -> bool:
-    """Câu trả lời hỏi tuổi bé/cơ sở: một vế câu nhắc tới nó mà hỏi (dấu hỏi, ASKING_FORM, lời xin ở vế đó hay vế
-    trước trong câu), hoặc nút trả lời nhanh của nó; vế câu kể nhắc tới nó ("Học phí tuỳ độ tuổi …") không tính."""
-    from app.messenger import build_quick_replies
-
-    if build_quick_replies(what) in quick_replies:
-        return True
-    for sentence in sentences(text):
-        requested = False
-        for clause in CLAUSE_END.split(sentence):
-            requested = requested or bool(REQUEST.search(clause))
-            asking = requested or "?" in clause or ASKING_FORM[what].search(clause)
-            if asking and ASKS_FOR[what].search(clause):
-                return True
-    return False
 
 
 @dataclass
@@ -741,7 +815,21 @@ class MediaOutcome:
     blocked: list[str] = field(default_factory=list)  # request ra ngoài bị chặn
 
 
-def grade_media_step(step: "media_cases.Step", out: MediaOutcome) -> list[str]:
+def expected_answers(step: "media_cases.Step", out: MediaOutcome) -> dict[str, bool]:
+    """Câu trả lời giám khảo mong đợi ở lượt này: mặc định (mọi lượt: tư vấn viên không gửi ảnh; không ảnh đi: không
+    hứa gửi ảnh; có ảnh đi: không nói không gửi được ảnh) cộng step.expect. {} khi lượt chuyển tư vấn viên: câu chuyển
+    là câu cố định của code, không phải câu model."""
+    if out.cards:
+        return {}
+    defaults = {"consultant_sends_image": False, ("says_cannot_send" if out.images else "promises_image"): False}
+    return {**defaults, **step.expect}
+
+
+def grade_media_step(step: "media_cases.Step", out: MediaOutcome, verdict: dict | None) -> list[str]:
+    """Vi phạm của lượt. Code chấm ảnh, thẻ, tin Telegram, token lộ, số tiền, cụm của ca; giám khảo (`verdict`, None khi
+    chưa kết luận) chấm expected_answers, trừ hỏi tuổi/cơ sở bằng nút trả lời nhanh mà code thấy được."""
+    from app.messenger import build_quick_replies
+
     problems = [f"bot lỗi: {e}" for e in out.errors]
     if out.blocked:
         problems.append(f"gọi ra ngoài thật: {out.blocked}")
@@ -763,24 +851,13 @@ def grade_media_step(step: "media_cases.Step", out: MediaOutcome) -> list[str]:
         problems.append("token lộ ra tin phụ huynh")
     if match := MONEY.search(text):
         problems.append(f"nêu số tiền: {match.group(0)!r}")
-    if not out.images:
-        promised = [
-            s for s in sentences(text)
-            if "?" not in s and PROMISES_IMAGE.search(s)
-            and not (NOT_AN_IMAGE.search(s) and not PROMISED_IMAGE.search(s))
-            and not any(w in s.lower() for w in SAYS_SENT_BEFORE)
-        ]
-        if promised:
-            problems.append(f"hứa gửi ảnh mà không có ảnh đi: {promised[0]!r}")
-    elif not any(w in lowered for w in ANNOUNCES_IMAGE):
+    if out.images and not any(w in lowered for w in ANNOUNCES_IMAGE):
         problems.append("ảnh đi mà câu trả lời không báo em gửi")
-    words = IMAGE_WORDS + ("|" + FEE_WORDS if "học phí" in out.note else "")
-    if match := re.search(rf"tư vấn viên[^.?!]{{0,40}}\bgửi\b[^.?!]{{0,60}}(?:{words})", text, re.I):
-        problems.append(f"nói tư vấn viên sẽ gửi ảnh: {match.group(0)!r}")
-    if any(image_kind == "fee" for image_kind in map(media_cases.image_kind, step.images)):
-        problems += [f"không được có {p!r}" for p in media_cases.NO_FEE_IMAGE if p in lowered]
-    problems += [f"không hỏi {what}" for what in step.asks if not asks_for(what, text, out.quick_replies)]
-    problems += [f"hỏi lại {what} đã biết" for what in step.not_asks if asks_for(what, text, out.quick_replies)]
+    for key, want in expected_answers(step, out).items():
+        button = key in QUICK_OF and build_quick_replies(QUICK_OF[key]) in out.quick_replies
+        got = True if button else verdict[key] if verdict else None
+        if got is not None and got != want:
+            problems.append(JUDGE_KEYS[key].when_true if got else JUDGE_KEYS[key].when_false)
     for group in step.any_of:
         if not any(phrase.lower() in lowered for phrase in group):
             problems.append(f"thiếu một trong {group}")
@@ -951,12 +1028,13 @@ class _ErrorLog(logging.Handler):
 class MediaRun:
     failed_steps: int = 0
     steps: int = 0
+    inconclusive_steps: int = 0  # không vi phạm nào mà giám khảo không ra phán quyết
     states: set[str] = field(default_factory=set)  # trạng thái dòng [HỆ THỐNG] đã gặp
 
 
-async def run_media_cases(on_step=None) -> MediaRun | None:
-    """Chạy mọi ca của media_cases.MEDIA_CASES qua luồng thật của bot. None = mọi model lỗi.
-    on_step(code, step): gọi trước mỗi lượt (model giả của test biết lượt nào đang chạy)."""
+async def run_media_cases(engine: AIEngine, on_step=None) -> MediaRun | None:
+    """Chạy mọi ca của media_cases.MEDIA_CASES qua luồng thật của bot; `engine` gọi giám khảo. None = mọi model của
+    bot lỗi. on_step(code, step): gọi trước mỗi lượt (model giả của test biết lượt nào đang chạy)."""
     from app.messenger import QUICK_REPLY_PREFIX, quick_reply_meaning
 
     print(f"\n===== {MEDIA_SUITE} =====")
@@ -982,16 +1060,29 @@ async def run_media_cases(on_step=None) -> MediaRun | None:
                     shown = " | ".join(out.texts)
                     print(f"PH: {text}\nBOT ({out.model}): {shown}")
                     print(f"  ảnh: {', '.join(out.images) or 'không có'}; trích xuất: {out.extracted}")
-                    problems = grade_media_step(step, out)
+                    verdict = None
+                    if keys := list(expected_answers(step, out)):
+                        reply = " ".join(TOKENS.sub("", " ".join(out.texts)).split())
+                        raw, judge = await judge_reply(engine, judge_message(text, reply, out.images, keys))
+                        verdict = None if raw is None else parse_verdict(raw, keys)
+                        if verdict:
+                            said = ", ".join(f"{key}={verdict[key]}" for key in keys)
+                            print(f"  giám khảo ({judge}): {said}; lý do: {verdict['ly_do']}")
+                        else:
+                            print(f"  ? giám khảo ({judge}) không ra phán quyết: {(raw or '')[:300]!r}")
+                    problems = grade_media_step(step, out, verdict)
                     for problem in problems:
                         print(f"  ✘ {problem}")
                     run.steps += 1
                     run.failed_steps += bool(problems)
+                    run.inconclusive_steps += bool(keys) and not verdict and not problems
                     run.states |= note_states(out.note)
         finally:
             bot.close()
             root.setLevel(level)
-    print(f"\nẢnh: {run.steps - run.failed_steps}/{run.steps} lượt đạt")
+    passed = run.steps - run.failed_steps - run.inconclusive_steps
+    print(f"\nẢnh: {passed}/{run.steps} lượt đạt, {run.inconclusive_steps} lượt chưa kết luận (giám khảo không ra "
+          "phán quyết)")
     return run
 
 
@@ -1031,14 +1122,18 @@ async def main(selected: list[str]) -> int:
         if upset_passed is None:
             print(f"\n{ALL_MODELS_FAILED}")
             return 2
-    media_passed = True
+    media_run = MediaRun()
     if not selected or MEDIA_SUITE in selected:
-        media_run = await run_media_cases()
+        media_run = await run_media_cases(engine)
         if media_run is None:
             print(f"\n{ALL_MODELS_FAILED}")
             return 2
-        media_passed = not media_run.failed_steps
-    return 1 if failed_turns or not topics_passed or not upset_passed or not media_passed else 0
+    if failed_turns or not topics_passed or not upset_passed or media_run.failed_steps:
+        return 1
+    if media_run.inconclusive_steps:
+        print(f"\nINCONCLUSIVE: giám khảo không ra phán quyết ở {media_run.inconclusive_steps} lượt của bộ media")
+        return 2
+    return 0
 
 
 if __name__ == "__main__":

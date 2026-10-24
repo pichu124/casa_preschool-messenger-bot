@@ -323,6 +323,18 @@ def test_parent_not_leaving_the_phone_and_naming_the_fee_gets_it_when_the_reply_
     assert parent.images(sent) == [url("sn-fee-10")]
 
 
+# Review vòng thời khoá biểu v3: phụ huynh hỏi học phí ở tin trước (chưa biết tuổi, cờ fee_asked chờ), bot xin SĐT,
+# tin này không để số: vẫn là phụ huynh đòi giá mà không để số, biết cơ sở thì gửi.
+def test_parent_who_asked_the_fee_before_and_now_does_not_leave_the_phone_gets_it(parent, catalog):
+    known(interested_campus="Kim Mã")
+    assert parent.images(parent.say("học phí bao nhiêu ạ", reply=ASKED_PHONE, extracted={"topics": ["Học phí"]})) == []
+    assert customer_memory.get_profile(CUSTOMER_ID)["fee_asked"] is True
+
+    sent = parent.say("thôi không để số đâu em")
+
+    assert parent.images(sent) == [url("sn-fee-10")]
+    assert not customer_memory.get_profile(CUSTOMER_ID).get("fee_asked")
+
 
 def test_parent_refusing_the_phone_without_a_campus_gets_no_fee_image(parent, catalog):
     known(kid_age="3 tuổi", phone_declined=True)

@@ -800,7 +800,7 @@ def _plan_images(
     has_phone = profile.get("phone") or extracted.get("phone") or _find_phone(text)
     asked_phone = any(word in last_bot_message.lower() for word in ASKS_PHONE)
     refused = not has_phone and (profile.get("phone_declined") or extracted.get("phone_declined") or asked_phone)
-    fee_ready = bool(fee_systems and (age or (refused and parent_asked_fee)))
+    fee_ready = bool(fee_systems and (age or (refused and (parent_asked_fee or profile.get("fee_asked")))))
     fees_offered = False
     for system in unsent_fees if wants_fee and fee_ready else ():
         fee = media.fee_image(system, today)

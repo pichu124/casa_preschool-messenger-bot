@@ -143,6 +143,12 @@ IMAGE_ANSWERS = {
         "[ESCALATE], không tự nêu giờ ngoài Q&A. Lịch hè/Tết/học bù không có trong Q&A thì vẫn [ESCALATE]."
     ),
 }
+# A "Nếu phụ huynh hỏi …" image goes only if the extraction finds its topic, or if the reply tags itself as sending it
+# (app/main.py, which hides the token): the model, not a reading of its words, says whether the reply sends it.
+SEND_TOKEN_RULE = (
+    "Chỉ khi câu trả lời báo em gửi ảnh này thì thêm [SEND:{kind}] ở cuối (trước [QUICK:]); hỏi/mời xem ảnh thì "
+    "không thêm."
+)
 FACILITIES_NEED_CAMPUS = (
     "- [HỆ THỐNG] Nếu phụ huynh hỏi cơ sở vật chất: có ảnh từng cơ sở, chưa biết cơ sở nên hỏi Ba/Mẹ quan tâm cơ sở "
     "nào để em gửi ảnh, kèm [QUICK:campus]."
@@ -178,8 +184,8 @@ def media_note(images: list[ImageNote], facilities_need_campus: bool = False) ->
     lines = []
     for image in (i for i in images if i.state == "send"):
         when = f"Nếu phụ huynh hỏi {IMAGE_TOPICS[image.kind]}: sau câu trả lời" if image.if_asked else "Sau câu trả lời này"
-        answer = "" if image.if_asked or image.kind not in IMAGE_ANSWERS else f" {IMAGE_ANSWERS[image.kind]}"
-        lines.append(f"- [HỆ THỐNG] {when} hệ thống gửi ảnh {image.label}.{answer}")
+        answer = IMAGE_ANSWERS.get(image.kind, "") if not image.if_asked else SEND_TOKEN_RULE.format(kind=image.kind)
+        lines.append(f"- [HỆ THỐNG] {when} hệ thống gửi ảnh {image.label}." + (f" {answer}" if answer else ""))
     if lines:
         lines.insert(0, MEDIA_NOTE_HEADER)
     lines += [_not_sending_line(i) for i in images if i.state != "send"]

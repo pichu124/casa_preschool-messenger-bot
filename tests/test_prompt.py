@@ -1232,7 +1232,10 @@ def test_media_note_says_which_images_follow_and_what_to_ask():
     assert "không nói không gửi được bảng phí" in lines[0]
     assert "chỉ nói em gửi ảnh có dòng dưới đây" in lines[0] and "không nói tư vấn viên sẽ gửi ảnh đó" in lines[0]
     assert lines[1] == "- [HỆ THỐNG] Sau câu trả lời này hệ thống gửi ảnh học phí hệ Song ngữ (cơ sở Kim Mã)."
-    assert lines[2] == "- [HỆ THỐNG] Nếu phụ huynh hỏi thực đơn/ăn uống: sau câu trả lời hệ thống gửi ảnh thực đơn hệ Quốc tế."
+    assert lines[2] == (
+        "- [HỆ THỐNG] Nếu phụ huynh hỏi thực đơn/ăn uống: sau câu trả lời hệ thống gửi ảnh thực đơn hệ Quốc tế. Chỉ "
+        "khi câu trả lời báo em gửi ảnh này thì thêm [SEND:menu] ở cuối (trước [QUICK:]); hỏi/mời xem ảnh thì không thêm."
+    )
     assert lines[3] == (
         "- [HỆ THỐNG] Nếu phụ huynh hỏi chương trình học/Cambridge/thời khoá biểu: chưa biết cơ sở Ba/Mẹ quan tâm và "
         "tuổi bé nên chưa gửi ảnh thời khoá biểu: hỏi cơ sở Ba/Mẹ quan tâm và tuổi bé để em gửi đúng thời khoá biểu; "
@@ -1277,6 +1280,7 @@ def test_timetable_being_sent_answers_a_schedule_question_without_escalating(mon
     # Chỉ lịch trong tuần: lịch hè, Tết, học bù không có trong thời khoá biểu nên vẫn chuyển tư vấn viên.
     assert re.search(r"Lịch hè/Tết/học bù[^.]*vẫn \[ESCALATE\]", line), line
     assert "ESCALATE" not in maybe.splitlines()[-1] and "lịch học" not in maybe.splitlines()[-1], maybe
+    assert "[SEND:timetable]" in maybe and "SEND" not in sure, (maybe, sure)
     assert "ESCALATE" not in media_note([ImageNote("fee", "học phí hệ Song ngữ (cơ sở Kim Mã)")]).splitlines()[-1]
     escalate = next(l for l in _reminder(with_note).splitlines() if "BẮT BUỘC trả lời chính xác chuỗi [ESCALATE]" in l)
     assert "lịch chi tiết" in escalate, escalate

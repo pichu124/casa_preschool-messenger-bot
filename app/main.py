@@ -562,6 +562,7 @@ async def save_staff_reply(customer_id: str, replied_at: str):
 
 IMAGES_PATTERN = re.compile(r"\[IMAGES:([^\]]+)\]")
 QUICK_PATTERN = re.compile(r"\[QUICK:([^\]]*)\]")
+SEND_PATTERN = re.compile(r"\s*\[SEND:([^\]]*)\]", re.I)
 
 
 def _extract_images(text: str) -> tuple[str, list[str]]:
@@ -576,6 +577,13 @@ def _extract_images(text: str) -> tuple[str, list[str]]:
         images = [url.strip() for url in raw.split(",") if url.strip()]
         text = IMAGES_PATTERN.sub("", text).strip()
     return text, images
+
+
+def _extract_sends(text: str) -> tuple[str, set[str]]:
+    """Strip [SEND:<kind>] tokens (media_note: the reply says the bot sends that image). Returns (clean_text, the kinds
+    of TOPICS_OF_IMAGE tagged)."""
+    kinds = {kind.strip().lower() for kind in SEND_PATTERN.findall(text)}
+    return SEND_PATTERN.sub("", text).strip(), kinds & TOPICS_OF_IMAGE.keys()
 
 
 def _extract_quick_reply(text: str) -> tuple[str, str]:
@@ -657,23 +665,13 @@ TOPICS_OF_IMAGE = {"fee": FEE_TOPICS, "timetable": (PROGRAMME_TOPIC,), "faciliti
 # "lịch học thử" (the trial week) is not the timetable; "lịch học thứ 2–6" folds the same, a weekday follows it.
 TIMETABLE_NAMES = r"\bthoi (?:khoa|gian) bieu\b|\btkb\b|\blich hoc\b(?! thu\b(?! ?(?:\d|hai|ba|tu|nam|sau|bay)\b))"
 TIMETABLE_WORDS = re.compile(rf"\bcambridge\b|{TIMETABLE_NAMES}")
+# The parent's message asks the fee ("học phí", "bảng phí"), as media.fold writes it.
+FEE_WORDS = re.compile(r"\b(?:hoc phi|bang phi)\b")
 # A message asking for both systems ("2 hệ", "cả hai hệ") or both campuses ("cả 2 cơ sở", "hai bên").
 BOTH_WORDS = re.compile(r"\b(?:ca )?(?:2|hai) (he|co so|ben|truong)\b")
-# A reply saying the bot itself sends an image (as media.fold writes it: "em gửi", "em xin phép gửi", not "tư vấn
-# viên sẽ gửi" nor "em chưa gửi được"), and the words of each kind of image in that sentence.
-BOT_SENDS = re.compile(r"\bem(?: (?!chua\b|khong\b)\w+){0,2} gui\b")
-# A question or an offer ("Ba/Mẹ có muốn em gửi ảnh … không ạ?", "em gửi Ba/Mẹ … nhé?") does not say the bot sends;
-# told apart clause by clause ("em gửi Ba/Mẹ ảnh … ạ, Ba/Mẹ có muốn ghé thăm không ạ?" still does).
-OFFERS = re.compile(r"\?\s*$|\bco muon\b|\bkhong a\b\W*$")
-IMAGE_WORDS = {
-    "fee": re.compile(r"\b(?:hoc phi|bang phi)\b"),
-    "timetable": re.compile(TIMETABLE_NAMES),
-    "facilities": re.compile(r"\b(?:co so vat chat|anh (?:truong|lop|co so))\b"),
-    "menu": re.compile(r"\bthuc don\b"),
-}
 FACILITY_IMAGES = 4
 MAX_IMAGES = 5
-# Sent after the reply when it said images follow and every Drive image of the turn failed.
+# Sent after the reply when every Drive image of the turn failed: images the model was told follow its reply.
 IMAGES_FAILED_MESSAGE = "Dạ ảnh em gửi đang bị lỗi chưa tới được, Ba/Mẹ nhắn lại em sau ít phút để em gửi lại nhé ạ."
 IMAGE_FAILURE_ALERT_EVERY = timedelta(hours=1)
 # The sample menu of the Q&A (data/qa_database.json): sent only while Drive has no menu image.
@@ -681,7 +679,6 @@ QA_MENU_IMAGE = "static/thuc-don-mau.jpg"
 # A kid age read from the message text itself, never a fee period ("đóng 12 tháng", "3 tháng").
 SAID_AGE_MONTHS = range(15, 85)
 ASKS_PHONE = ("sđt", "zalo", "số điện thoại")
-ASKS_PHONE_FOLDED = re.compile("|".join(rf"\b{media.fold(word)}\b" for word in ASKS_PHONE))
 # What the history tells the model it sent; a model copying it into a reply must not show it to the parent.
 SENT_NOTE = re.compile(r"\s*\[đã gửi ảnh[^\]]*\]")
 
@@ -700,17 +697,6 @@ def _today_vn() -> date:
 
 def _image_id(url: str) -> str:
     return url.rsplit("/", 1)[-1].removesuffix(".jpg")
-
-
-def _announced(reply: str) -> set[str]:
-    """The kinds of image a sentence of `reply` says the bot sends ("Thời khoá biểu em gửi ngay bên dưới ạ"); not a
-    sentence asking for the phone or Zalo ("cho em xin SĐT/Zalo để em gửi bảng học phí"): a consultant sends that."""
-    sentences = re.findall(r"[^.!?\n]+[.!?]*", media.fold(reply))
-    sentences = [
-        s for s in sentences
-        if not ASKS_PHONE_FOLDED.search(s) and any(BOT_SENDS.search(c) and not OFFERS.search(c) for c in s.split(","))
-    ]
-    return {kind for kind, words in IMAGE_WORDS.items() if any(words.search(s) for s in sentences)}
 
 
 # Profile flag of a question waiting for an image -> the kind of that image.
@@ -761,20 +747,20 @@ def _plan_images(
     qa_images: list[str],
     last_bot_message: str,
     today: date,
-    announced: set[str] = frozenset(),
+    tagged: set[str] = frozenset(),
 ) -> tuple[list[str], list[Offer], dict, list[ImageNote]]:
     """Images to send after the reply to `text`: the Q&A ones the model gave (`qa_images`), without the old sample
     menu when Drive has a menu; the Drive offers in sending order (fee and timetable: one per system and campus,
     facilities: one campus a turn); the profile flags of questions waiting for what is missing: fee_asked (the kid's
     age and the campus), timetable_asked (the campus and the kid's age), facilities_asked (the campus); the notes of
     images waiting for what is missing. `extracted`: what the model extracted from `text`, {} before it is known; a
-    campus and an age named in `text` count as well. `announced`: the kinds of image the reply says the bot sends,
-    taken as asked for, except that only the parent asking the fee lets it go without the kid's age."""
+    campus and an age named in `text` count as well. `tagged`: the kinds of image the reply tags as sent
+    ([SEND:<kind>]): their offers go as if asked for, only when ready (the parent asked nothing, no flag waits)."""
     if not settings.MEDIA_SYNC_ENABLED:
         return qa_images, [], {}, []
-    topics, sent = set(topics), profile.get("media_sent") or {}
-    parent_asked_fee = bool(topics & set(FEE_TOPICS) or IMAGE_WORDS["fee"].search(media.fold(text)))
-    topics |= {topic for kind in announced for topic in TOPICS_OF_IMAGE[kind]}
+    asked, sent = set(topics), profile.get("media_sent") or {}
+    parent_asked_fee = bool(asked & set(FEE_TOPICS) or FEE_WORDS.search(media.fold(text)))
+    topics = asked | {topic for kind in tagged for topic in TOPICS_OF_IMAGE[kind]}
     campuses, unknown_systems = _campuses(profile, extracted, text)
     if extracted.get("kid_age"):
         age = str(extracted["kid_age"])
@@ -854,20 +840,20 @@ def _plan_images(
     # Waiting only for what is missing, or for an offer not delivered yet: never for an image already sent or absent
     timetable_waits = months is None or bool(timetable_missing)
     waiting = {
-        # A reply announcing the fee to a parent who did not ask it waits for nothing (only sent when ready)
-        "fee_asked": _waiting(
-            wants_fee and (parent_asked_fee or bool(profile.get("fee_asked")) or fee_ready), not fee_ready, fees_offered
-        ),
+        "fee_asked": _waiting(wants_fee, not fee_ready, fees_offered),
         "timetable_asked": _waiting(wants_timetable, timetable_waits, timetable_offered),
         "facilities_asked": _waiting(wants_facilities, not campuses, bool(facilities_campus)),
     }
+    if tagged:
+        # A tag asks nothing: what waits is what the parent asked, as without it
+        waiting = _plan_images(profile, extracted, text, asked, qa_images, last_bot_message, today)[2]
     return qa_images, offers, waiting, notes
 
 
 def _media_note(profile: dict, text: str, last_bot_message: str, today: date) -> str:
     """The [HỆ THỐNG] lines for the reply to `text`, written before its extraction is known: the images sent whatever
-    the message asks, and those sent if it asks about their topic (or if the reply says the bot sends them); what an
-    image waits for; the images sent before that this message asks for again."""
+    the message asks, and those sent if it asks about their topic (or if the reply tags itself as sending them); what
+    an image waits for; the images sent before that this message asks for again."""
     if not settings.MEDIA_SYNC_ENABLED:
         return ""
     _, sure, _, sure_notes = _plan_images(profile, {}, text, [], [], last_bot_message, today)
@@ -923,8 +909,8 @@ async def _send_reply_with_images(
 ) -> list[Offer]:
     """The reply, then the images (at most MAX_IMAGES; an offer that does not fit waits for another turn), the quick
     replies on the last message sent. Returns the offers delivered; an image Messenger refuses is logged and skipped,
-    a Drive one also told to the admin group; when the reply said images follow and none of the Drive ones went, the
-    parent gets IMAGES_FAILED_MESSAGE."""
+    a Drive one also told to the admin group; when Drive images were planned and none of them went, the parent gets
+    IMAGES_FAILED_MESSAGE (the model was told they follow its reply)."""
     qa_images = qa_images[:MAX_IMAGES]
     chosen, room = [], MAX_IMAGES - len(qa_images)
     for offer in offers:
@@ -934,19 +920,19 @@ async def _send_reply_with_images(
     images = [(None, _public_image_url(u)) for u in qa_images] + [(o, u) for o in chosen for u in o.urls]
     if text:
         await send_message(sender_id, text, quick_replies=None if images else quick_replies)
-    delivered, failed = set(), set()
+    delivered, failed = set(), False
     for n, (offer, image_url) in enumerate(images, 1):
         try:
             await send_image(sender_id, image_url, quick_replies=quick_replies if n == len(images) else None)
         except Exception as e:
             logger.warning(f"Image {offer.key if offer else image_url} not sent to {sender_id}: {type(e).__name__}")
             if offer:
-                failed.add(offer.kind)
+                failed = True
                 await _alert_image_failure(offer, image_url, e)
             continue
         if offer:
             delivered.add(offer.key)
-    if failed and not delivered and failed & _announced(text):
+    if failed and not delivered:
         await send_message(sender_id, IMAGES_FAILED_MESSAGE, quick_replies=quick_replies)
     return [o for o in chosen if o.key in delivered]
 
@@ -1055,15 +1041,15 @@ async def _answer_message(sender_id: str, text: str, attribution: dict | None, p
             await send_message(sender_id, reply_text)
         else:
             # History keeps the [IMAGES:] and [QUICK:] tokens, and a note per Drive image sent, so the model knows
-            # what it already sent
-            reply_text = response.text
-            clean_text, image_urls = _extract_images(SENT_NOTE.sub("", response.text))
+            # what it already sent; not the [SEND:] ones, the note says it
+            reply_text, tagged = _extract_sends(response.text)
+            clean_text, image_urls = _extract_images(SENT_NOTE.sub("", reply_text))
             clean_text, quick_key = _extract_quick_reply(clean_text)
             quick_replies = build_quick_replies(quick_key)
-            covered = topics_in_reply(response.text)
-            # An image of a "Nếu phụ huynh hỏi …" line goes when the reply says it does, whatever the extraction found
+            covered = topics_in_reply(reply_text)
+            # An image of a "Nếu phụ huynh hỏi …" line goes when the reply tags it, whatever the extraction found
             image_urls, offers, waiting, _ = _plan_images(
-                existing_profile, extracted, text, topics, image_urls, last_bot_message, today, _announced(clean_text)
+                existing_profile, extracted, text, topics, image_urls, last_bot_message, today, tagged
             )
 
             if settings.MEDIA_SYNC_ENABLED:
@@ -1218,7 +1204,7 @@ async def test_chat(body: TestMessage, _: None = Depends(require_secret)):
     try:
         await customer_memory.append_to_history(body.user_id, "user", body.message)
         if response.text:
-            await customer_memory.append_to_history(body.user_id, "assistant", response.text)
+            await customer_memory.append_to_history(body.user_id, "assistant", _extract_sends(response.text)[0])
     except Exception as e:
         logger.warning(f"Failed to persist history in test-chat: {e}")
 

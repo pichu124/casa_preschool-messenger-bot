@@ -299,11 +299,14 @@ def test_asking_the_phone_to_send_the_fee_table_sends_no_fee_image(parent, catal
     assert not customer_memory.get_profile(CUSTOMER_ID).get("fee_asked")
 
 
+FEE_SENT = "Dạ em gửi Ba/Mẹ chính sách học phí cơ sở Kim Mã ạ. [SEND:fee]"
+
+
 def test_fee_without_the_age_goes_only_to_a_parent_asking_the_fee(parent, catalog):
     known(interested_campus="Kim Mã")
     parent.say("Em quan tâm Kim Mã", reply=ASKED_PHONE)
 
-    sent = parent.say("trường có xe đưa đón không", reply="Dạ em gửi Ba/Mẹ chính sách học phí cơ sở Kim Mã ạ.")
+    sent = parent.say("trường có xe đưa đón không", reply=FEE_SENT)
 
     assert parent.images(sent) == []
     # Phụ huynh không hỏi học phí: không chờ tuổi bé để rồi tự gửi ảnh học phí ở lượt sau
@@ -315,9 +318,10 @@ def test_parent_not_leaving_the_phone_and_naming_the_fee_gets_it_when_the_reply_
     known(interested_campus="Kim Mã")
     parent.say("Em quan tâm Kim Mã", reply=ASKED_PHONE)
 
-    sent = parent.say("em cứ báo học phí luôn đi", reply="Dạ em gửi Ba/Mẹ chính sách học phí cơ sở Kim Mã ạ.")
+    sent = parent.say("em cứ báo học phí luôn đi", reply=FEE_SENT)
 
     assert parent.images(sent) == [url("sn-fee-10")]
+
 
 
 def test_parent_refusing_the_phone_without_a_campus_gets_no_fee_image(parent, catalog):
@@ -569,37 +573,39 @@ def test_timetables_already_sent_are_not_promised_again_nor_left_to_a_consultant
 
 
 # Phản hồi 2026-10-24: dòng "Nếu phụ huynh hỏi …" cho model nói "em gửi …", nhưng ảnh chỉ đi khi trích xuất gắn đúng
-# chủ đề. Câu trả lời đã báo em gửi loại ảnh đó thì ảnh đi theo.
+# chủ đề. Câu trả lời báo em gửi loại ảnh đó thì model gắn [SEND:<loại>] (dòng [HỆ THỐNG] dặn) và ảnh đi theo; chữ
+# của câu trả lời không được đọc nữa (review vòng thời khoá biểu v3).
 @pytest.mark.parametrize(
-    ("reply", "goes"),
+    ("reply", "images"),
     [
-        ("Dạ thời khoá biểu lớp của bé em gửi ngay bên dưới ạ.", True),
-        ("Dạ em xin phép gửi Ba/Mẹ thời khóa biểu để tham khảo ạ.", True),
-        ("Dạ thời khoá biểu tư vấn viên sẽ gửi Ba/Mẹ ạ.", False),
-        ("Dạ em chưa gửi được thời khoá biểu ạ.", False),
-        ("Dạ em gửi Ba/Mẹ thông tin chương trình ạ. Thời khoá biểu thì theo từng lớp ạ.", False),
-        ("Dạ Ba/Mẹ có muốn em gửi thời khoá biểu lớp của bé không ạ?", False),
+        ("Dạ thời khoá biểu lớp của bé em gửi ngay bên dưới ạ. [SEND:timetable]", ["km-tkb-36-72"]),
+        ("Dạ em xin phép gửi Ba/Mẹ thời khóa biểu để tham khảo ạ. [SEND:timetable] [QUICK:visit_invite]", ["km-tkb-36-72"]),
+        ("Dạ em xin phép gửi Ba/Mẹ thời khóa biểu để tham khảo ạ.", []),
+        ("Dạ thời khoá biểu tư vấn viên sẽ gửi Ba/Mẹ ạ.", []),
+        ("Dạ Ba/Mẹ có muốn em gửi thời khoá biểu lớp của bé không ạ?", []),
+        ("Dạ em gửi Ba/Mẹ học phí ạ, Ba/Mẹ có muốn xem thời khoá biểu không ạ? [SEND:fee]", ["sn-fee-10"]),
     ],
 )
-def test_an_image_the_reply_says_the_bot_sends_goes_even_if_the_extraction_missed_its_topic(parent, catalog, reply, goes):
+def test_an_image_the_reply_tags_as_sent_goes_even_if_the_extraction_missed_its_topic(parent, catalog, reply, images):
     known(kid_age="4 tuổi", interested_campus="Kim Mã")
 
     sent = parent.say("Trường dạy chương trình gì ạ?", reply=reply)
 
-    assert "Nếu phụ huynh hỏi chương trình học/Cambridge/thời khoá biểu: sau câu trả lời" in parent.notes[-1]
-    assert parent.images(sent) == ([url("km-tkb-36-72")] if goes else [])
+    line = next(l for l in parent.notes[-1].splitlines() if "Nếu phụ huynh hỏi chương trình học" in l)
+    assert "sau câu trả lời hệ thống gửi ảnh thời khoá biểu cơ sở Kim Mã" in line, line
+    assert "thêm [SEND:timetable]" in line and "hỏi/mời xem ảnh thì không thêm" in line, line
+    assert parent.images(sent) == [url(i) for i in images]
 
 
 # Review vòng thời khoá biểu v2: câu mời "Ba/Mẹ có muốn em gửi ảnh cơ sở vật chất không ạ?" bị đọc là báo gửi, nên
-# 4 ảnh đi ngay khi phụ huynh chưa trả lời. Câu hỏi, câu mời không phải báo gửi.
+# 4 ảnh đi ngay khi phụ huynh chưa trả lời. Câu hỏi, câu mời không có token nên không gửi.
 @pytest.mark.parametrize(
     ("reply", "goes"),
     [
         ("Dạ Kim Mã có sân vườn rộng ạ. Ba/Mẹ có muốn em gửi ảnh cơ sở vật chất không ạ?", False),
         ("Dạ Kim Mã có sân vườn rộng ạ, em gửi Ba/Mẹ ảnh cơ sở vật chất nhé?", False),
-        ("Dạ Ba/Mẹ có muốn em gửi ảnh trường không ạ", False),
-        ("Dạ Kim Mã có sân vườn rộng ạ! Em gửi Ba/Mẹ ảnh cơ sở vật chất bên dưới ạ.", True),
-        ("Dạ em gửi Ba/Mẹ ảnh cơ sở vật chất ạ, Ba/Mẹ có muốn ghé tham quan không ạ?", True),
+        ("Dạ Kim Mã có sân vườn rộng ạ! Em gửi Ba/Mẹ ảnh cơ sở vật chất bên dưới ạ. [SEND:facilities]", True),
+        ("Dạ em gửi Ba/Mẹ ảnh cơ sở vật chất ạ, Ba/Mẹ có muốn ghé tham quan không ạ? [SEND:facilities]", True),
     ],
 )
 def test_an_offer_to_send_images_is_not_saying_they_are_sent(parent, catalog, reply, goes):
@@ -611,10 +617,56 @@ def test_an_offer_to_send_images_is_not_saying_they_are_sent(parent, catalog, re
     assert bool(customer_memory.get_profile(CUSTOMER_ID).get("media_sent")) == goes
 
 
+# Review vòng thời khoá biểu v3: câu ghép báo gửi học phí rồi mời xem ảnh cơ sở vật chất kéo theo 4 ảnh cơ sở vật chất.
+def test_a_reply_sending_the_fee_and_offering_the_facilities_sends_only_the_fee(parent, catalog):
+    known(kid_age="4 tuổi", interested_campus="Kim Mã")
+    shown = "Dạ em gửi Ba/Mẹ bảng học phí bên dưới ạ, Ba/Mẹ có muốn xem thêm ảnh cơ sở vật chất không ạ?"
+
+    sent = parent.say("học phí bao nhiêu ạ", reply=f"{shown} [SEND:fee]", extracted={"topics": ["Học phí"]})
+
+    assert sent == [("text", shown, None), ("image", url("sn-fee-10"), None)]
+    assert customer_memory.get_profile(CUSTOMER_ID)["media_sent"].keys() == {"fee:song_ngu:2026-10"}
+
+
+def test_the_send_token_is_neither_shown_to_the_parent_nor_kept_in_the_history(parent, catalog):
+    known(kid_age="4 tuổi", interested_campus="Kim Mã")
+    reply = "Dạ em gửi Ba/Mẹ thời khoá biểu lớp của bé ạ. [SEND:timetable] [QUICK:visit_invite]"
+
+    sent = parent.say("Trường dạy chương trình gì ạ?", reply=reply)
+
+    assert sent == [
+        ("text", "Dạ em gửi Ba/Mẹ thời khoá biểu lớp của bé ạ.", None),
+        ("image", url("km-tkb-36-72"), VISIT_BUTTONS),
+    ]
+    assert parent.history()[-1] == (
+        "Dạ em gửi Ba/Mẹ thời khoá biểu lớp của bé ạ. [QUICK:visit_invite] [đã gửi ảnh thời khoá biểu cơ sở Kim Mã]"
+    )
+
+
+# Token của ảnh chưa đủ điều kiện (thiếu tuổi bé, thiếu cơ sở) không gửi gì và không để cờ chờ: phụ huynh không hỏi.
+@pytest.mark.parametrize(
+    ("profile", "reply", "flag"),
+    [
+        ({"interested_campus": "Kim Mã"}, "Dạ em gửi Ba/Mẹ thời khoá biểu ạ. [SEND:timetable]", "timetable_asked"),
+        ({"kid_age": "4 tuổi"}, "Dạ em gửi Ba/Mẹ ảnh cơ sở vật chất ạ. [SEND:facilities]", "facilities_asked"),
+        ({"interested_campus": "Kim Mã"}, "Dạ em gửi Ba/Mẹ bảng học phí ạ. [SEND:fee]", "fee_asked"),
+    ],
+    ids=["timetable-no-age", "facilities-no-campus", "fee-no-age"],
+)
+def test_a_send_token_of_an_image_not_ready_sends_nothing_and_waits_for_nothing(parent, catalog, profile, reply, flag):
+    known(**profile)
+
+    sent = parent.say("trường có xe đưa đón không ạ", reply=reply)
+
+    assert sent == [("text", reply.split(" [SEND:")[0], None)]
+    assert not customer_memory.get_profile(CUSTOMER_ID).get(flag)
+
+
 def test_fee_image_the_reply_says_the_bot_sends_goes_without_the_fee_topic(parent, catalog):
     known(kid_age="3 tuổi", interested_campus="Mỹ Đình")
 
-    sent = parent.say("vậy chi phí thế nào ạ", reply="Dạ em gửi Ba/Mẹ chính sách học phí cơ sở Mỹ Đình để tham khảo ạ.")
+    reply = "Dạ em gửi Ba/Mẹ chính sách học phí cơ sở Mỹ Đình để tham khảo ạ. [SEND:fee]"
+    sent = parent.say("vậy chi phí thế nào ạ", reply=reply)
 
     assert parent.images(sent) == [url("qt-fee-10")]
 
@@ -755,7 +807,8 @@ def test_a_failed_image_does_not_break_the_turn_and_is_tried_again_later(parent,
     with caplog.at_level(logging.WARNING):
         sent = parent.say("học phí bao nhiêu ạ", extracted={"topics": ["Học phí"]})
 
-    assert sent == [("text", SHOWN, None)]
+    # Ảnh của lượt là ảnh model được dặn báo gửi: mọi ảnh Drive lỗi thì xin lỗi, nút sang câu xin lỗi
+    assert sent == [("text", SHOWN, None), ("text", main.IMAGES_FAILED_MESSAGE, VISIT_BUTTONS)]
     assert [r.levelname for r in caplog.records if "not sent" in r.getMessage()] == ["WARNING"]
     assert parent.history()[-1] == REPLY
     parent.failing = set()
@@ -891,3 +944,17 @@ def test_test_chat_tells_the_model_which_images_follow_like_messenger(parent, ca
     assert "[HỆ THỐNG] Nếu phụ huynh hỏi học phí/ưu đãi: sau câu trả lời hệ thống gửi ảnh học phí hệ Song ngữ" in (
         parent.notes[-1]
     )
+
+
+def test_test_chat_keeps_no_send_token_in_the_history(parent, catalog, monkeypatch):
+    monkeypatch.setattr(settings, "TELEGRAM_WEBHOOK_SECRET", "tg-secret_media_replies")
+    reply = "Dạ em gửi Ba/Mẹ bảng học phí ạ. [SEND:fee] [QUICK:visit_invite]"
+    parent.response = AIResponse(text=reply, should_escalate=False, model_used="fake-model")
+
+    resp = TestClient(main.app).post(
+        "/test-chat", params={"secret": "tg-secret_media_replies"},
+        json={"message": "học phí bao nhiêu ạ", "user_id": CUSTOMER_ID},
+    )
+
+    assert resp.status_code == 200
+    assert parent.history()[-1] == "Dạ em gửi Ba/Mẹ bảng học phí ạ. [QUICK:visit_invite]"

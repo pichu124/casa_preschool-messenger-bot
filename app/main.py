@@ -673,16 +673,23 @@ FEE_WORDS = re.compile(r"\b(?:hoc phi|bang phi)\b")
 BOTH_WORDS = re.compile(r"\b(?:ca )?(?:2|hai) (he|co so|ben|truong)\b")
 FACILITY_IMAGES = 4
 MAX_IMAGES = 5
-# Sent after the reply when every Drive image of the turn failed: images the model was told follow its reply.
+# Sent after the reply when Drive images of the turn failed (images the model was told follow its reply): every one,
+# or those named when others went.
 IMAGES_FAILED_MESSAGE = "Dạ ảnh em gửi đang bị lỗi chưa tới được, Ba/Mẹ nhắn lại em sau ít phút để em gửi lại nhé ạ."
+SOME_IMAGES_FAILED_MESSAGE = "Dạ ảnh {} em gửi đang bị lỗi chưa tới được, Ba/Mẹ nhắn lại em sau ít phút để em gửi lại nhé ạ."
 IMAGE_FAILURE_ALERT_EVERY = timedelta(hours=1)
 # The sample menu of the Q&A (data/qa_database.json): sent only while Drive has no menu image.
 QA_MENU_IMAGE = "static/thuc-don-mau.jpg"
 # A kid age read from the message text itself, never a fee period ("đóng 12 tháng", "3 tháng").
 SAID_AGE_MONTHS = range(15, 85)
 ASKS_PHONE = ("sđt", "zalo", "số điện thoại")
-# What the history tells the model it sent; a model copying it into a reply must not show it to the parent.
-SENT_NOTE = re.compile(r"\s*\[đã gửi ảnh[^\]]*\]")
+# What the history tells the model it sent or failed to send; a model copying it into a reply must not show it to the
+# parent. A parent asking to send again ("gửi lại đi") right after a failed one asks for that image again.
+SENT_NOTE = re.compile(r"\s*\[(?:đã gửi ảnh[^\]]*|ảnh [^\]]*chưa gửi được)\]")
+FAILED_NOTE = re.compile(r"\[ảnh ([^\]]*) chưa gửi được\]")
+RESEND_WORDS = re.compile(r"(?<!khong can )(?<!dung )\bgui lai\b")
+# The first words of the label of an Offer of each kind.
+KIND_LABELS = {"fee": "học phí", "timetable": "thời khoá biểu", "facilities": "cơ sở vật chất", "menu": "thực đơn"}
 
 
 class Offer(NamedTuple):
@@ -715,6 +722,15 @@ def _asks_timetable(text: str) -> bool:
         if media.fold(thu) != "thu" or thu == "thứ" or (thu == "thu" and WEEKDAY.fullmatch(media.fold(after))):
             return True
     return False
+
+
+def _asked_again(text: str, last_bot_message: str) -> set[str]:
+    """The kinds of the images that failed in the bot's last message (FAILED_NOTE) when the parent's `text` asks to
+    send again (RESEND_WORDS); nothing when the parent says anything else."""
+    if not RESEND_WORDS.search(media.fold(text)):
+        return set()
+    labels = FAILED_NOTE.findall(last_bot_message)
+    return {kind for label in labels for kind, words in KIND_LABELS.items() if label.startswith(words)}
 
 
 # Profile flag of a question waiting for an image -> the kind of that image.
@@ -772,11 +788,13 @@ def _plan_images(
     facilities: one campus a turn); the profile flags of questions waiting for what is missing: fee_asked (the kid's
     age and the campus), timetable_asked (the campus and the kid's age), facilities_asked (the campus); the notes of
     images waiting for what is missing. `extracted`: what the model extracted from `text`, {} before it is known; a
-    campus and an age named in `text` count as well. `tagged`: the kinds of image the reply tags as sent
-    ([SEND:<kind>]): their offers go as if asked for, only when ready (the parent asked nothing, no flag waits)."""
+    campus and an age named in `text` count as well; so does asking to send again the images that failed in
+    `last_bot_message` (_asked_again). `tagged`: the kinds of image the reply tags as sent ([SEND:<kind>]): their
+    offers go as if asked for, only when ready (the parent asked nothing, no flag waits)."""
     if not settings.MEDIA_SYNC_ENABLED:
         return qa_images, [], {}, []
-    asked, sent = set(topics), profile.get("media_sent") or {}
+    asked = set(topics) | {topic for kind in _asked_again(text, last_bot_message) for topic in TOPICS_OF_IMAGE[kind]}
+    sent = profile.get("media_sent") or {}
     parent_asked_fee = bool(asked & set(FEE_TOPICS) or FEE_WORDS.search(media.fold(text)))
     topics = asked | {topic for kind in tagged for topic in TOPICS_OF_IMAGE[kind]}
     campuses, unknown_systems = _campuses(profile, extracted, text)
@@ -927,8 +945,9 @@ async def _send_reply_with_images(
 ) -> tuple[list[Offer], list[Offer]]:
     """The reply, then the images (at most MAX_IMAGES; an offer that does not fit waits for another turn), the quick
     replies on the last message sent. Returns the offers delivered and the offers tried (delivered or failed); an
-    image Messenger refuses is logged and skipped, a Drive one also told to the admin group; when Drive images were
-    planned and none of them went, the parent gets IMAGES_FAILED_MESSAGE (the model was told they follow its reply)."""
+    image Messenger refuses is logged and skipped, a Drive one also told to the admin group. An offer none of whose
+    images went is told to the parent (the model was told it follows its reply): IMAGES_FAILED_MESSAGE when no Drive
+    image went, else SOME_IMAGES_FAILED_MESSAGE naming the offers that failed."""
     qa_images = qa_images[:MAX_IMAGES]
     chosen, room = [], MAX_IMAGES - len(qa_images)
     for offer in offers:
@@ -938,20 +957,22 @@ async def _send_reply_with_images(
     images = [(None, _public_image_url(u)) for u in qa_images] + [(o, u) for o in chosen for u in o.urls]
     if text:
         await send_message(sender_id, text, quick_replies=None if images else quick_replies)
-    delivered, failed = set(), False
+    delivered = set()
     for n, (offer, image_url) in enumerate(images, 1):
         try:
             await send_image(sender_id, image_url, quick_replies=quick_replies if n == len(images) else None)
         except Exception as e:
             logger.warning(f"Image {offer.key if offer else image_url} not sent to {sender_id}: {type(e).__name__}")
             if offer:
-                failed = True
                 await _alert_image_failure(offer, image_url, e)
             continue
         if offer:
             delivered.add(offer.key)
-    if failed and not delivered:
-        await send_message(sender_id, IMAGES_FAILED_MESSAGE, quick_replies=quick_replies)
+    failed = [o.label for o in chosen if o.key not in delivered]
+    if failed:
+        names = ", ".join(failed[:-1]) + " và " + failed[-1] if len(failed) > 1 else failed[0]
+        apology = SOME_IMAGES_FAILED_MESSAGE.format(names) if delivered else IMAGES_FAILED_MESSAGE
+        await send_message(sender_id, apology, quick_replies=quick_replies)
     return [o for o in chosen if o.key in delivered], chosen
 
 
@@ -1091,8 +1112,8 @@ async def _answer_message(sender_id: str, text: str, attribution: dict | None, p
                 reply_text = ESCALATION_MESSAGE_ASK_PHONE
             await send_message(sender_id, reply_text)
         else:
-            # History keeps the [IMAGES:] and [QUICK:] tokens, and a note per Drive image sent, so the model knows
-            # what it already sent; not the [SEND:] ones, the note says it
+            # History keeps the [IMAGES:] and [QUICK:] tokens, and a note per Drive image sent or failed, so the model
+            # knows what it already sent; not the [SEND:] ones, the note says it
             reply_text, tagged = _extract_sends(response.text)
             clean_text, image_urls = _extract_images(SENT_NOTE.sub("", reply_text))
             clean_text, quick_key = _extract_quick_reply(clean_text)
@@ -1111,6 +1132,7 @@ async def _answer_message(sender_id: str, text: str, attribution: dict | None, p
             if delivered:
                 logger.info(f"Drive images sent to {sender_id}: {[o.key for o in delivered]}")
                 reply_text += "".join(f" [đã gửi ảnh {o.label}]" for o in delivered)
+            reply_text += "".join(f" [ảnh {o.label} chưa gửi được]" for o in tried if o not in delivered)
             for offer in delivered:
                 if offer.stale:
                     await _remind_stale_fee(offer.key.split(":")[1], offer.stale, today)

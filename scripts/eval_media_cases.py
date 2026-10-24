@@ -110,10 +110,16 @@ NO_FEE_IMAGE = ("không gửi bảng", "không gửi được", "không thể g�
 ASKS_PHONE = ("sđt", "số điện thoại", "zalo")
 SENT_AT = "2026-10-24T02:00:00+00:00"
 
+SENT_ABOVE = ("ở trên", "phía trên", "bên trên")
 MD3 = {"kid_age": "3 tuổi", "interested_campus": "Mỹ Đình"}
 KM3 = {"kid_age": "3 tuổi", "interested_campus": "Kim Mã"}
 KM4 = {"kid_age": "4 tuổi", "interested_campus": "Kim Mã"}
 SAID_MD3 = ("bé nhà em 3 tuổi, em quan tâm cơ sở Mỹ Đình", OK_BOT)
+# Lượt ảnh lỗi một phần: học phí tới, thời khoá biểu lỗi (bot đã xin lỗi; lịch sử chỉ giữ câu trả lời và ghi chú).
+KM4_FEE_SENT = {**KM4, "media_sent": {"fee:song_ngu:2026-10": SENT_AT}}
+TIMETABLE_FAILED = ("học phí và thời khoá biểu ạ", "Dạ em gửi Ba/Mẹ chính sách học phí và thời khoá biểu lớp của bé "
+                    "để gia đình tham khảo ạ. [đã gửi ảnh học phí hệ Song ngữ (cơ sở Kim Mã)] "
+                    "[ảnh thời khoá biểu cơ sở Kim Mã chưa gửi được]")
 FEE = {"topics": ["Học phí"]}
 PROGRAMME = {"topics": ["Chương trình/phương pháp"]}
 FACILITIES = {"topics": ["Cơ sở vật chất"]}
@@ -325,6 +331,14 @@ MEDIA_CASES: dict[str, MediaCase] = {
         steps=[Step("sao cứ đòi số thế, gửi bảng học phí qua đây luôn đi", escalate=True,
                     extract={**FEE, "upset": True, "phone_declined": True})],
     ),
+    "GEN-FAIL-RESEND-REPLY": MediaCase(
+        profile=KM4_FEE_SENT, history=[TIMETABLE_FAILED],
+        steps=[Step("em gửi lại ảnh đi", images=("km-tkb-36-72",), any_of=[("gửi",)], none_of=SENT_ABOVE)],
+    ),
+    "GEN-FAIL-OTHER-TOPIC": MediaCase(
+        profile=KM4_FEE_SENT, history=[TIMETABLE_FAILED],
+        steps=[Step("trường có xe đưa đón không ạ", extract={"topics": ["Xe đưa đón"]})],
+    ),
 }
 
 
@@ -490,15 +504,37 @@ MATRIX: list[Row] = [
         "tests/test_media_replies.py::test_at_most_five_images_in_one_turn"),
     Row("GEN-QUICK-ON-LAST", "Chung", "Lượt có ảnh và nút trả lời nhanh", "Nút nằm trên ảnh cuối", "pytest",
         "tests/test_media_replies.py::test_facilities_wait_for_the_campus_then_go_once_with_buttons_on_the_last_image"),
-    Row("GEN-FAIL-RETRY", "Chung", "Graph từ chối một ảnh", "Lượt vẫn xong, ảnh chưa tính là đã gửi, lần sau gửi lại",
-        "pytest", "tests/test_media_replies.py::test_a_failed_image_does_not_break_the_turn_and_is_tried_again_later"),
+    Row("GEN-FAIL-RETRY", "Chung", "Graph từ chối ảnh duy nhất của lượt (học phí)",
+        "Lượt vẫn xong, câu xin lỗi chung, ảnh chưa tính là đã gửi, lịch sử ghi \"[ảnh … chưa gửi được]\"; không tự "
+        "thử lại, chỉ gửi khi phụ huynh hỏi lại (lượt sau hỏi học phí thì ảnh đi)", "pytest",
+        "tests/test_media_replies.py::test_a_failed_image_does_not_break_the_turn_and_goes_when_asked_again"),
     Row("GEN-FAIL-ALERT", "Chung", "Ảnh Drive gửi lỗi",
         "Báo nhóm Telegram tối đa 1 lần mỗi giờ, không có tin của phụ huynh", "pytest",
         "tests/test_media_replies.py::test_a_failed_image_tells_the_admin_group_once_an_hour_without_the_parents_message"),
     Row("GEN-FAIL-APOLOGY", "Chung", "Mọi ảnh Drive định gửi của lượt đều lỗi", "Thêm câu xin lỗi ảnh lỗi kèm nút",
         "pytest", "tests/test_media_replies.py::test_parent_told_the_images_failed_when_every_drive_image_promised_failed"),
-    Row("GEN-FAIL-PARTIAL", "Chung", "Một phần ảnh của lượt lỗi", "Không câu xin lỗi", "pytest",
-        "tests/test_media_replies.py::test_no_apology_when_one_of_the_images_went"),
+    Row("GEN-FAIL-PARTIAL", "Chung", "Ảnh lỗi một phần: xin \"học phí và thời khoá biểu\", chỉ ảnh thời khoá biểu lỗi",
+        "Ảnh học phí đi; câu xin lỗi nêu \"thời khoá biểu cơ sở Kim Mã\" kèm nút; lịch sử \"[đã gửi ảnh học phí …] "
+        "[ảnh thời khoá biểu … chưa gửi được]\"; không cờ chờ: \"dạ vâng\" không ảnh", "pytest",
+        "tests/test_media_replies.py::"
+        "test_a_partly_failed_turn_apologises_for_the_image_that_failed_and_does_not_try_it_again_unasked"),
+    Row("GEN-FAIL-PARTIAL-CAMPUS", "Chung", "Thời khoá biểu hai cơ sở, chỉ ảnh Kim Mã lỗi",
+        "Ảnh Chùa Láng đi; câu xin lỗi nêu \"thời khoá biểu cơ sở Kim Mã\"", "pytest",
+        "tests/test_media_replies.py::test_apology_names_the_campus_whose_timetable_failed"),
+    Row("GEN-FAIL-RESEND", "Chung",
+        "Ngay sau câu xin lỗi (tin bot trước có \"[ảnh … chưa gửi được]\") phụ huynh nhắn \"gửi lại đi\"/\"em gửi lại ảnh\"",
+        "Ảnh vừa lỗi coi như được hỏi lại: dòng \"Sau câu trả lời này …\", ảnh đi (một phần hay mọi ảnh lỗi); ảnh đã tới "
+        "không gửi lại", "pytest",
+        "tests/test_media_replies.py::test_parent_asking_to_send_again_right_after_the_apology_gets_the_failed_images"),
+    Row("GEN-FAIL-NO-RESEND", "Chung", "Sau câu xin lỗi phụ huynh nhắn \"không cần gửi lại\"/\"đừng gửi lại\"",
+        "Không ảnh", "pytest", "tests/test_media_replies.py::test_parent_saying_not_to_send_again_gets_no_image"),
+    Row("GEN-FAIL-RESEND-HARNESS", "Chung", "App thật, Graph từ chối mọi ảnh (fail.graph_image) của lượt học phí + thời khoá "
+        "biểu, rồi hết lỗi", "Câu xin lỗi chung; \"dạ vâng\" chỉ TEXT; \"em gửi lại ảnh đi\" gửi cả hai ảnh, ghi media_sent",
+        "harness"),
+    Row("GEN-FAIL-RESEND-REPLY", "Chung", "Lịch sử có ảnh thời khoá biểu lỗi, phụ huynh \"em gửi lại ảnh đi\" (trích "
+        "xuất không chủ đề)", "Ảnh km-tkb-36-72; câu báo em gửi, không nói ảnh ở phía trên", "eval"),
+    Row("GEN-FAIL-OTHER-TOPIC", "Chung", "Lịch sử có ảnh thời khoá biểu lỗi, phụ huynh hỏi chuyện khác (xe đưa đón)",
+        "Không ảnh; không hứa gửi lại ảnh", "eval"),
     Row("GEN-FAIL-HARNESS", "Chung", "Graph thật trả 400 cho ảnh (app chạy cách ly)",
         "IMAGE 400, thẻ ⚠️ Gửi ảnh … bị lỗi, câu xin lỗi; log không có token", "harness"),
     Row("GEN-SYNC-OFF", "Chung", "Tắt đồng bộ hoặc danh mục rỗng", "Không ảnh Drive, không dòng [HỆ THỐNG]", "pytest",

@@ -651,7 +651,7 @@ SAYS_SENT_BEFORE = ("ở trên", "phía trên", "bên trên", "đã gửi", "v�
 ANNOUNCES_IMAGE = ("gửi", "đây là", "dưới đây", "bên dưới", "tham khảo")
 IMAGE_WORDS = r"ảnh|hình|thời kh(?:oá|óa) biểu|tkb|lịch học|cơ sở vật chất|thực đơn"
 FEE_WORDS = r"học phí|bảng phí"
-LEAKED_TOKEN = re.compile(r"\[(?:SEND|IMAGES|QUICK|ESCALATE)\b|\[đã gửi ảnh", re.I)
+LEAKED_TOKEN = re.compile(r"\[(?:SEND|IMAGES|QUICK|ESCALATE)\b|\[đã gửi ảnh|chưa gửi được\]", re.I)
 ASKS_FOR = {
     "age": re.compile(r"mấy tuổi|bao nhiêu tuổi|tuổi (?:của )?(?:bé|con)|mấy tháng|bao nhiêu tháng|năm sinh|sinh năm|"
                       r"sinh tháng|độ tuổi", re.I),

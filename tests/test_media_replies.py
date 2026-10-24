@@ -429,6 +429,25 @@ def test_both_systems_without_an_international_campus_ask_which_one(parent, cata
     assert not customer_memory.get_profile(CUSTOMER_ID).get("timetable_asked")
 
 
+# Review vòng thời khoá biểu v2: "học phí 2 hệ" khi chưa rõ cơ sở Quốc tế chỉ gửi ảnh Song ngữ, xoá fee_asked, và tin
+# sau nêu cơ sở Quốc tế không nhận ảnh nào. Ảnh học phí đi theo hệ (Chùa Láng, Mỹ Đình dùng chung ảnh Quốc tế).
+def test_fee_of_both_systems_goes_without_knowing_the_international_campus(parent, catalog):
+    known(kid_age="3 tuổi")
+
+    sent = parent.say("Cho mình xin học phí 2 hệ nhé", extracted={"topics": ["Học phí"]})
+
+    assert parent.images(sent) == [url("sn-fee-10"), url("qt-fee-10")]
+    note = parent.notes[-1]
+    assert "gửi ảnh học phí hệ Quốc tế." in note and "gửi ảnh học phí hệ Song ngữ (cơ sở Kim Mã)." in note, note
+    assert "[đã gửi ảnh học phí hệ Quốc tế]" in parent.history()[-1]
+    profile = customer_memory.get_profile(CUSTOMER_ID)
+    assert profile["media_sent"].keys() == {"fee:quoc_te:2026-10", "fee:song_ngu:2026-10"}
+    assert not profile.get("fee_asked")
+
+    assert parent.images(parent.say("Mỹ Đình ạ", extracted={"interested_campus": "Mỹ Đình"})) == []
+    assert "học phí" not in parent.notes[-1]
+
+
 def test_fee_of_two_campuses_of_different_systems_is_one_image_each(parent, catalog):
     known(kid_age="3 tuổi", interested_campus="Chùa Láng, Kim Mã")
 

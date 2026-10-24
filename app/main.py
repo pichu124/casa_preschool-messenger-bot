@@ -766,20 +766,22 @@ def _plan_images(
     wanted_system = next((s for s, name in media.SYSTEM_NAMES.items() if media.fold(name) in program), None)
     offers, notes = [], []
 
+    # The fee image is the system's: a system asked for without its campus ("2 hệ") still gets it
+    fee_systems = list(dict.fromkeys([*systems, *unknown_systems]))
     asked_fee = bool(topics & set(FEE_TOPICS))
-    fee_keys = {system: f"fee:{system}:{today:%Y-%m}" for system in systems}
+    fee_keys = {system: f"fee:{system}:{today:%Y-%m}" for system in fee_systems}
     unsent_fees = [system for system, key in fee_keys.items() if key not in sent]
-    wants_fee = bool(asked_fee or profile.get("fee_asked")) and (bool(unsent_fees) or not systems)
+    wants_fee = bool(asked_fee or profile.get("fee_asked")) and (bool(unsent_fees) or not fee_systems)
     has_phone = profile.get("phone") or extracted.get("phone") or _find_phone(text)
     asked_phone = any(word in last_bot_message.lower() for word in ASKS_PHONE)
     refused = not has_phone and (profile.get("phone_declined") or extracted.get("phone_declined") or asked_phone)
-    fee_ready = bool(systems and (age or (refused and asked_fee)))
+    fee_ready = bool(fee_systems and (age or (refused and asked_fee)))
     fees_offered = False
     for system in unsent_fees if wants_fee and fee_ready else ():
         fee = media.fee_image(system, today)
         if fee:
             names = ", ".join(c for c in campuses if media.system_of(c) == system)
-            label = f"học phí hệ {media.SYSTEM_NAMES[system]} (cơ sở {names})"
+            label = f"học phí hệ {media.SYSTEM_NAMES[system]}" + (f" (cơ sở {names})" if names else "")
             offers.append(Offer("fee", fee_keys[system], [fee.url], label, stale=fee if fee.stale else None))
             fees_offered = True
 

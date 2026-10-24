@@ -92,6 +92,7 @@ Heuristic và giám khảo chỉ để lọc nhanh: vẫn đọc transcript (`PH
 | `TKB-TRIAL-REPLY-NO-WAIT` | Câu trả lời gửi lịch học thử | Không ảnh TKB, không cờ chờ tuổi | pytest `test_a_reply_sending_the_trial_week_does_not_wait_for_the_kids_age` |
 | `TKB-BOTH-NAMED-EARLIER` | "2 hệ" sau khi đã nêu các cơ sở ở tin trước | TKB của mọi cơ sở đã nêu | pytest `test_both_systems_asked_for_get_the_timetables_of_the_campuses_named_earlier` |
 | `TKB-BOTH-CAMPUS-WORDS` | "cả 2 cơ sở"/"hai bên"/"2 trường" (BOTH_WORDS không phải "hệ") | TKB của mọi cơ sở đã nêu trong hội thoại; chỉ nêu Kim Mã thì chỉ TKB Kim Mã: không thêm hệ chưa rõ, không hỏi cơ sở, không cờ chờ | pytest `test_both_campuses_get_the_timetables_of_every_campus_named_and_no_system_not_named` |
+| `TKB-DECLINED-IN-WORDS` | Phụ huynh từ chối bằng chữ: "Không cần gửi lại thời khoá biểu đâu em" (TKB chưa gửi, đủ tuổi và cơ sở) | Giới hạn đã biết, chưa sửa: _asks_timetable đọc chữ tin phụ huynh nên vẫn gửi km-tkb-36-72; test ghi hành vi hiện tại, người vận hành quyết sau | pytest `test_a_parent_declining_the_timetable_in_words_still_gets_it` |
 
 ## Cơ sở vật chất
 

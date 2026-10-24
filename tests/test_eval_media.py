@@ -416,3 +416,18 @@ def test_media_suite_leaves_the_app_as_it_found_it(fake):
     assert settings.MEDIA_SYNC_ENABLED is False
     assert vars(main.ai_engine).get("get_response") is get_response
 
+
+def test_a_parent_declining_the_timetable_in_words_still_gets_it(fake, tmp_path):
+    """TKB-DECLINED-IN-WORDS, giới hạn đã biết: _asks_timetable đọc chữ tin phụ huynh, nên lời từ chối có chữ "thời khoá
+    biểu" vẫn gửi ảnh. Test ghi hành vi hiện tại; người vận hành quyết sau có đổi không."""
+    case = cases.MediaCase(steps=[], profile=cases.KM3, history=[("bé nhà em 3 tuổi, em quan tâm Kim Mã", cases.OK_BOT)])
+
+    async def decline():
+        bot = eval_chat.IsolatedBot(tmp_path)
+        try:
+            bot.start("9000000000999999", case)
+            return await bot.say("9000000000999999", "Không cần gửi lại thời khoá biểu đâu em")
+        finally:
+            bot.close()
+
+    assert asyncio.run(decline()).images == ["km-tkb-36-72"]

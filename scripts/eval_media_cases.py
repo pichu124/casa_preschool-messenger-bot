@@ -464,6 +464,11 @@ MATRIX: list[Row] = [
         "cơ sở, không cờ chờ", "pytest",
         "tests/test_media_replies.py::"
         "test_both_campuses_get_the_timetables_of_every_campus_named_and_no_system_not_named"),
+    Row("TKB-DECLINED-IN-WORDS", "Thời khoá biểu",
+        "Phụ huynh từ chối bằng chữ: \"Không cần gửi lại thời khoá biểu đâu em\" (TKB chưa gửi, đủ tuổi và cơ sở)",
+        "Giới hạn đã biết, chưa sửa: _asks_timetable đọc chữ tin phụ huynh nên vẫn gửi km-tkb-36-72; test ghi hành vi "
+        "hiện tại, người vận hành quyết sau", "pytest",
+        "tests/test_eval_media.py::test_a_parent_declining_the_timetable_in_words_still_gets_it"),
     # --- cơ sở vật chất ---
     Row("CSVC-WAIT-CAMPUS", "Cơ sở vật chất", "Hỏi cơ sở vật chất khi chưa biết cơ sở; lượt sau bấm Kim Mã",
         "Lượt 1 không ảnh, hỏi cơ sở; lượt 2 bốn ảnh km-csvc-1..4", "eval"),

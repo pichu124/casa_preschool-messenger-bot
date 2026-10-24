@@ -670,9 +670,16 @@ ASKS_FOR = {
     "campus": re.compile(r"cơ sở nào|quan tâm cơ sở|cơ sở ba/mẹ|(?:chùa láng|mỹ đình|kim mã) hay|"
                          r"hay (?:cơ sở )?(?:chùa láng|mỹ đình|kim mã)", re.I),
 }
-# Một vế câu (tách ở "," ";") hỏi khi có dấu hỏi, lời xin, hay từ để hỏi: "Học phí tuỳ độ tuổi và cơ sở, Ba/Mẹ quan tâm
-# cơ sở nào ạ?" hỏi cơ sở, không hỏi tuổi (vế đầu chỉ kể).
-QUESTIONING = re.compile(r"\?|cho em (?:xin|biết|hỏi)|ba/mẹ (?:quan tâm|cho em)|\bmấy\b|bao nhiêu|\bnào\b", re.I)
+# Một vế câu (tách ở "," ";") nhắc tới tuổi/cơ sở (ASKS_FOR) là hỏi khi chính vế đó có dấu hỏi hay dạng hỏi của điều
+# đó (ASKING_FORM: "mấy tuổi", "cơ sở nào", "Kim Mã hay …"), hoặc nó hay một vế trước trong câu có lời xin (REQUEST).
+# "Học phí tuỳ độ tuổi và cơ sở, Ba/Mẹ quan tâm cơ sở nào ạ?" hỏi cơ sở, không hỏi tuổi; "Học phí cụ thể bao nhiêu sẽ
+# tuỳ theo độ tuổi của bé ạ" không hỏi gì ("bao nhiêu" là của học phí).
+REQUEST = re.compile(r"cho em (?:xin|biết|hỏi)|ba/mẹ cho em", re.I)
+ASKING_FORM = {
+    "age": re.compile(r"(?:mấy|bao nhiêu) (?:tuổi|tháng)|(?:sinh|độ tuổi)[^,;]{0,12}\b(?:nào|hay)\b", re.I),
+    "campus": re.compile(r"cơ sở nào(?! cũng)|(?:chùa láng|mỹ đình|kim mã) hay|hay (?:cơ sở )?(?:chùa láng|mỹ đình|kim mã)",
+                         re.I),
+}
 CLAUSE_END = re.compile(r"[,;]")
 # Trạng thái của từng dòng [HỆ THỐNG] (media_note trong app/ai_engine.py) theo câu chữ của dòng.
 NOTE_STATES = {
@@ -701,14 +708,20 @@ def media_image_id(url: str) -> str:
 
 
 def asks_for(what: str, text: str, quick_replies: list) -> bool:
-    """Câu trả lời hỏi tuổi bé/cơ sở: một vế câu hỏi (hoặc "cho em xin …") nhắc tới nó, hoặc nút trả lời nhanh của nó;
-    vế câu kể nhắc tới nó ("Học phí tuỳ độ tuổi …") không tính."""
+    """Câu trả lời hỏi tuổi bé/cơ sở: một vế câu nhắc tới nó mà hỏi (dấu hỏi, ASKING_FORM, lời xin ở vế đó hay vế
+    trước trong câu), hoặc nút trả lời nhanh của nó; vế câu kể nhắc tới nó ("Học phí tuỳ độ tuổi …") không tính."""
     from app.messenger import build_quick_replies
 
     if build_quick_replies(what) in quick_replies:
         return True
-    clauses = [c for s in sentences(text) for c in CLAUSE_END.split(s)]
-    return any(ASKS_FOR[what].search(c) and QUESTIONING.search(c) for c in clauses)
+    for sentence in sentences(text):
+        requested = False
+        for clause in CLAUSE_END.split(sentence):
+            requested = requested or bool(REQUEST.search(clause))
+            asking = requested or "?" in clause or ASKING_FORM[what].search(clause)
+            if asking and ASKS_FOR[what].search(clause):
+                return True
+    return False
 
 
 @dataclass

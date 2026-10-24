@@ -257,6 +257,24 @@ def test_media_suite_does_not_flag_right_sentences_that_only_look_like_a_broken_
     assert "✘" not in out
 
 
+# Review 2026-10-24: một vế chỉ được tính là hỏi khi chính nó có dấu hỏi, dạng hỏi của chính điều đó ("mấy tuổi",
+# "cơ sở nào"), hoặc nó hay một vế trước trong câu có lời xin; "bao nhiêu"/"nào" của câu kể không tính.
+@pytest.mark.parametrize(
+    ("text", "asked"),
+    [
+        ("Ba/Mẹ cho em xin cơ sở Ba/Mẹ quan tâm, độ tuổi của bé ạ", {"age", "campus"}),
+        ("Cho em xin thông tin, bé nhà mình sinh năm 2022 hay 2023 ạ", {"age"}),
+        ("Ba/Mẹ cho em xin tuổi của bé, cơ sở Ba/Mẹ muốn cho con học ạ", {"age", "campus"}),
+        ("Học phí tuỳ độ tuổi và cơ sở, Ba/Mẹ quan tâm cơ sở nào ạ?", {"campus"}),
+        ("Bé nhà mình năm nay mấy tuổi rồi ạ", {"age"}),
+        ("Ba/Mẹ đang tìm hiểu cơ sở nào ạ", {"campus"}),
+        ("Học phí cụ thể bao nhiêu sẽ tuỳ theo độ tuổi của bé ạ", set()),
+    ],
+)
+def test_a_clause_asks_only_with_a_question_or_a_request_in_its_sentence(text, asked):
+    assert {what for what in eval_chat.ASKS_FOR if eval_chat.asks_for(what, text, [])} == asked
+
+
 def test_media_suite_without_an_api_key_is_inconclusive(capsys):
     assert run(["media"]) == 2
     assert "INCONCLUSIVE: chưa có API key AI" in capsys.readouterr().out

@@ -54,6 +54,8 @@ class FakeGraph:
         self.requests: list[dict] = []
         self.refused: set[str] = set()
         self.ids = 0
+        self.upload_delay = 0.0
+        self.id_delay = 0.0
 
     async def respond(self, request: httpx.Request) -> httpx.Response:
         assert request.url.host == "graph.facebook.com" and request.url.path.endswith("/me/messages")
@@ -62,9 +64,11 @@ class FakeGraph:
         body = parse(request)
         self.requests.append(body)
         if "form" in body:
+            await asyncio.sleep(self.upload_delay)
             self.ids += 1
             return httpx.Response(200, json={"recipient_id": SENDER, "message_id": "m_1", "attachment_id": f"att-{self.ids}"})
         attachment_id = body["json"]["message"]["attachment"]["payload"].get("attachment_id")
+        await asyncio.sleep(self.id_delay)
         if attachment_id in self.refused:
             error = {"message": f"(#100) Invalid attachment_id access_token={PAGE_TOKEN}", "code": 100}
             return httpx.Response(400, json={"error": error})
@@ -217,3 +221,21 @@ def test_a_url_still_goes_as_a_url_facebook_downloads(graph):
     assert request["json"]["message"]["attachment"] == {
         "type": "image", "payload": {"url": "https://cdn.example/b.jpg", "is_reusable": True}
     }
+
+
+# Hai phụ huynh cùng được gửi một ảnh mà id đã lưu hết hạn (vd đổi Page): lượt sau không được hỏng vì lượt trước
+# đã xoá id cũ, và không xoá mất id mới mà lượt kia vừa tải lên.
+def test_two_sends_of_a_file_whose_attachment_id_is_refused_both_upload_it_again(graph, photo):
+    asyncio.run(messenger.send_image(SENDER, photo))
+    graph.refused = {"att-1"}
+    graph.upload_delay, graph.id_delay = 0.2, 0.05  # both read the old id before either is refused
+
+    async def both():
+        return await asyncio.gather(
+            messenger.send_image(SENDER, photo), messenger.send_image("9000000000000999", photo), return_exceptions=True
+        )
+
+    assert asyncio.run(both()) == [None, None]
+    assert sorted(graph.sent()[1:]) == [("id", "att-1"), ("id", "att-1"), ("upload", "km-tkb-36-72.jpg"),
+                                        ("upload", "km-tkb-36-72.jpg")]
+    assert messenger._attachment_ids[photo][1] in {"att-2", "att-3"}

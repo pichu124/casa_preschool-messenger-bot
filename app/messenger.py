@@ -184,7 +184,9 @@ async def _send_file(client: httpx.AsyncClient, recipient_id: str, file: Path, q
             return f"attachment {cached[1]}"
         except GraphError as e:
             logger.warning(f"Attachment {cached[1]} of {file.name} refused ({e.status} {e.message}): uploading again")
-            del _attachment_ids[file]
+            # Another send of the file may already have dropped this id, or stored a fresh one: keep a fresh one
+            if _attachment_ids.get(file) == cached:
+                del _attachment_ids[file]
     sent = await _post_image(client, recipient_id, {"is_reusable": True}, quick_replies, file=file)
     if sent.get("attachment_id"):
         _attachment_ids[file] = (stamp, sent["attachment_id"])

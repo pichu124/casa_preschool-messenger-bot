@@ -114,7 +114,8 @@ async def _send_telegram(text: str, reply_to: int | None = None) -> int | None:
             return None
         return response.json()["result"]["message_id"]
     except Exception as e:
-        logger.error(f"Failed to send Telegram message: {e}")
+        # An httpx error may quote the request URL, which holds the bot token
+        logger.error(f"Failed to send Telegram message: {str(e).replace(settings.TELEGRAM_BOT_TOKEN, '***')}")
         return None
 
 

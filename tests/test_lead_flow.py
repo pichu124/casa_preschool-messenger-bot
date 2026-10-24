@@ -634,3 +634,18 @@ def test_upset_after_the_consultant_answered_one_of_two_cards_gets_an_apology_an
     bot.say("hỏi mãi, gửi bảng giá qua đây luôn", extracted={"upset": True})
     assert bot.sent[-1] == escalation.ESCALATION_MESSAGE_UPSET
     assert len(bot.escalations()) == 3
+
+
+def test_telegram_send_error_log_does_not_show_the_bot_token(monkeypatch, caplog):
+    token = "123456:secret-bot-token"
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", token)
+    monkeypatch.setattr(settings, "TELEGRAM_CHAT_ID", "-100123")
+
+    async def post(self, url, **kwargs):
+        raise httpx.ConnectError(f"cannot reach {url}")
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", post)
+    with caplog.at_level(logging.ERROR, logger="app.escalation"):
+        assert asyncio.run(escalation._send_telegram("xin chào")) is None
+
+    assert caplog.records and token not in caplog.text, caplog.text

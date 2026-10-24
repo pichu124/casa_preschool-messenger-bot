@@ -124,7 +124,7 @@ Yêu cầu (nguyên văn ý): câu "Ba/Mẹ cho bé học thử 1 tuần miễn 
 - Chương trình: 3–6 tuổi học Cambridge Early Years là khung chính, Montessori là phương pháp và giáo cụ bổ trợ; 15 tháng–3 tuổi xây nền tảng qua Montessori, làm quen tiếng Anh với giáo viên nước ngoài.
   - Cambridge theo hệ (mục 2c): hệ Quốc tế (Chùa Láng, Mỹ Đình) học trọn 3 môn English, Mathematics, Let's Explore (khám phá khoa học, thế giới xung quanh); hệ Song ngữ Kim Mã học Cambridge 1 môn English. Không nói Kim Mã học Mathematics hay Let's Explore. Tên môn dùng "Let's Explore", không dùng "Understanding the World".
   - Khi chưa biết cơ sở (mục 2g.4, thay quy tắc cũ "câu trả lời chung nêu rõ khác biệt"): câu chung "nhóm 3–6 tuổi tại Casa học Cambridge Early Years kết hợp Montessori; nội dung và thời lượng Cambridge triển khai phù hợp theo từng chương trình/cơ sở" rồi hỏi cơ sở. Chi tiết theo hệ chỉ nêu khi phụ huynh đã cho biết cơ sở hoặc hỏi đúng hệ/cơ sở đó (hay hỏi so sánh các hệ): Q&A chương trình chung đặt chi tiết sau dấu "Chi tiết theo hệ (chỉ nêu khi …)"; prompt không còn liệt kê môn theo hệ.
-  - Thời lượng Cambridge (mục 2g.6): hệ Quốc tế dùng nguyên văn của trường (bỏ "Dạ tại Casa," để ghi rõ áp cho hệ Quốc tế). Kim Mã học môn English; thời lượng **chờ trường xác nhận**, Q&A ghi tư vấn viên sẽ báo.
+  - Thời lượng Cambridge (mục 2g.6): hệ Quốc tế dùng nguyên văn của trường (bỏ "Dạ tại Casa," để ghi rõ áp cho hệ Quốc tế). Kim Mã học môn English khoảng 40 phút; ngoài giờ Cambridge, các con còn có các giờ học khác bằng tiếng Anh với giáo viên nước ngoài (trường xác nhận 2026-10-24).
   - Giáo viên nước ngoài (mục 2g.5): được trường đào tạo cả chương trình Cambridge Early Years lẫn phương pháp Montessori.
   - Kim Mã (mục 2d, D2): ngoài Cambridge môn English, các con tiếp tục học theo phương pháp Montessori, phát triển theo 5 lĩnh vực của phương pháp; ngoài ra có các chương trình ngoại khóa phong phú.
   - 5 lĩnh vực Montessori (mục 2e): ngôn ngữ, toán, thực hành cuộc sống, giác quan, văn hóa. Câu nào nhắc "5 lĩnh vực" thì nêu đủ 5, không liệt kê dở ("…"), không dùng "tiếng Việt" thay cho "ngôn ngữ", không thêm lĩnh vực khác.
@@ -180,7 +180,7 @@ Yêu cầu (nguyên văn ý): câu "Ba/Mẹ cho bé học thử 1 tuần miễn 
 - Giờ đón chuẩn 17h30.
 - Trường làm việc thứ 2–6; cuối tuần phải sắp xếp riêng người đón tiếp.
 - Hotline: 0989 059 838.
-- Cambridge Early Years hệ Quốc tế (3–6 tuổi): hằng ngày thứ Hai–thứ Sáu, tổng ~1,5–2 giờ/ngày; sáng English ~30–40 phút; chiều ~14:45–16:00 luân phiên Mathematics hoặc Let's Explore. Kim Mã: chờ trường xác nhận.
+- Cambridge Early Years hệ Quốc tế (3–6 tuổi): hằng ngày thứ Hai–thứ Sáu, tổng ~1,5–2 giờ/ngày; sáng English ~30–40 phút; chiều ~14:45–16:00 luân phiên Mathematics hoặc Let's Explore. Kim Mã: Cambridge môn English khoảng 40 phút, cộng các giờ học khác bằng tiếng Anh với giáo viên nước ngoài.
 - Khai giảng chính thức 05/09 hằng năm; nhận hồ sơ và nhập học quanh năm.
 - Tặng 1 tuần học thử hoàn toàn miễn phí.
 - Cam kết không tăng học phí cơ bản trong suốt thời gian con theo học; tiền ăn và các khoản phí khác vẫn điều chỉnh bình thường (trường xác nhận 2026-10-23).

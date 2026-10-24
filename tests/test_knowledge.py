@@ -543,7 +543,8 @@ def test_foreign_teachers_are_trained_in_cambridge_and_montessori(question):
     assert re.search(r"đào tạo[^.]*montessori|montessori[^.]*đào tạo", answer), answer
 
 
-# Thời lượng Cambridge, nguyên văn của trường, áp cho hệ Quốc tế; Kim Mã học môn English, thời lượng chờ trường.
+# Thời lượng Cambridge, nguyên văn của trường, áp cho hệ Quốc tế. Kim Mã (trường xác nhận 2026-10-24): Cambridge môn
+# English khoảng 40 phút, ngoài ra các con có giờ học khác bằng tiếng Anh với giáo viên nước ngoài.
 CAMBRIDGE_HOURS = (
     "các bé 3-6 tuổi học cambridge early years hằng ngày từ thứ hai đến thứ sáu, với tổng thời lượng khoảng "
     "1,5-2 giờ/ngày. buổi sáng các con có english khoảng 30-40 phút, sau đó tiếp tục hoạt động theo nhóm nhỏ, hoặc "
@@ -562,7 +563,9 @@ def test_cambridge_hours_answer_is_the_schools_wording_for_the_international_sys
     assert CAMBRIDGE_HOURS in answer, answer
     assert answer.index("quốc tế") < answer.index(CAMBRIDGE_HOURS), answer
     kim_ma = [s for s in _full_sentences(answer) if "kim mã" in s]
-    assert kim_ma and all("english" in s and "tư vấn viên" in s and not re.search(r"\d+ ?(giờ|phút)", s) for s in kim_ma)
+    assert kim_ma and any("english" in s and "40 phút" in s for s in kim_ma), answer
+    assert re.search(r"kim mã[^.]*40 phút[^.]*\.[^.]*giờ học khác bằng tiếng anh với giáo viên nước ngoài", answer), answer
+    assert "tư vấn viên sẽ báo" not in answer, answer
 
 
 # Trường làm việc thứ 2–6; cuối tuần phải sắp xếp riêng một cô, nên không hứa trước.

@@ -51,8 +51,8 @@ dẫn), ảnh thực sự đi ra và các khoá JUDGE_KEYS của lượt (expect
 bỏ đi); mỗi lượt in phán quyết và lý do. Model giám khảo lỗi hay trả khác khuôn thì thử model kế theo AI_MODEL_ORDER;
 không model nào ra phán quyết thì lượt đó chưa kết luận: không tính đạt, không tính vi phạm. Giám khảo cũng là model nên
 có thể sai: lượt vi phạm phải đọc lý do và transcript.
-38 ca, 48 lượt: mỗi lượt 2 lời gọi model của bot, cộng 1 lời gọi giám khảo cho mỗi lượt không chuyển tư vấn viên (45 khi
-bot chuyển đúng 3 lượt phải chuyển), tổng ≈ 141 lời gọi, chưa kể lời gọi dự phòng khi một model lỗi hay giám khảo trả
+42 ca, 54 lượt: mỗi lượt 2 lời gọi model của bot, cộng 1 lời gọi giám khảo cho mỗi lượt không chuyển tư vấn viên (51 khi
+bot chuyển đúng 3 lượt phải chuyển), tổng ≈ 159 lời gọi, chưa kể lời gọi dự phòng khi một model lỗi hay giám khảo trả
 sai khuôn. Bộ đạt khi mọi lượt đạt.
 
 Exit: 0 = mọi heuristic đạt và các bộ (nếu chạy) đạt ngưỡng; 1 = có lượt vi phạm hoặc một bộ dưới ngưỡng;

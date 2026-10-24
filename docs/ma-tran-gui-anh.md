@@ -8,7 +8,7 @@ Bản dữ liệu (đọc được bằng code) là `MATRIX` và `MEDIA_CASES` t
 
 - `eval`: câu chữ hoặc hành vi của model quyết định kết quả (chủ đề trích xuất, tuổi/cơ sở đọc được, token `[SEND:]`, `[ESCALATE]`, câu hỏi lại). Chạy `.venv/bin/python scripts/eval_chat.py media` với API key thật (tốn phí: 38 ca, 48 lượt; mỗi lượt 2 lời gọi model của bot, cộng 1 lời gọi giám khảo cho mỗi lượt không chuyển tư vấn viên, 45 lượt khi bot chuyển đúng 3 lượt phải chuyển: ≈ 141 lời gọi, chưa kể lời gọi dự phòng khi một model lỗi hay giám khảo trả sai khuôn). Bộ này gọi `app.main.process_message` như tin Messenger thật, với model theo `AI_MODEL_ORDER` có key; Graph, Telegram, Sheet, GitHub là fake ghi lại (request httpx tới các host đó bị chặn); `MEDIA_SYNC_ENABLED=true` với danh mục ảnh giả (`catalog_items`: học phí 2 hệ, thực đơn 2 hệ, thời khoá biểu 3 cơ sở theo nhóm tuổi, cơ sở vật chất 3 cơ sở); hồ sơ phụ huynh dựng theo từng ca trong thư mục tạm, không đụng `data/customers.json`; hôm nay là 24/10/2026. Exit 0 đạt, 1 có lượt vi phạm, 2 chưa kết luận (chưa có API key, mọi model lỗi, hoặc không vi phạm nào mà có lượt giám khảo chưa ra phán quyết).
 - `pytest`: kết quả do code quyết định khi chủ đề/token đã biết; test dùng model giả (`tests/test_media_replies.py`).
-- `harness`: cần app thật qua HTTP (Graph trả lỗi thật, ảnh phục vụ ở `/static/media`, biến môi trường lúc khởi động); skill `verify-casa-bot`, mã ghi ở hành trình tương ứng trong `features/media.md`.
+- `harness`: cần app thật qua HTTP (Graph trả lỗi thật, ảnh tải lên Graph giả bằng multipart, ảnh phục vụ ở `/static/media`, biến môi trường lúc khởi động); skill `verify-casa-bot`, mã ghi ở hành trình tương ứng trong `features/media.md`.
 
 ## Mỗi lượt eval chấm gì
 
@@ -39,6 +39,7 @@ Heuristic và giám khảo chỉ để lọc nhanh: vẫn đọc transcript (`PH
 - Câu ghép báo gửi một ảnh và mời ảnh khác, câu mời "có muốn em gửi … không ạ?", token của ảnh chưa đủ điều kiện: model thật không bị ép nói đúng câu đó, nên chỉ kiểm ở pytest (model giả nói đúng câu). Eval vẫn bắt hậu quả: ảnh thừa so với tập mong đợi.
 - Trần 5 ảnh một lượt và nút trên ảnh cuối: do code quyết định, chỉ pytest.
 - Ảnh lỗi một phần (`GEN-FAIL-PARTIAL`, `GEN-FAIL-PARTIAL-CAMPUS`, `GEN-FAIL-IN-GROUP`): chỉ pytest, vì `fail.graph_image` của harness làm hỏng mọi ảnh; harness thử câu xin lỗi chung và "gửi lại" (`GEN-FAIL-RESEND-HARNESS`). Bộ eval không làm ảnh lỗi: `GEN-FAIL-RESEND-REPLY`, `GEN-FAIL-NO-RESEND-REPLY`, `GEN-FAIL-OTHER-TOPIC` dựng sẵn lịch sử có ghi chú "[ảnh … chưa gửi được]" và chấm việc model gắn hay không gắn `[SEND:timetable]` (ảnh đi hay không) cùng câu hứa.
+- Định dạng tải ảnh lên (multipart `recipient`, `message`, `messaging_type`, `filedata`; gửi lại bằng `attachment_id`) chỉ kiểm với Graph giả (pytest, harness) theo tài liệu Send API; Graph thật chưa thử. Graph thật từ chối attachment_id theo mã lỗi nào cũng chưa biết: bot tải lại một lần với mọi lỗi Graph khi gửi bằng id.
 - Ảnh học phí, cơ sở vật chất, thực đơn đã gửi không có dòng `[HỆ THỐNG]` "đã gửi" (chỉ thời khoá biểu có): `FEE-SENT-AGAIN` và `CSVC-SENT-AGAIN` đo model có tự đọc ghi chú `[đã gửi ảnh …]` trong lịch sử để không hứa gửi lại hay không.
 
 ## Học phí
@@ -153,8 +154,14 @@ Heuristic và giám khảo chỉ để lọc nhanh: vẫn đọc transcript (`PH
 | `GEN-FAIL-OTHER-TOPIC` | Lịch sử có ảnh thời khoá biểu lỗi, phụ huynh hỏi chuyện khác (xe đưa đón) | Không ảnh; không hứa gửi lại ảnh, không nhắc "gửi lại" | eval |
 | `GEN-FAIL-HARNESS` | Graph thật trả 400 cho ảnh (app chạy cách ly) | IMAGE 400, thẻ ⚠️ Gửi ảnh … bị lỗi, câu xin lỗi; log không có token | harness |
 | `GEN-SYNC-OFF` | Tắt đồng bộ hoặc danh mục rỗng | Không ảnh Drive, không dòng [HỆ THỐNG] | pytest `test_without_drive_images_the_bot_behaves_as_before` |
-| `GEN-SYNC-OFF-HARNESS` | App chạy không MEDIA_SYNC_ENABLED, hỏi thực đơn | Ảnh static/thuc-don-mau.jpg như cũ, không dòng [HỆ THỐNG] | harness |
-| `GEN-URL-SERVED-HARNESS` | URL ảnh gửi phụ huynh | `GET /static/media/<id>.jpg` trả 200 image/jpeg | harness |
+| `GEN-SYNC-OFF-HARNESS` | App chạy không MEDIA_SYNC_ENABLED, hỏi thực đơn | Ảnh static/thuc-don-mau.jpg tải lên như ảnh Drive, không dòng [HỆ THỐNG] | harness |
+| `GEN-URL-SERVED-HARNESS` | Ảnh Drive xem qua trình duyệt (url trong GET /media) | `GET /static/media/<id>.jpg` trả 200 image/jpeg; Messenger không dùng URL này | harness |
+| `GEN-UPLOAD` | Mỗi loại ảnh Drive (học phí, thời khoá biểu, cơ sở vật chất, thực đơn) | Gửi bằng file tải lên (multipart filedata, không payload.url), nút trên ảnh cuối; phụ huynh sau nhận cùng ảnh bằng attachment_id, không tải lại | pytest `test_drive_images_are_uploaded_then_sent_by_attachment_id_to_the_next_parent` |
+| `GEN-UPLOAD-ID-REFUSED` | Graph từ chối attachment_id đã lưu (vd hết hạn) | Bỏ id đó, tải file lại một lần; lần sau dùng id mới; tải lại cũng lỗi thì là ảnh lỗi như thường | pytest `test_a_refused_attachment_id_is_forgotten_and_the_file_uploaded_again_once` |
+| `GEN-UPLOAD-FILE-CHANGED` | File ảnh đổi (mtime/kích thước) sau lần tải trước | Tải lại, không dùng attachment_id cũ | pytest `test_a_changed_file_is_uploaded_again` |
+| `GEN-UPLOAD-QA` | Ảnh Q&A static/thuc-don-mau.jpg khi tắt đồng bộ | Tải file trong static/ lên | pytest `test_the_qa_sample_menu_is_uploaded_when_drive_sync_is_off` |
+| `GEN-QA-PATH-BLOCKED` | Ảnh Q&A static/../<file>, file không có hoặc không phải ảnh | Không gửi, log WARNING; nút sang ảnh/tin cuối còn lại | pytest `test_a_qa_image_that_is_not_an_image_file_in_static_is_not_sent` |
+| `GEN-UPLOAD-HARNESS` | App thật: hành trình thời khoá biểu, rồi phụ huynh khác xin cùng ảnh | IMAGE upload <id>.jpg -> attachment_id=…; phụ huynh sau IMAGE attachment_id=… | harness |
 | `GEN-LOG-PLANNED` | Mỗi lượt khi bật đồng bộ | Log INFO các ảnh định gửi | pytest `test_every_turn_logs_the_drive_images_it_plans_to_send` |
 | `GEN-GRAPH-NO-TOKEN` | Lỗi Graph khi gửi ảnh/tin | Log và lỗi không có access token | pytest `test_graph_errors_are_logged_and_raised_without_the_access_token` |
 | `GEN-TEST-CHAT` | /test-chat | Model nhận đúng dòng [HỆ THỐNG] như Messenger | pytest `test_test_chat_tells_the_model_which_images_follow_like_messenger` |

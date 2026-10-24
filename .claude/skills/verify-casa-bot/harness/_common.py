@@ -72,7 +72,15 @@ def summarize(rec: dict) -> str | None:
         msg = (body or {}).get("message", {})
         to = (body or {}).get("recipient", {}).get("id")
         if "attachment" in msg:
-            what = "IMAGE " + msg["attachment"]["payload"]["url"]
+            payload, file = msg["attachment"].get("payload") or {}, (body or {}).get("filedata")
+            if file:
+                given = (rec.get("response") or {}).get("attachment_id") if isinstance(rec.get("response"), dict) else None
+                what = f"IMAGE upload {file['filename']} ({file['content_type']}, {file['size']} bytes)"
+                what += f" -> attachment_id={given}" if given else ""
+            elif "attachment_id" in payload:
+                what = f"IMAGE attachment_id={payload['attachment_id']}"
+            else:
+                what = "IMAGE " + payload["url"]
         else:
             what = "TEXT " + json.dumps(msg.get("text", ""), ensure_ascii=False)
         qr = msg.get("quick_replies")

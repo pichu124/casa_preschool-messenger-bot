@@ -15,6 +15,8 @@ import re
 import struct
 import threading
 import zlib
+from email import policy
+from email.parser import BytesParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -62,6 +64,8 @@ args = None
 lock = threading.Lock()
 seq = itertools.count(1)
 msg_ids = itertools.count(5001)
+attachment_ids = itertools.count(1)
+issued_attachments: set[str] = set()
 github_files: dict[str, bytes] = {}
 
 
@@ -204,11 +208,23 @@ def route(method: str, host: str, path: str, headers, body, query: dict | None =
             if fail.get("graph_send"):
                 err = {"message": "(#10) This message is sent outside of allowed window.", "code": 10}
                 return 400, {"error": err}, {}
-            if fail.get("graph_image") and "attachment" in ((body or {}).get("message") or {}):
-                err = {"message": "(#100) Failed to fetch the file from the url", "type": "OAuthException",
-                       "code": 100, "error_subcode": 2018008, "fbtrace_id": "fake"}
+            sent = {"recipient_id": recipient, "message_id": f"m_fake_{next(msg_ids)}"}
+            attachment = ((body or {}).get("message") or {}).get("attachment")
+            if not attachment:
+                return 200, sent, {}
+            payload = attachment.get("payload") or {}
+            if fail.get("graph_image"):
+                said = "Failed to fetch the file from the url" if "url" in payload else "Upload failed"
+                err = {"message": f"(#100) {said}", "type": "OAuthException", "code": 100, "fbtrace_id": "fake"}
                 return 400, {"error": err}, {}
-            return 200, {"recipient_id": recipient, "message_id": f"m_fake_{next(msg_ids)}"}, {}
+            if "filedata" in body:  # an upload (multipart filedata): like Graph, an id to send it again by
+                attachment_id = f"att_fake_{next(attachment_ids)}"
+                issued_attachments.add(attachment_id)
+                return 200, {**sent, "attachment_id": attachment_id}, {}
+            if "attachment_id" in payload and payload["attachment_id"] not in issued_attachments:
+                err = {"message": "(#100) Invalid attachment_id", "type": "OAuthException", "code": 100, "fbtrace_id": "fake"}
+                return 400, {"error": err}, {}
+            return 200, sent, {}
     if host == "api.telegram.org":
         if fail.get("telegram"):
             return 500, {"ok": False, "description": "fake_server: telegram failure from scenario"}, {}
@@ -244,6 +260,24 @@ def route(method: str, host: str, path: str, headers, body, query: dict | None =
         code, out = github(method, path, headers.get("accept", ""), body)
         return code, out, {}
     return 502, {"error": f"fake_server: unexpected host {host}"}, {"unexpected": True}
+
+
+def multipart_form(content_type: str, raw: bytes) -> dict:
+    """The fields of a multipart/form-data body (send_image uploading a file): JSON fields decoded, a file as its
+    name, type and size (the bytes are not kept)."""
+    form = BytesParser(policy=policy.HTTP).parsebytes(f"Content-Type: {content_type}\r\n\r\n".encode() + raw)
+    fields = {}
+    for part in form.iter_parts():
+        name, data = part.get_param("name", header="content-disposition"), part.get_payload(decode=True)
+        if part.get_filename():
+            fields[name] = {"filename": part.get_filename(), "content_type": part.get_content_type(), "size": len(data)}
+            continue
+        text = data.decode("utf-8", "replace")
+        try:
+            fields[name] = json.loads(text)
+        except ValueError:
+            fields[name] = text
+    return fields
 
 
 def _cut(text: str) -> str:
@@ -282,8 +316,12 @@ class Handler(BaseHTTPRequestHandler):
             path = parse_qs(urlsplit(self.path).query)["path"][0]
             github_files[path] = raw
             return self._send(200, {"path": path, "sha": _sha(raw)})
+        content_type = self.headers.get("content-type") or ""
         try:
-            body = json.loads(raw) if raw else None
+            if content_type.startswith("multipart/form-data"):
+                body = multipart_form(content_type, raw)
+            else:
+                body = json.loads(raw) if raw else None
         except ValueError:
             body = raw.decode("utf-8", "replace")
         parts = urlsplit(self.path)

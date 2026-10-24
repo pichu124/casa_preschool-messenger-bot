@@ -2,6 +2,7 @@ import asyncio
 import hmac
 import logging
 import re
+import unicodedata
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
@@ -660,11 +661,12 @@ FACILITIES_TOPIC = "Cơ sở vật chất"
 MENU_TOPIC = "Ăn uống/thực đơn"
 TOPICS_OF_IMAGE = {"fee": FEE_TOPICS, "timetable": (PROGRAMME_TOPIC,), "facilities": (FACILITIES_TOPIC,), "menu": (MENU_TOPIC,)}
 # A message naming the timetable or Cambridge (as media.fold writes it) asks for the timetable whatever its topics:
-# the extraction tags Cambridge as "Tiếng Anh/GV nước ngoài" and a timetable as "Giờ học/…". "lịch học thử" is the
-# trial week.
-# "lịch học thử" (the trial week) is not the timetable; "lịch học thứ 2–6" folds the same, a weekday follows it.
-TIMETABLE_NAMES = r"\bthoi (?:khoa|gian) bieu\b|\btkb\b|\blich hoc\b(?! thu\b(?! ?(?:\d|hai|ba|tu|nam|sau|bay)\b))"
-TIMETABLE_WORDS = re.compile(rf"\bcambridge\b|{TIMETABLE_NAMES}")
+# the extraction tags Cambridge as "Tiếng Anh/GV nước ngoài" and a timetable as "Giờ học/…". So does "lịch học"
+# (_asks_timetable), but not "lịch học thử", the trial week.
+TIMETABLE_WORDS = re.compile(r"\bcambridge\b|\bthoi (?:khoa|gian) bieu\b|\btkb\b")
+# A weekday after "lich hoc thu" typed without accents: "thứ 2–7", "thứ hai", "thứ bảy"; not "ba", "tư", "năm", "sáu"
+# ("thử ba ngày", "thử từ thứ 2", "thử năm buổi", "thử sau đó").
+WEEKDAY = re.compile(r"[2-7]|hai|bay")
 # The parent's message asks the fee ("học phí", "bảng phí"), as media.fold writes it.
 FEE_WORDS = re.compile(r"\b(?:hoc phi|bang phi)\b")
 # A message asking for both systems ("2 hệ", "cả hai hệ") or both campuses ("cả 2 cơ sở", "hai bên").
@@ -697,6 +699,22 @@ def _today_vn() -> date:
 
 def _image_id(url: str) -> str:
     return url.rsplit("/", 1)[-1].removesuffix(".jpg")
+
+
+def _asks_timetable(text: str) -> bool:
+    """The parent's message `text` asks for the timetable by its words (TIMETABLE_WORDS, "lịch học"). "lịch học thử"
+    is the trial week and "lịch học thứ 2" the timetable, which fold the same: the parent's accents tell them apart;
+    without accents ("lich hoc thu …") only a WEEKDAY after "thu" makes it the timetable."""
+    if TIMETABLE_WORDS.search(media.fold(text)):
+        return True
+    words = re.findall(r"[^\W\d_]+|\d+", unicodedata.normalize("NFC", text).lower())
+    for n in range(len(words) - 1):
+        if [media.fold(w) for w in words[n:n + 2]] != ["lich", "hoc"]:
+            continue
+        thu, after = (words[n + 2:] + ["", ""])[:2]
+        if media.fold(thu) != "thu" or thu == "thứ" or (thu == "thu" and WEEKDAY.fullmatch(media.fold(after))):
+            return True
+    return False
 
 
 # Profile flag of a question waiting for an image -> the kind of that image.
@@ -792,7 +810,7 @@ def _plan_images(
             offers.append(Offer("fee", fee_keys[system], [fee.url], label, stale=fee if fee.stale else None))
             fees_offered = True
 
-    asked_timetable = PROGRAMME_TOPIC in topics or bool(TIMETABLE_WORDS.search(media.fold(text)))
+    asked_timetable = PROGRAMME_TOPIC in topics or _asks_timetable(text)
     timetable_campuses = [c for c in campuses if media.has_timetables(c)]
     has_timetable = media.has_timetables() if unknown_systems or not campuses else bool(timetable_campuses)
     wants_timetable = (asked_timetable or bool(profile.get("timetable_asked"))) and has_timetable

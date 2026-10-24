@@ -677,12 +677,37 @@ def test_daily_schedule_question_gets_the_timetable(parent, catalog):
     assert parent.images(parent.say("Thời gian biểu trong ngày của bé thế nào ạ?")) == [url("km-tkb-36-72")]
 
 
-def test_trial_week_schedule_is_not_a_timetable_question(parent, catalog):
-    assert parent.images(parent.say("lịch học thử tuần sau thế nào ạ")) == []
+# Review vòng thời khoá biểu v3: "lịch học thử 1 tuần/từ thứ 2/ba ngày" bị tính là thời khoá biểu ("thử" bỏ dấu là
+# "thu", như "thứ"). Có dấu thì theo dấu của phụ huynh; không dấu thì chỉ "thu" + thứ trong tuần (2–7, hai, bay).
+@pytest.mark.parametrize(
+    "text",
+    [
+        "lịch học thử tuần sau thế nào ạ",
+        "lịch học thử 1 tuần thế nào ạ",
+        "lịch học thử từ thứ 2 tuần sau",
+        "lịch học thử ba ngày",
+        "lich hoc thu 1 tuan",
+    ],
+)
+def test_trial_week_schedule_is_not_a_timetable_question(parent, catalog, text):
+    known(interested_campus="Kim Mã", kid_age="4 tuổi")
+
+    assert parent.images(parent.say(text)) == []
+    assert "Sau câu trả lời này hệ thống gửi ảnh thời khoá biểu" not in parent.notes[-1], parent.notes[-1]
+    assert not customer_memory.get_profile(CUSTOMER_ID).get("timetable_asked")
 
 
-# "lịch học thứ 2–6" bỏ dấu giống "lịch học thử": thứ trong tuần vẫn là hỏi thời khoá biểu.
-@pytest.mark.parametrize("text", ["Lịch học thứ 2 đến thứ 6 thế nào ạ?", "lịch học thứ hai của bé ra sao ạ"])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Lịch học thứ 2 đến thứ 6 thế nào ạ?",
+        "lịch học thứ 2 đến thứ 6",
+        "lịch học thứ hai của bé ra sao ạ",
+        "lịch học thứ hai",
+        "lich hoc thu 2 den thu 6",
+        "Lịch học của bé thế nào ạ",
+    ],
+)
 def test_weekday_schedule_question_gets_the_timetable(parent, catalog, text):
     known(interested_campus="Kim Mã", kid_age="4 tuổi")
 

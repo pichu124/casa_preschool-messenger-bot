@@ -673,16 +673,20 @@ FEE_WORDS = re.compile(r"\b(?:hoc phi|bang phi)\b")
 BOTH_WORDS = re.compile(r"\b(?:ca )?(?:2|hai) (he|co so|ben|truong)\b")
 FACILITY_IMAGES = 4
 MAX_IMAGES = 5
-# Sent after the reply when every Drive image of the turn failed: images the model was told follow its reply.
+# Sent after the reply when Drive images of the turn failed (images the model was told follow its reply): every one,
+# or those named when others went.
 IMAGES_FAILED_MESSAGE = "Dạ ảnh em gửi đang bị lỗi chưa tới được, Ba/Mẹ nhắn lại em sau ít phút để em gửi lại nhé ạ."
+SOME_IMAGES_FAILED_MESSAGE = "Dạ ảnh {} em gửi đang bị lỗi chưa tới được, Ba/Mẹ nhắn lại em sau ít phút để em gửi lại nhé ạ."
 IMAGE_FAILURE_ALERT_EVERY = timedelta(hours=1)
 # The sample menu of the Q&A (data/qa_database.json): sent only while Drive has no menu image.
 QA_MENU_IMAGE = "static/thuc-don-mau.jpg"
 # A kid age read from the message text itself, never a fee period ("đóng 12 tháng", "3 tháng").
 SAID_AGE_MONTHS = range(15, 85)
 ASKS_PHONE = ("sđt", "zalo", "số điện thoại")
-# What the history tells the model it sent; a model copying it into a reply must not show it to the parent.
-SENT_NOTE = re.compile(r"\s*\[đã gửi ảnh[^\]]*\]")
+# What the history tells the model it sent or failed to send; a model copying it into a reply must not show it to the
+# parent. An image that failed in the bot's last message is offered again (_media_note), by its label.
+SENT_NOTE = re.compile(r"\s*\[(?:đã gửi ảnh[^\]]*|ảnh [^\]]*chưa gửi được)\]")
+FAILED_NOTE = re.compile(r"\[ảnh ([^\]]*) chưa gửi được\]")
 
 
 class Offer(NamedTuple):
@@ -776,7 +780,8 @@ def _plan_images(
     ([SEND:<kind>]): their offers go as if asked for, only when ready (the parent asked nothing, no flag waits)."""
     if not settings.MEDIA_SYNC_ENABLED:
         return qa_images, [], {}, []
-    asked, sent = set(topics), profile.get("media_sent") or {}
+    asked = set(topics)
+    sent = profile.get("media_sent") or {}
     parent_asked_fee = bool(asked & set(FEE_TOPICS) or FEE_WORDS.search(media.fold(text)))
     topics = asked | {topic for kind in tagged for topic in TOPICS_OF_IMAGE[kind]}
     campuses, unknown_systems = _campuses(profile, extracted, text)
@@ -871,14 +876,17 @@ def _plan_images(
 def _media_note(profile: dict, text: str, last_bot_message: str, today: date) -> str:
     """The [HỆ THỐNG] lines for the reply to `text`, written before its extraction is known: the images sent whatever
     the message asks, and those sent if it asks about their topic (or if the reply tags itself as sending them); what
-    an image waits for; the images sent before that this message asks for again."""
+    an image waits for; the images sent before that this message asks for again; the images of the bot's last
+    message that failed (FAILED_NOTE) and would go again if the reply tags them."""
     if not settings.MEDIA_SYNC_ENABLED:
         return ""
     _, sure, _, sure_notes = _plan_images(profile, {}, text, [], [], last_bot_message, today)
     every_topic = [topic for topics in TOPICS_OF_IMAGE.values() for topic in topics]
     _, offers, _, notes = _plan_images(profile, {}, text, every_topic, [], last_bot_message, today)
     sure_keys = {o.key for o in sure}
+    failed = set(FAILED_NOTE.findall(last_bot_message))
     images = [ImageNote(o.kind, o.label, if_asked=o.key not in sure_keys) for o in offers]
+    images += [ImageNote(o.kind, o.label, state="failed") for o in offers if o.label in failed and o.key not in sure_keys]
     images += [n._replace(if_asked=n not in sure_notes) for n in notes if n.state != "sent" or n in sure_notes]
     campuses = media.campuses_in(text) or media.campuses_in(profile.get("interested_campus"))
     need_campus = not campuses and any(media.facility_images(c, 1) for c in media.CAMPUSES)
@@ -924,11 +932,12 @@ async def _alert_image_failure(offer: Offer, image_url: str, error: Exception) -
 
 async def _send_reply_with_images(
     sender_id: str, text: str, quick_replies: list[dict] | None, qa_images: list[str], offers: list[Offer]
-) -> list[Offer]:
+) -> tuple[list[Offer], list[Offer]]:
     """The reply, then the images (at most MAX_IMAGES; an offer that does not fit waits for another turn), the quick
-    replies on the last message sent. Returns the offers delivered; an image Messenger refuses is logged and skipped,
-    a Drive one also told to the admin group; when Drive images were planned and none of them went, the parent gets
-    IMAGES_FAILED_MESSAGE (the model was told they follow its reply)."""
+    replies on the last message sent. Returns the offers delivered and the offers tried (delivered or failed); an
+    image Messenger refuses is logged and skipped, a Drive one also told to the admin group. An offer none of whose
+    images went is told to the parent (the model was told it follows its reply): IMAGES_FAILED_MESSAGE when no Drive
+    image went, else SOME_IMAGES_FAILED_MESSAGE naming the offers that failed."""
     qa_images = qa_images[:MAX_IMAGES]
     chosen, room = [], MAX_IMAGES - len(qa_images)
     for offer in offers:
@@ -938,26 +947,29 @@ async def _send_reply_with_images(
     images = [(None, _public_image_url(u)) for u in qa_images] + [(o, u) for o in chosen for u in o.urls]
     if text:
         await send_message(sender_id, text, quick_replies=None if images else quick_replies)
-    delivered, failed = set(), False
+    delivered = set()
     for n, (offer, image_url) in enumerate(images, 1):
         try:
             await send_image(sender_id, image_url, quick_replies=quick_replies if n == len(images) else None)
         except Exception as e:
             logger.warning(f"Image {offer.key if offer else image_url} not sent to {sender_id}: {type(e).__name__}")
             if offer:
-                failed = True
                 await _alert_image_failure(offer, image_url, e)
             continue
         if offer:
             delivered.add(offer.key)
-    if failed and not delivered:
-        await send_message(sender_id, IMAGES_FAILED_MESSAGE, quick_replies=quick_replies)
-    return [o for o in chosen if o.key in delivered]
+    failed = [o.label for o in chosen if o.key not in delivered]
+    if failed:
+        names = ", ".join(failed[:-1]) + " và " + failed[-1] if len(failed) > 1 else failed[0]
+        apology = SOME_IMAGES_FAILED_MESSAGE.format(names) if delivered else IMAGES_FAILED_MESSAGE
+        await send_message(sender_id, apology, quick_replies=quick_replies)
+    return [o for o in chosen if o.key in delivered], chosen
 
 
-def _record_images(sender_id: str, profile: dict, delivered: list[Offer], waiting: dict) -> None:
-    """media_sent gets the offers delivered; the WAITING_FLAGS stay true only while still waiting."""
-    kinds = {o.kind for o in delivered}
+def _record_images(sender_id: str, profile: dict, delivered: list[Offer], tried: list[Offer], waiting: dict) -> None:
+    """media_sent gets the offers delivered; the WAITING_FLAGS stay true only while still waiting: an offer tried and
+    failed does not wait (sent again only when the parent asks again), one that did not fit does."""
+    kinds = {o.kind for o in tried}
     fields = {
         flag: waiting.get(flag) == "missing" or (waiting.get(flag) == "offered" and kind not in kinds)
         for flag, kind in WAITING_FLAGS.items()
@@ -984,6 +996,34 @@ async def process_message(
         await _answer_message(sender_id, text, attribution, phone_from_qr)
 
 
+# Messenger hides the typing indicator after ~20 s: a turn waiting for the first Drive sync turns it on again this often.
+TYPING_REFRESH_EVERY = 15.0
+
+
+async def _keep_typing(sender_id: str) -> None:
+    while True:
+        await asyncio.sleep(TYPING_REFRESH_EVERY)
+        try:
+            await send_typing_indicator(sender_id)
+        except Exception as e:
+            logger.warning(f"Typing indicator not sent to {sender_id}: {type(e).__name__}")
+
+
+async def _wait_for_first_media_sync(sender_id: str, keep_typing: bool = False) -> None:
+    """Right after a start (deploy, Render Free waking up with an empty disk) the first Drive sync is still running:
+    answered before it ends, the turn has no images and the model is told so. Waits at most until
+    MEDIA_FIRST_SYNC_WAIT seconds after the sync started (media.ready), with `keep_typing` turning the parent's typing
+    indicator on again every TYPING_REFRESH_EVERY seconds."""
+    if not settings.MEDIA_SYNC_ENABLED:
+        return
+    typing = asyncio.create_task(_keep_typing(sender_id)) if keep_typing else None
+    try:
+        await media.ready(settings.MEDIA_FIRST_SYNC_WAIT)
+    finally:
+        if typing:
+            typing.cancel()
+
+
 async def _answer_message(sender_id: str, text: str, attribution: dict | None, phone_from_qr: str | None):
     """Process an incoming message and respond.
 
@@ -993,6 +1033,7 @@ async def _answer_message(sender_id: str, text: str, attribution: dict | None, p
     try:
         # Show typing indicator
         await send_typing_indicator(sender_id)
+        await _wait_for_first_media_sync(sender_id, keep_typing=True)
 
         # Get user profile for personalization
         profile = await get_user_profile(sender_id)
@@ -1058,8 +1099,8 @@ async def _answer_message(sender_id: str, text: str, attribution: dict | None, p
                 reply_text = ESCALATION_MESSAGE_ASK_PHONE
             await send_message(sender_id, reply_text)
         else:
-            # History keeps the [IMAGES:] and [QUICK:] tokens, and a note per Drive image sent, so the model knows
-            # what it already sent; not the [SEND:] ones, the note says it
+            # History keeps the [IMAGES:] and [QUICK:] tokens, and a note per Drive image sent or failed, so the model
+            # knows what it already sent; not the [SEND:] ones, the note says it
             reply_text, tagged = _extract_sends(response.text)
             clean_text, image_urls = _extract_images(SENT_NOTE.sub("", reply_text))
             clean_text, quick_key = _extract_quick_reply(clean_text)
@@ -1073,11 +1114,12 @@ async def _answer_message(sender_id: str, text: str, attribution: dict | None, p
             if settings.MEDIA_SYNC_ENABLED:
                 logger.info(f"Drive images planned for {sender_id}: {[o.key for o in offers]}")
             # Messenger shows quick replies only under the latest message: they go on the last one sent
-            delivered = await _send_reply_with_images(sender_id, clean_text, quick_replies, image_urls, offers)
-            _record_images(sender_id, existing_profile, delivered, waiting)
+            delivered, tried = await _send_reply_with_images(sender_id, clean_text, quick_replies, image_urls, offers)
+            _record_images(sender_id, existing_profile, delivered, tried, waiting)
             if delivered:
                 logger.info(f"Drive images sent to {sender_id}: {[o.key for o in delivered]}")
                 reply_text += "".join(f" [đã gửi ảnh {o.label}]" for o in delivered)
+            reply_text += "".join(f" [ảnh {o.label} chưa gửi được]" for o in tried if o not in delivered)
             for offer in delivered:
                 if offer.stale:
                     await _remind_stale_fee(offer.key.split(":")[1], offer.stale, today)
@@ -1189,6 +1231,7 @@ async def test_chat(body: TestMessage, _: None = Depends(require_secret)):
     """Test AI response without Facebook (for development/debugging). Requires ?secret=. The model gets the same
     [HỆ THỐNG] image lines as on Messenger; no image is sent."""
     # Load profile + persisted history (same as process_message)
+    await _wait_for_first_media_sync(body.user_id)
     existing_profile = customer_memory.get_profile(body.user_id)
     customer_context = customer_memory.format_profile_for_prompt(existing_profile)
     history = customer_memory.get_conversation_history(body.user_id)
@@ -1275,7 +1318,11 @@ def _is_media_command(message: dict) -> bool:
 
 async def _sync_media_and_report():
     report = await media.sync_media()
-    await _send_telegram(media.sync_summary(report, datetime.now(VN_TZ).date()))
+    summary = media.sync_summary(report, datetime.now(VN_TZ).date())
+    if report["error"] != "off" and report["total"]:
+        reason = await media.check_link()
+        summary += f"\nLink ảnh: {f'lỗi ({reason})' if reason else 'OK'}"
+    await _send_telegram(summary)
 
 
 @app.post("/telegram-webhook")

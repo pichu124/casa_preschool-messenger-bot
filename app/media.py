@@ -14,6 +14,8 @@ import asyncio
 import json
 import logging
 import re
+import socket
+import time
 import unicodedata
 from datetime import date, datetime, timedelta
 from io import BytesIO
@@ -23,6 +25,7 @@ from typing import NamedTuple
 import httpx
 from PIL import Image, ImageOps
 
+from app import escalation
 from app.config import settings
 from app.leads_sheet import VN_TZ
 from app.messenger import QUICK_REPLIES
@@ -42,6 +45,10 @@ JPEG_QUALITY = 85
 CATALOG_FILE = "catalog.json"
 # "HỌC PHÍ THÁNG N" has no year: a fee image last changed longer ago than this is taken for last year's.
 FEE_STALE_AFTER = timedelta(days=300)
+# After a sync with images the bot opens one of its public image URLs as Messenger will (check_link): a wrong
+# PUBLIC_BASE_URL fails every image ("(#100) Upload failed") and the admin group hears of it at most once an hour.
+LINK_CHECK_TIMEOUT = 10
+LINK_ALERT_EVERY = 3600  # seconds
 
 _DASHES = str.maketrans({c: "-" for c in "‐‑‒–—―−"})
 _AGES = re.compile(r"(\d+)\s*(thang|tuoi)?\s*-\s*(\d+)\s*(thang|tuoi)")
@@ -180,6 +187,13 @@ def load_catalog() -> dict:
 _catalog = load_catalog()
 _lock = asyncio.Lock()
 _off_warned = False
+# Set once the first sync since start_sync_task has ended (done or failed), at once when sync is off or images of
+# the last run are on disk; None before start_sync_task (no app started).
+_first_sync: asyncio.Event | None = None
+_first_sync_started = 0.0  # time.monotonic() at start_sync_task
+_first_sync_late_warned = False
+# time.monotonic() of the last broken-link alert (check_link); in memory
+_link_alerted_at: float | None = None
 
 
 def _configured() -> bool:
@@ -318,15 +332,90 @@ async def _apply(files: list[dict]) -> dict:
                    removed=removed, skipped=skipped, failed=failed)
 
 
-async def sync_forever() -> None:
+async def sync_forever(first_sync: asyncio.Event) -> None:
+    started = time.monotonic()
+    try:
+        report = await sync_media()
+    finally:
+        first_sync.set()
+    outcome = "done" if report["ok"] else f"failed ({report['error']})"
+    logger.info(f"Media first sync since start {outcome} in {time.monotonic() - started:.1f}s: {report['total']} images")
     while True:
-        await sync_media()
+        if report["total"]:
+            await check_link()
         await asyncio.sleep(max(1, settings.MEDIA_SYNC_MINUTES) * 60)
+        report = await sync_media()
 
 
 def start_sync_task() -> asyncio.Task | None:
     """Sync now and every MEDIA_SYNC_MINUTES in the background (lifespan of app/main.py); None when off."""
-    return asyncio.create_task(sync_forever()) if _enabled() else None
+    global _first_sync, _first_sync_started, _first_sync_late_warned
+    enabled = _enabled()
+    _first_sync, _first_sync_started, _first_sync_late_warned = asyncio.Event(), time.monotonic(), False
+    if not enabled or _catalog["items"]:
+        _first_sync.set()
+    return asyncio.create_task(sync_forever(_first_sync)) if enabled else None
+
+
+async def ready(timeout: float) -> bool:
+    """Wait for the first sync since start (see _first_sync) until `timeout` seconds after it started, one deadline
+    for every caller: one coming later does not wait. True once it has ended; the first caller it is not ready for
+    logs a WARNING. Never raises."""
+    global _first_sync_late_warned
+    first_sync = _first_sync
+    if first_sync is None or first_sync.is_set():
+        return True
+    try:
+        await asyncio.wait_for(first_sync.wait(), max(0.0, _first_sync_started + timeout - time.monotonic()))
+    except TimeoutError:
+        if not _first_sync_late_warned:
+            _first_sync_late_warned = True
+            logger.warning(
+                f"Media first sync not done {timeout:g}s after start: answering without Drive images until it is"
+            )
+        return False
+    return True
+
+
+def _link_failure(error: Exception) -> str:
+    if isinstance(error, httpx.TimeoutException):
+        return "timeout"
+    cause = error
+    while cause is not None:
+        if isinstance(cause, socket.gaierror):
+            return "DNS: không tìm thấy tên miền"
+        cause = cause.__cause__ or cause.__context__
+    return "không kết nối được" if isinstance(error, httpx.ConnectError) else type(error).__name__
+
+
+async def check_link() -> str | None:
+    """Open the public URL of one catalog image over the internet, as Messenger downloads it: None when it answers
+    200 with an image (or the catalog has none), else a short reason ("DNS: …", "HTTP 404", "timeout", "HTTP 200 nhưng
+    không phải ảnh: text/html"), also told to the admin group at most once every LINK_ALERT_EVERY. Never raises."""
+    global _link_alerted_at
+    if not _catalog["items"]:
+        return None
+    link = public_url(_catalog["items"][min(_catalog["items"])])
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=LINK_CHECK_TIMEOUT) as client:
+            resp = await client.get(link)
+        content_type = resp.headers.get("content-type", "")
+        if resp.status_code != 200:
+            reason = f"HTTP {resp.status_code}"
+        elif not content_type.startswith("image/"):
+            reason = f"HTTP 200 nhưng không phải ảnh: {content_type.split(';')[0] or 'không có Content-Type'}"
+        else:
+            return None
+    except Exception as e:
+        reason = _link_failure(e)
+    logger.error(f"Media link {link} does not open: {reason}")
+    if _link_alerted_at is None or time.monotonic() - _link_alerted_at >= LINK_ALERT_EVERY:
+        _link_alerted_at = time.monotonic()
+        await escalation._send_telegram(
+            f"⚠️ Link ảnh không mở được ({reason}): {link}. Kiểm PUBLIC_BASE_URL trên Render (hiện là "
+            f"{settings.PUBLIC_BASE_URL or 'chưa đặt'}), phải trùng địa chỉ service ở đầu trang Render."
+        )
+    return reason
 
 
 # --- lookups ---

@@ -26,6 +26,8 @@ class Settings:
     # set it only after the script with type "media" is deployed (the one before "Chủ đề" writes any body as a lead)
     MEDIA_SYNC_ENABLED: bool = os.getenv("MEDIA_SYNC_ENABLED", "").strip().lower() == "true"
     MEDIA_SYNC_MINUTES: int = int(os.getenv("MEDIA_SYNC_MINUTES", "").strip() or 30)
+    # Seconds a message waits for the first sync after a start (deploy, Render Free waking up with an empty disk)
+    MEDIA_FIRST_SYNC_WAIT: float = float(os.getenv("MEDIA_FIRST_SYNC_WAIT", "").strip() or 60)
     # Resized images and their catalog.json, served at PUBLIC_BASE_URL/static/media/
     MEDIA_DIR: str = os.getenv("MEDIA_DIR", "").strip() or "static/media"
 

@@ -7,11 +7,15 @@ cả dòng [HỆ THỐNG] mà code đưa vào khối nhắc nhở. process_messa
 import asyncio
 import json
 import logging
+import time
 from datetime import date, datetime, timedelta, timezone
+from io import BytesIO
+from pathlib import Path
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from PIL import Image
 
 import app.main as main
 from app import customer_memory, escalation, media, messenger
@@ -137,6 +141,7 @@ def catalog(monkeypatch):
     monkeypatch.setattr(settings, "MEDIA_SYNC_ENABLED", True)
     monkeypatch.setattr(settings, "PUBLIC_BASE_URL", BASE_URL)
     monkeypatch.setattr(media, "_catalog", {**media._empty(), "items": {i["id"]: dict(i) for i in CATALOG}})
+    monkeypatch.setattr(media, "_first_sync", None)  # no first sync pending from a TestClient lifespan of another test
 
 
 def known(customer_id=CUSTOMER_ID, **fields):
@@ -519,6 +524,21 @@ def test_both_systems_asked_for_get_the_timetables_of_the_campuses_named_earlier
     assert parent.images(sent) == [url("cl-tkb-36-60"), url("km-tkb-36-72")]
 
 
+@pytest.mark.parametrize("both", ["cả 2 cơ sở", "hai bên", "2 trường"])
+def test_both_campuses_get_the_timetables_of_every_campus_named_and_no_system_not_named(parent, catalog, both):
+    known(kid_age="4 tuổi")
+    parent.say("Chùa Láng và Kim Mã")
+
+    assert parent.images(parent.say(f"Gửi thời khoá biểu {both} nhé")) == [url("cl-tkb-36-60"), url("km-tkb-36-72")]
+
+    customer_memory.set_fields(CUSTOMER_ID, {"conversation_history": [], "media_sent": {}, "interested_campus": "Kim Mã"})
+    sent = parent.say(f"Cho em xin TKB {both} ạ")
+
+    assert parent.images(sent) == [url("km-tkb-36-72")]  # không thêm hệ Quốc tế mà phụ huynh chưa nêu, không hỏi
+    assert "Chưa biết cơ sở" not in parent.notes[-1], parent.notes[-1]
+    assert not customer_memory.get_profile(CUSTOMER_ID).get("timetable_asked")
+
+
 @pytest.mark.parametrize("text", ["Gửi thời khoá biểu 2 hệ nhé", "cho em xin TKB cả hai hệ ạ"])
 def test_both_systems_without_an_international_campus_ask_which_one(parent, catalog, text):
     known(kid_age="4 tuổi")
@@ -804,6 +824,23 @@ def test_menu_without_a_known_system_is_the_international_one(parent, catalog):
     assert parent.images(sent) == [url("qt-menu")]
 
 
+def test_menu_goes_once_to_each_parent(parent, catalog):
+    known(interested_campus="Kim Mã")
+    asks_menu = {"topics": ["Ăn uống/thực đơn"]}
+
+    assert parent.images(parent.say("cho em xem thực đơn ạ", extracted=asks_menu)) == [url("sn-menu")]
+    assert "menu:sn-menu" in customer_memory.get_profile(CUSTOMER_ID)["media_sent"]
+    assert parent.images(parent.say("gửi lại thực đơn cho em với", extracted=asks_menu)) == []
+    assert "thực đơn" not in parent.notes[-1], parent.notes[-1]
+
+
+@pytest.mark.parametrize(("program", "menu"), [("song ngữ", "sn-menu"), ("Quốc tế", "qt-menu")])
+def test_menu_without_a_campus_is_the_one_of_the_programme_the_parent_wants(parent, catalog, program, menu):
+    known(interested_program=program)
+
+    assert parent.images(parent.say("bé ăn những gì ạ", extracted={"topics": ["Ăn uống/thực đơn"]})) == [url(menu)]
+
+
 # --- không có danh mục, lỗi, chuyển tư vấn viên ---
 
 
@@ -837,7 +874,7 @@ def test_no_image_when_the_parent_goes_to_a_consultant(parent, catalog, extracte
     assert "media_sent" not in customer_memory.get_profile(CUSTOMER_ID)
 
 
-def test_a_failed_image_does_not_break_the_turn_and_is_tried_again_later(parent, catalog, caplog):
+def test_a_failed_image_does_not_break_the_turn_and_goes_when_asked_again(parent, catalog, caplog):
     known(kid_age="3 tuổi", interested_campus="Kim Mã")
     parent.failing = {url("sn-fee-10")}
 
@@ -847,7 +884,7 @@ def test_a_failed_image_does_not_break_the_turn_and_is_tried_again_later(parent,
     # Ảnh của lượt là ảnh model được dặn báo gửi: mọi ảnh Drive lỗi thì xin lỗi, nút sang câu xin lỗi
     assert sent == [("text", SHOWN, None), ("text", main.IMAGES_FAILED_MESSAGE, VISIT_BUTTONS)]
     assert [r.levelname for r in caplog.records if "not sent" in r.getMessage()] == ["WARNING"]
-    assert parent.history()[-1] == REPLY
+    assert parent.history()[-1] == REPLY + " [ảnh học phí hệ Song ngữ (cơ sở Kim Mã) chưa gửi được]"
     parent.failing = set()
     assert parent.images(parent.say("học phí bao nhiêu ạ", extracted={"topics": ["Học phí"]})) == [url("sn-fee-10")]
 
@@ -895,15 +932,173 @@ def test_parent_told_the_images_failed_when_every_drive_image_promised_failed(pa
     assert "tư vấn viên" not in main.IMAGES_FAILED_MESSAGE
 
 
-def test_no_apology_when_one_of_the_images_went(parent, catalog):
+def failed(labels: str) -> str:
+    return f"Dạ ảnh {labels} em gửi đang bị lỗi chưa tới được, Ba/Mẹ nhắn lại em sau ít phút để em gửi lại nhé ạ."
+
+
+def test_apology_names_the_campus_whose_timetable_failed(parent, catalog):
     known(kid_age="4 tuổi", interested_campus="Chùa Láng, Kim Mã")
     parent.failing = {url("km-tkb-36-72")}
 
     sent = parent.say("Cho em xin thời khoá biểu ạ", reply=TIMETABLE_SENT)
 
-    assert parent.images(sent) == [url("cl-tkb-36-60")]
-    assert ("text", main.IMAGES_FAILED_MESSAGE, VISIT_BUTTONS) not in sent
+    assert sent == [
+        ("text", "Dạ em gửi Ba/Mẹ thời khoá biểu lớp của bé để tham khảo ạ.", None),
+        ("image", url("cl-tkb-36-60"), None),
+        ("text", failed("thời khoá biểu cơ sở Kim Mã"), VISIT_BUTTONS),
+    ]
     assert len(image_alerts(parent)) == 1
+
+
+FEE_AND_TIMETABLE = {"topics": ["Học phí", "Chương trình/phương pháp"]}
+FEE_NOTE, TIMETABLE_NOTE_SENT = "[đã gửi ảnh học phí hệ Song ngữ (cơ sở Kim Mã)]", "[đã gửi ảnh thời khoá biểu cơ sở Kim Mã]"
+TIMETABLE_FAILED_NOTE = "[ảnh thời khoá biểu cơ sở Kim Mã chưa gửi được]"
+TIMETABLE_FOLLOWS = "Sau câu trả lời này hệ thống gửi ảnh thời khoá biểu cơ sở Kim Mã"
+
+
+# Review 2026-10-24 (hồi quy so với 0bc19ee): lượt có ảnh học phí và thời khoá biểu mà chỉ thời khoá biểu lỗi thì bot
+# im lặng (câu xin lỗi chỉ đi khi mọi ảnh lỗi) và xoá cờ chờ thời khoá biểu: phụ huynh không bao giờ biết ảnh thiếu.
+def test_a_partly_failed_turn_apologises_for_the_image_that_failed_and_does_not_try_it_again_unasked(parent, catalog):
+    known(kid_age="4 tuổi", interested_campus="Kim Mã")
+    parent.failing = {url("km-tkb-36-72")}
+
+    sent = parent.say("học phí và thời khoá biểu", extracted=FEE_AND_TIMETABLE)
+
+    assert sent == [
+        ("text", SHOWN, None),
+        ("image", url("sn-fee-10"), None),
+        ("text", failed("thời khoá biểu cơ sở Kim Mã"), VISIT_BUTTONS),
+    ]
+    assert parent.history()[-1] == f"{REPLY} {FEE_NOTE} {TIMETABLE_FAILED_NOTE}"
+    assert not customer_memory.get_profile(CUSTOMER_ID).get("timetable_asked")
+
+    parent.failing = set()
+    assert parent.say("dạ vâng") == [("text", SHOWN, VISIT_BUTTONS)]
+    assert TIMETABLE_FOLLOWS not in parent.notes[-1], parent.notes[-1]
+
+
+def resend_line(kind: str, label: str) -> str:
+    return (
+        f"- [HỆ THỐNG] Ảnh {label} tin trước chưa gửi được. Nếu phụ huynh xin gửi lại thì báo em gửi lại và thêm "
+        f"[SEND:{kind}]; phụ huynh không cần/nói chuyện khác thì không thêm, không nhắc lại ảnh."
+    )
+
+
+# (loại, tin xin ảnh, trích xuất, ảnh của lượt, nhãn): mỗi loại ảnh Drive, phụ huynh ở Kim Mã, bé 4 tuổi.
+FAILED_KINDS = {
+    "fee": ("học phí bao nhiêu ạ", {"topics": ["Học phí"]}, ["sn-fee-10"], "học phí hệ Song ngữ (cơ sở Kim Mã)"),
+    "timetable": ("Cho em xin thời khoá biểu ạ", {}, ["km-tkb-36-72"], "thời khoá biểu cơ sở Kim Mã"),
+    "facilities": ("cho em xem ảnh trường ạ", {"topics": ["Cơ sở vật chất"]}, [f"km-csvc-{i}" for i in range(1, 5)],
+                   "cơ sở vật chất cơ sở Kim Mã"),
+    "menu": ("cho em xem thực đơn", {"topics": ["Ăn uống/thực đơn"]}, ["sn-menu"], "thực đơn hệ Song ngữ"),
+}
+
+
+def fail_once(parent, kind: str) -> tuple[list[str], str]:
+    """Lượt xin ảnh `kind` mà mọi ảnh của nó lỗi (bot xin lỗi); trả về URL các ảnh đó và nhãn trong ghi chú lịch sử."""
+    known(kid_age="4 tuổi", interested_campus="Kim Mã")
+    text, extracted, ids, label = FAILED_KINDS[kind]
+    parent.failing = {url(i) for i in ids}
+    assert parent.images(parent.say(text, extracted=extracted)) == []
+    assert parent.history()[-1].endswith(f" [ảnh {label} chưa gửi được]")
+    parent.failing = set()
+    return [url(i) for i in ids], label
+
+
+# Review 2026-10-24: code đọc chữ "gửi lại" của phụ huynh nên "không cần em gửi lại đâu" vẫn nhận ảnh. Ảnh lỗi ở tin
+# trước được nhắc trong dòng [HỆ THỐNG]; ảnh chỉ đi lại khi model gắn [SEND:<loại>] (như mọi ảnh tuỳ chủ đề).
+@pytest.mark.parametrize("kind", list(FAILED_KINDS))
+def test_a_failed_image_goes_again_when_the_reply_to_the_parent_asking_tags_it(parent, catalog, kind):
+    images, label = fail_once(parent, kind)
+
+    sent = parent.say("em gửi lại ảnh đi", reply=f"Dạ em gửi lại Ba/Mẹ ảnh ạ. [SEND:{kind}] [QUICK:visit_invite]")
+
+    assert parent.images(sent) == images
+    assert resend_line(kind, label) in parent.notes[-1].splitlines(), parent.notes[-1]
+    assert f"Sau câu trả lời này hệ thống gửi ảnh {label}" not in parent.notes[-1], parent.notes[-1]
+    assert parent.history()[-1] == f"Dạ em gửi lại Ba/Mẹ ảnh ạ. [QUICK:visit_invite] [đã gửi ảnh {label}]"
+
+
+@pytest.mark.parametrize("kind", list(FAILED_KINDS))
+@pytest.mark.parametrize("text", ["không cần em gửi lại đâu, chị xem web rồi", "dạ vâng", "em gửi lại ảnh đi"])
+def test_a_failed_image_does_not_go_again_when_the_reply_does_not_tag_it(parent, catalog, kind, text):
+    _, label = fail_once(parent, kind)
+
+    sent = parent.say(text)
+
+    assert sent == [("text", SHOWN, VISIT_BUTTONS)]
+    assert resend_line(kind, label) in parent.notes[-1].splitlines(), parent.notes[-1]
+    assert f"Sau câu trả lời này hệ thống gửi ảnh {label}" not in parent.notes[-1], parent.notes[-1]
+    assert "media_sent" not in customer_memory.get_profile(CUSTOMER_ID)
+
+
+def test_only_the_image_that_failed_is_offered_again_after_a_partly_failed_turn(parent, catalog):
+    known(kid_age="4 tuổi", interested_campus="Kim Mã")
+    parent.failing = {url("km-tkb-36-72")}
+    parent.say("học phí và thời khoá biểu", extracted=FEE_AND_TIMETABLE)
+    parent.failing = set()
+
+    sent = parent.say("em gửi lại ảnh đi", reply="Dạ em gửi lại Ba/Mẹ ảnh ạ. [SEND:timetable] [QUICK:visit_invite]")
+
+    assert parent.images(sent) == [url("km-tkb-36-72")]
+    resend = [line for line in parent.notes[-1].splitlines() if "tin trước chưa gửi được" in line]
+    assert resend == [resend_line("timetable", "thời khoá biểu cơ sở Kim Mã")], parent.notes[-1]
+    assert TIMETABLE_NOTE_SENT in parent.history()[-1]
+    assert "timetable:km-tkb-36-72" in customer_memory.get_profile(CUSTOMER_ID)["media_sent"]
+    parent.say("em gửi lại ảnh đi")
+    assert "tin trước chưa gửi được" not in parent.notes[-1], parent.notes[-1]
+
+
+# Thử thật trên Render 2026-10-24 (PUBLIC_BASE_URL sai, Graph "(#100) Upload failed"): ảnh cơ sở vật chất Chùa Láng
+# lỗi, cờ facilities_asked còn chờ nên lượt sau (phụ huynh chỉ bấm "Dưới 2 tuổi") bot lại gửi, lại lỗi, lại xin lỗi.
+# Ảnh lỗi không tự thử lại: chỉ gửi lại khi phụ huynh hỏi lại.
+def test_failed_images_are_not_tried_again_until_the_parent_asks_again(parent, catalog, monkeypatch):
+    chua_lang = [item(f"cl-csvc-{i}", f"IMG_{i:02}.jpg", QT, "CƠ SỞ CHÙA LÁNG", CSVC) for i in range(1, 7)]
+    monkeypatch.setitem(media._catalog, "items", {**media._catalog["items"], **{i["id"]: i for i in chua_lang}})
+    photos = [url(f"cl-csvc-{i}") for i in range(1, 5)]
+    asks_photos = {"topics": ["Cơ sở vật chất"]}
+    facilities_sent = "Sau câu trả lời này hệ thống gửi ảnh cơ sở vật chất cơ sở Chùa Láng"
+
+    assert parent.images(parent.say("Cho em xin ảnh trường ạ", extracted=asks_photos)) == []
+    parent.failing = set(photos)
+    sent = parent.say("Chùa Láng", reply="Dạ em gửi Ba/Mẹ ảnh cơ sở Chùa Láng ạ.",
+                      extracted={"interested_campus": "Chùa Láng"})
+    assert facilities_sent in parent.notes[-1], parent.notes[-1]
+    assert sent == [("text", "Dạ em gửi Ba/Mẹ ảnh cơ sở Chùa Láng ạ.", None), ("text", main.IMAGES_FAILED_MESSAGE, None)]
+
+    sent = parent.say("Dưới 2 tuổi", extracted={"kid_age": "dưới 2 tuổi"})
+    assert sent == [("text", SHOWN, VISIT_BUTTONS)]
+    assert facilities_sent not in parent.notes[-1], parent.notes[-1]
+
+    parent.failing = set()
+    assert parent.images(parent.say("Cho em xin ảnh trường ạ", extracted=asks_photos)) == photos
+
+
+def test_some_photos_of_the_facilities_failing_count_as_sent_without_an_apology(parent, catalog):
+    known(interested_campus="Kim Mã")
+    parent.failing = {url("km-csvc-2")}
+
+    sent = parent.say("cho em xem ảnh trường ạ", reply="Dạ em gửi Ba/Mẹ ảnh cơ sở Kim Mã ạ.",
+                      extracted={"topics": ["Cơ sở vật chất"]})
+
+    assert sent == [("text", "Dạ em gửi Ba/Mẹ ảnh cơ sở Kim Mã ạ.", None),
+                    *[("image", url(f"km-csvc-{i}"), None) for i in (1, 3, 4)]]
+    assert "facilities:Kim Mã" in customer_memory.get_profile(CUSTOMER_ID)["media_sent"]
+    assert len(image_alerts(parent)) == 1
+
+
+def test_a_failed_qa_image_is_skipped_without_an_apology_nor_an_alert(parent, catalog, monkeypatch, caplog):
+    monkeypatch.setattr(settings, "MEDIA_SYNC_ENABLED", False)
+    parent.failing = {f"{BASE_URL}/static/thuc-don-mau.jpg"}
+
+    with caplog.at_level(logging.WARNING):
+        sent = parent.say("Cho em xem thực đơn", reply="Dạ đây là thực đơn mẫu của Casa ạ. [IMAGES:static/thuc-don-mau.jpg]")
+
+    assert sent == [("text", "Dạ đây là thực đơn mẫu của Casa ạ.", None)]
+    assert parent.telegram == []
+    assert [(r.levelname, r.getMessage()) for r in caplog.records if "not sent" in r.getMessage()] == [
+        ("WARNING", f"Image {BASE_URL}/static/thuc-don-mau.jpg not sent to {CUSTOMER_ID}: GraphError")
+    ]
 
 
 def test_every_turn_logs_the_drive_images_it_plans_to_send(parent, catalog, caplog):
@@ -954,12 +1149,47 @@ def test_at_most_five_images_in_one_turn(parent, catalog):
 
     images = parent.images(sent)
     assert images[:3] == [url("sn-fee-10"), url("km-tkb-36-72"), url("sn-menu")]
-    assert len(images) == 3  # 4 ảnh cơ sở vật chất không vừa: chờ lần hỏi cơ sở vật chất sau
+    assert len(images) == 3  # 4 ảnh cơ sở vật chất không vừa: cờ facilities_asked chờ lượt sau
     assert sent[-1][2] == VISIT_BUTTONS
 
 
-def test_model_copying_the_sent_note_is_not_shown_to_the_parent(parent, catalog):
-    sent = parent.say("dạ vâng", reply="Dạ vâng ạ. [đã gửi ảnh học phí hệ Song ngữ] Ba/Mẹ cần thêm gì không ạ?")
+def test_images_that_did_not_fit_go_on_the_next_turn(parent, catalog):
+    known(kid_age="3 tuổi", interested_campus="Kim Mã")
+    parent.say(
+        "cho em xin học phí, thời khóa biểu, thực đơn và ảnh trường",
+        extracted={"topics": ["Học phí", "Chương trình/phương pháp", "Ăn uống/thực đơn", "Cơ sở vật chất"]},
+    )
+
+    sent = parent.say("dạ vâng")
+
+    assert parent.images(sent) == [url(f"km-csvc-{i}") for i in range(1, 5)]
+    assert not customer_memory.get_profile(CUSTOMER_ID).get("facilities_asked")
+
+
+def test_a_menu_that_did_not_fit_waits_until_the_parent_asks_again(parent, catalog):
+    known(kid_age="4 tuổi", interested_campus="Chùa Láng, Mỹ Đình, Kim Mã")
+    asks_menu = {"topics": ["Ăn uống/thực đơn"]}
+
+    sent = parent.say("cho em xin học phí, thời khoá biểu và thực đơn",
+                      extracted={"topics": ["Học phí", "Chương trình/phương pháp", *asks_menu["topics"]]})
+
+    assert len(parent.images(sent)) == 5 and url("qt-menu") not in parent.images(sent)  # 2 học phí + 3 thời khoá biểu
+    assert parent.images(parent.say("dạ vâng")) == []  # thực đơn không có cờ chờ
+    assert parent.images(parent.say("cho em xem thực đơn", extracted=asks_menu)) == [url("qt-menu")]
+
+
+def test_a_reply_of_only_tokens_sends_only_the_images_with_the_buttons(parent, catalog):
+    known(interested_campus="Kim Mã")
+
+    sent = parent.say("thực đơn", reply="[IMAGES:static/thuc-don-mau.jpg][QUICK:age]",
+                      extracted={"topics": ["Ăn uống/thực đơn"]})
+
+    assert sent == [("image", url("sn-menu"), main.build_quick_replies("age"))]
+
+
+@pytest.mark.parametrize("note", ["[đã gửi ảnh học phí hệ Song ngữ]", "[ảnh thời khoá biểu cơ sở Kim Mã chưa gửi được]"])
+def test_model_copying_the_sent_note_is_not_shown_to_the_parent(parent, catalog, note):
+    sent = parent.say("dạ vâng", reply=f"Dạ vâng ạ. {note} Ba/Mẹ cần thêm gì không ạ?")
 
     assert sent == [("text", "Dạ vâng ạ. Ba/Mẹ cần thêm gì không ạ?", None)]
 
@@ -995,3 +1225,239 @@ def test_test_chat_keeps_no_send_token_in_the_history(parent, catalog, monkeypat
 
     assert resp.status_code == 200
     assert parent.history()[-1] == "Dạ em gửi Ba/Mẹ bảng học phí ạ. [QUICK:visit_invite]"
+
+
+# --- lần đồng bộ đầu sau khởi động ---
+
+
+SHEET_URL = "https://script.google.com/macros/s/MEDIA-REPLIES-TEST/exec"
+TIMETABLE_NOTE = "[HỆ THỐNG] Sau câu trả lời này hệ thống gửi ảnh thời khoá biểu cơ sở Kim Mã"
+
+
+def _png() -> bytes:
+    out = BytesIO()
+    Image.new("RGB", (40, 30), (200, 30, 30)).save(out, "PNG")
+    return out.getvalue()
+
+
+class SlowDrive:
+    """Apps Script (type "media") và link tải Drive sau httpx. Apps Script trả lời sau `delay` giây, như sau khi
+    Render Free thức dậy: ổ đĩa trống, lần đồng bộ đầu chạy nền."""
+
+    def __init__(self):
+        self.delay = 0.3
+        files = [{"id": i["id"], "name": i["name"], "mimeType": "image/png", "modified": i["modified"],
+                  "path": i["path"]} for i in CATALOG]
+        self.answer = {"ok": True, "files": files}
+        self.listed = 0
+
+    async def respond(self, request: httpx.Request) -> httpx.Response:
+        if request.url.host == "script.google.com":
+            self.listed += 1
+            await asyncio.sleep(self.delay)
+            return httpx.Response(200, json=self.answer)
+        if request.url.host == "drive.google.com":
+            return httpx.Response(200, content=_png(), headers={"Content-Type": "image/png"})
+        if request.url.host == httpx.URL(BASE_URL).host:  # the link check after a sync (media.check_link)
+            return httpx.Response(200, content=b"\xff\xd8jpeg", headers={"Content-Type": "image/jpeg"})
+        raise AssertionError(f"unexpected request {request.url}")
+
+
+@pytest.fixture
+def drive(monkeypatch):
+    fake = SlowDrive()
+
+    async def handle_async(self, request):
+        return await fake.respond(request)
+
+    monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", handle_async)
+    monkeypatch.setattr(settings, "MEDIA_SYNC_ENABLED", True)
+    monkeypatch.setattr(settings, "LEADS_SHEET_WEBHOOK_URL", SHEET_URL)
+    monkeypatch.setattr(settings, "LEADS_SHEET_TOKEN", "sheet-token-media-replies")
+    monkeypatch.setattr(settings, "PUBLIC_BASE_URL", BASE_URL)
+    monkeypatch.setattr(settings, "MEDIA_FIRST_SYNC_WAIT", 30)
+    monkeypatch.setattr(media, "_first_sync", None)
+    monkeypatch.setattr(media, "_link_alerted_at", None)
+    return fake
+
+
+def right_after_start(parent, *texts) -> list[tuple[list, float]]:
+    """The bot starts (lifespan: media.start_sync_task) and the parent sends `texts` at once, one after the other;
+    (what the bot sent, seconds) per message."""
+    parent.response = AIResponse(text=REPLY, should_escalate=False, model_used="fake-model")
+
+    async def run():
+        task = media.start_sync_task()
+        turns = []
+        try:
+            for text in texts:
+                before, started = len(parent.sent), time.monotonic()
+                await main.process_message(CUSTOMER_ID, text)
+                turns.append((parent.sent[before:], time.monotonic() - started))
+        finally:
+            if task:
+                task.cancel()
+        return turns
+
+    return asyncio.run(run())
+
+
+def first_sync_warnings(caplog) -> list[str]:
+    return [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING and "first sync" in r.getMessage()]
+
+
+# Người vận hành 2026-10-24: sau mỗi lần deploy hay Render Free thức dậy, tin hỏi thời khoá biểu đầu tiên được trả
+# lời như chưa có ảnh ([ESCALATE]) vì lần đồng bộ đầu còn chạy nền. Lượt đó chờ đồng bộ xong rồi mới trả lời.
+def test_a_message_right_after_start_waits_for_the_first_sync_and_gets_the_timetable(parent, drive, caplog):
+    known(interested_campus="Kim Mã", kid_age="3-5 tuổi")
+
+    with caplog.at_level(logging.INFO):
+        [(sent, seconds)] = right_after_start(parent, "Cho em xin thời khoá biểu ạ")
+
+    assert sent == [("text", SHOWN, None), ("image", url("km-tkb-36-72"), VISIT_BUTTONS)]
+    assert TIMETABLE_NOTE in parent.notes[-1], parent.notes[-1]
+    assert seconds >= drive.delay
+    first = [r for r in caplog.records if r.name == "app.media" and "first sync" in r.getMessage()]
+    assert [r.levelname for r in first] == ["INFO"]
+    assert f"{len(CATALOG)} images" in first[0].getMessage(), first[0].getMessage()
+    assert first_sync_warnings(caplog) == []
+
+
+def test_a_first_sync_slower_than_the_wait_still_gets_an_answer_without_images(parent, drive, monkeypatch, caplog):
+    known(interested_campus="Kim Mã", kid_age="3-5 tuổi")
+    drive.delay = 30
+    monkeypatch.setattr(settings, "MEDIA_FIRST_SYNC_WAIT", 0.2)
+
+    with caplog.at_level(logging.WARNING):
+        [(sent, seconds)] = right_after_start(parent, "Cho em xin thời khoá biểu ạ")
+
+    assert parent.images(sent) == [] and sent[0][1] == SHOWN
+    assert 0.2 <= seconds < 5
+    assert len(first_sync_warnings(caplog)) == 1
+
+
+# Review 2026-10-24: mỗi tin tới trong lúc lần đồng bộ đầu còn chạy đều chờ đủ MEDIA_FIRST_SYNC_WAIT (60 giây), tin
+# sau chờ thêm 60 giây nữa. Hạn là một: lúc bắt đầu lần đồng bộ đầu + MEDIA_FIRST_SYNC_WAIT; tin tới sau hạn không chờ.
+def test_every_message_waits_for_the_first_sync_until_one_deadline(parent, drive, monkeypatch, caplog):
+    known(interested_campus="Kim Mã", kid_age="3-5 tuổi")
+    drive.delay = 30
+    monkeypatch.setattr(settings, "MEDIA_FIRST_SYNC_WAIT", 0.6)
+    parent.response = AIResponse(text=REPLY, should_escalate=False, model_used="fake-model")
+
+    async def run():
+        task = media.start_sync_task()
+        seconds = []
+        try:
+            await asyncio.sleep(0.3)
+            for text in ("Cho em xin thời khoá biểu ạ", "dạ vâng", "học phí bao nhiêu ạ"):
+                started = time.monotonic()
+                await main.process_message(CUSTOMER_ID, text)
+                seconds.append(time.monotonic() - started)
+        finally:
+            task.cancel()
+        return seconds
+
+    with caplog.at_level(logging.WARNING):
+        first, *later = asyncio.run(run())
+
+    assert 0.2 <= first < 0.5  # came 0.3 s after the sync started: waits what is left of the 0.6 s
+    assert all(s < 0.3 for s in later), later
+    assert parent.images() == []
+    assert len(first_sync_warnings(caplog)) == 1
+
+
+# Messenger tắt "đang soạn" sau ~20 giây, còn lượt chờ lần đồng bộ đầu tới MEDIA_FIRST_SYNC_WAIT (60 giây): phụ huynh
+# thấy bot im. Trong lúc chờ, bot bật lại "đang soạn" mỗi TYPING_REFRESH_EVERY giây.
+def test_waiting_for_the_first_sync_keeps_the_typing_indicator_on(parent, drive, monkeypatch):
+    known(interested_campus="Kim Mã", kid_age="3-5 tuổi")
+    typing = []
+
+    async def send_typing_indicator(recipient_id, action="typing_on"):
+        typing.append((recipient_id, action))
+
+    monkeypatch.setattr(main, "send_typing_indicator", send_typing_indicator)
+    monkeypatch.setattr(main, "TYPING_REFRESH_EVERY", 0.05)
+    drive.delay = 0.3
+
+    parent.response = AIResponse(text=REPLY, should_escalate=False, model_used="fake-model")
+
+    async def run():
+        task = media.start_sync_task()
+        try:
+            await main.process_message(CUSTOMER_ID, "Cho em xin thời khoá biểu ạ")
+            after = len(typing)
+            await asyncio.sleep(0.2)
+        finally:
+            task.cancel()
+        return after
+
+    after = asyncio.run(run())
+
+    assert parent.images() == [url("km-tkb-36-72")]
+    assert len(typing) >= 3 and set(typing) == {(CUSTOMER_ID, "typing_on")}, typing
+    assert len(typing) == after  # stopped with the wait
+
+    typing.clear()
+    parent.say("dạ vâng")  # first sync done: no wait, the one typing_on of every turn
+    assert typing == [(CUSTOMER_ID, "typing_on")]
+
+
+@pytest.mark.parametrize("off", ["MEDIA_SYNC_ENABLED", "LEADS_SHEET_WEBHOOK_URL"])
+def test_with_media_sync_off_a_message_does_not_wait(parent, drive, monkeypatch, caplog, off):
+    drive.delay = 30
+    monkeypatch.setattr(settings, off, False if off == "MEDIA_SYNC_ENABLED" else "")
+
+    with caplog.at_level(logging.WARNING):
+        [(sent, seconds)] = right_after_start(parent, "Cho em xin thời khoá biểu ạ")
+
+    assert sent[0][1] == SHOWN and seconds < 5
+    assert drive.listed == 0
+    assert first_sync_warnings(caplog) == []
+
+
+def test_a_failed_first_sync_answers_then_and_no_later_message_waits(parent, drive, caplog):
+    known(interested_campus="Kim Mã", kid_age="3-5 tuổi")
+    drive.answer = {"ok": False, "error": "Drive folder not found"}
+
+    with caplog.at_level(logging.INFO):
+        turns = right_after_start(parent, "Cho em xin thời khoá biểu ạ", "dạ vâng")
+
+    assert [parent.images(sent) for sent, _ in turns] == [[], []]
+    assert turns[0][1] >= drive.delay
+    assert turns[1][1] < 5  # the next sync is MEDIA_SYNC_MINUTES away: waiting for it would take MEDIA_FIRST_SYNC_WAIT
+    assert drive.listed == 1
+    assert any(r.levelname == "INFO" and "first sync" in r.getMessage() for r in caplog.records)
+    assert first_sync_warnings(caplog) == []
+
+
+def test_images_kept_on_disk_from_before_the_restart_are_used_without_waiting(parent, drive, monkeypatch, caplog):
+    known(interested_campus="Kim Mã", kid_age="3-5 tuổi")
+    folder = Path(settings.MEDIA_DIR)
+    folder.mkdir(parents=True)
+    for i in CATALOG:
+        (folder / f"{i['id']}.jpg").write_bytes(_png())
+    media._write_catalog({**media._empty(), "synced_at": "2026-10-23T08:00:00+07:00", "items": {i["id"]: i for i in CATALOG}})
+    monkeypatch.setattr(media, "_catalog", media.load_catalog())  # như lúc import sau khi restart
+    drive.delay = 30
+
+    with caplog.at_level(logging.WARNING):
+        [(sent, seconds)] = right_after_start(parent, "Cho em xin thời khoá biểu ạ")
+
+    assert parent.images(sent) == [url("km-tkb-36-72")]
+    assert seconds < 5
+    assert first_sync_warnings(caplog) == []
+
+
+def test_test_chat_right_after_start_waits_for_the_first_sync(parent, drive, monkeypatch):
+    monkeypatch.setattr(settings, "TELEGRAM_WEBHOOK_SECRET", "tg-secret_media_replies")
+    known(interested_campus="Kim Mã", kid_age="3-5 tuổi")
+    parent.response = AIResponse(text=REPLY, should_escalate=False, model_used="fake-model")
+
+    with TestClient(main.app) as client:
+        resp = client.post(
+            "/test-chat", params={"secret": "tg-secret_media_replies"},
+            json={"message": "Cho em xin thời khoá biểu ạ", "user_id": CUSTOMER_ID},
+        )
+
+    assert resp.status_code == 200
+    assert TIMETABLE_NOTE in parent.notes[-1], parent.notes[-1]

@@ -204,6 +204,10 @@ def route(method: str, host: str, path: str, headers, body, query: dict | None =
             if fail.get("graph_send"):
                 err = {"message": "(#10) This message is sent outside of allowed window.", "code": 10}
                 return 400, {"error": err}, {}
+            if fail.get("graph_image") and "attachment" in ((body or {}).get("message") or {}):
+                err = {"message": "(#100) Failed to fetch the file from the url", "type": "OAuthException",
+                       "code": 100, "error_subcode": 2018008, "fbtrace_id": "fake"}
+                return 400, {"error": err}, {}
             return 200, {"recipient_id": recipient, "message_id": f"m_fake_{next(msg_ids)}"}, {}
     if host == "api.telegram.org":
         if fail.get("telegram"):

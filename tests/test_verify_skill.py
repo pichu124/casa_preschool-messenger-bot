@@ -363,3 +363,15 @@ def test_fake_drive_redirects_like_drive_then_serves_an_image(monkeypatch):
     assert code == 200
     with Image.open(BytesIO(data)) as img:
         assert (img.format, img.size) == ("PNG", (64, 48))
+
+
+def test_fake_graph_refuses_only_images_when_graph_image_fails(monkeypatch, tmp_path):
+    scenario = {**SCENARIO, "fail": {**SCENARIO["fail"], "graph_image": True}}
+    (tmp_path / "scenario.json").write_text(json.dumps(scenario), "utf-8")
+    monkeypatch.setattr(fake, "args", SimpleNamespace(scenario=str(tmp_path / "scenario.json"), port=1))
+    image = {"recipient": {"id": "1"}, "message": {"attachment": {"type": "image", "payload": {"url": "u"}}}}
+    text = {"recipient": {"id": "1"}, "message": {"text": "Dạ"}}
+
+    code, out, _ = fake.route("POST", "graph.facebook.com", "/v21.0/me/messages", {}, image)
+    assert (code, out["error"]["code"]) == (400, 100)
+    assert fake.route("POST", "graph.facebook.com", "/v21.0/me/messages", {}, text)[0] == 200

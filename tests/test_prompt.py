@@ -115,6 +115,17 @@ def test_extract_prompt_asks_for_lead_fields_and_sends_only_profile_fields(monke
         assert leaked not in recorder.user_message
 
 
+# Phụ huynh quan tâm "Chùa Láng và Kim Mã": hồ sơ giữ đủ cả hai để bot gửi thời khoá biểu từng cơ sở.
+def test_extract_prompt_keeps_every_campus_the_parent_names(monkeypatch):
+    recorder = RecordingProvider("{}")
+    engine = make_engine(monkeypatch, fake=recorder)
+
+    asyncio.run(engine.extract_customer_info("Chùa Láng và Kim Mã"))
+
+    line = next(line for line in recorder.system_prompt.splitlines() if line.startswith('- "interested_campus"'))
+    assert "nhiều cơ sở" in line and '"Chùa Láng, Kim Mã"' in line, line
+
+
 # Lead khi phụ huynh đồng ý chỉ có nếu extract ghi visit_request. Prompt cũ chỉ cho ghi lịch "ĐÃ CHỐT" nên bấm
 # "Đăng ký học thử" rồi rời đi (chưa chọn tuần) thì Telegram/Sheet không nhận gì.
 AGREE_TO_BOOK = [

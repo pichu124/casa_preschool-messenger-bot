@@ -34,6 +34,8 @@ def item(file_id, name, *path):
 CATALOG = [
     item("qt-fee-10", "7.png", QT, "HỌC PHÍ THÁNG 10"),
     item("qt-menu", "Thực đơn mẫu.jpg", QT, "THỰC ĐƠN"),
+    item("cl-tkb-15-36", "TKB 15 tháng - 3 tuổi.jpg", QT, "CƠ SỞ CHÙA LÁNG", TKB),
+    item("cl-tkb-36-60", "TKB 3-5 tuổi.jpg", QT, "CƠ SỞ CHÙA LÁNG", TKB),
     item("md-tkb-15-36", "TKB 15 tháng - 3 tuổi.png", QT, "CƠ SỞ MỸ ĐÌNH", TKB),
     item("md-tkb-36-60", "TKB 3-5 tuổi.png", QT, "CƠ SỞ MỸ ĐÌNH", TKB),
     *[item(f"md-csvc-{i}", f"IMG_{i:02}.jpg", QT, "CƠ SỞ MỸ ĐÌNH", CSVC) for i in range(1, 7)],
@@ -169,6 +171,16 @@ def test_kid_age_is_read_as_months(kid_age, months):
 )
 def test_campus_named_in_a_message(text, campus):
     assert media.campus_in(text) == campus
+
+
+@pytest.mark.parametrize(
+    ("text", "campuses"),
+    [("Chùa Láng và Kim Mã", ["Chùa Láng", "Kim Mã"]), ("Kim Mã hay Mỹ Đình gần hơn ạ", ["Kim Mã", "Mỹ Đình"]),
+     ("Chùa Láng, Kim Mã", ["Chùa Láng", "Kim Mã"]), ("co so kim ma a, Kim Mã", ["Kim Mã"]), ("trường ở đâu ạ", []),
+     ("", []), (None, [])],
+)
+def test_every_campus_named_in_a_message_in_its_order(text, campuses):
+    assert media.campuses_in(text) == campuses
 
 
 # --- học phí ---
@@ -363,6 +375,71 @@ def test_timetable_that_drive_does_not_have_does_not_wait(parent, catalog, kid_a
     assert parent.images(parent.say("Cho em xin thời khoá biểu ạ")) == []
     assert "thời khoá biểu" not in parent.notes[-1]
     assert not customer_memory.get_profile(CUSTOMER_ID).get("timetable_asked")
+
+
+CAMPUS_LIST = "Dạ Casa có 3 cơ sở: hệ Quốc tế Chùa Láng, hệ Quốc tế Mỹ Đình và hệ Song ngữ Kim Mã ạ. [QUICK:campus]"
+
+
+# Hội thoại thật 2026-10-24: phụ huynh quan tâm "Chùa Láng và Kim Mã", chọn "3-5 tuổi", rồi "Gửi thời khoá biểu 2 hệ
+# nhé" mà không ảnh nào tới (bot còn bịa "tư vấn viên sẽ gửi" cho Kim Mã). Mỗi cơ sở một ảnh, mỗi ảnh một lần.
+def test_timetables_of_every_campus_the_parent_named_go_once_the_age_is_known(parent, catalog):
+    assert parent.images(parent.say("Cho mình tham khảo thời khoá biểu nhé")) == []
+    assert parent.images(parent.say("Trường có những cơ sở nào", reply=CAMPUS_LIST)) == []
+    sent = parent.say("Chùa Láng và Kim Mã", extracted={"interested_campus": "Chùa Láng, Kim Mã"})
+    assert parent.images(sent) == []
+    assert "Chưa biết tuổi bé nên chưa gửi ảnh thời khoá biểu" in parent.notes[-1], parent.notes[-1]
+
+    sent = parent.say("Bé nhà em 3-5 tuổi ạ", extracted={"kid_age": "3-5 tuổi"})
+
+    assert parent.images(sent) == [url("cl-tkb-36-60"), url("km-tkb-36-72")]
+    for campus in ("Chùa Láng", "Kim Mã"):
+        assert f"[HỆ THỐNG] Sau câu trả lời này hệ thống gửi ảnh thời khoá biểu cơ sở {campus}." in parent.notes[-1]
+    assert not customer_memory.get_profile(CUSTOMER_ID).get("timetable_asked")
+    assert parent.images(parent.say("Gửi thời khoá biểu 2 hệ nhé")) == []
+
+
+def test_both_systems_asked_for_get_the_timetables_of_the_campuses_named_earlier(parent, catalog):
+    known(kid_age="4 tuổi")
+    parent.say("Chùa Láng và Kim Mã")
+
+    sent = parent.say("Gửi thời khoá biểu 2 hệ nhé")
+
+    assert parent.images(sent) == [url("cl-tkb-36-60"), url("km-tkb-36-72")]
+
+
+@pytest.mark.parametrize("text", ["Gửi thời khoá biểu 2 hệ nhé", "cho em xin TKB cả hai hệ ạ"])
+def test_both_systems_without_an_international_campus_ask_which_one(parent, catalog, text):
+    known(kid_age="4 tuổi")
+
+    sent = parent.say(text)
+
+    assert parent.images(sent) == [url("km-tkb-36-72")]  # hệ Song ngữ chỉ có Kim Mã
+    note = parent.notes[-1]
+    assert "Chưa biết cơ sở hệ Quốc tế Ba/Mẹ quan tâm (Chùa Láng hay Mỹ Đình) nên chưa gửi ảnh thời khoá biểu" in note, note
+    assert customer_memory.get_profile(CUSTOMER_ID)["timetable_asked"] is True
+
+    sent = parent.say("Em quan tâm cơ sở Mỹ Đình ạ", extracted={"interested_campus": "Mỹ Đình"})
+    assert parent.images(sent) == [url("md-tkb-36-60")]
+    assert not customer_memory.get_profile(CUSTOMER_ID).get("timetable_asked")
+
+
+def test_fee_of_two_campuses_of_different_systems_is_one_image_each(parent, catalog):
+    known(kid_age="3 tuổi", interested_campus="Chùa Láng, Kim Mã")
+
+    sent = parent.say("học phí bao nhiêu ạ", extracted={"topics": ["Học phí"]})
+
+    assert parent.images(sent) == [url("qt-fee-10"), url("sn-fee-10")]
+    assert customer_memory.get_profile(CUSTOMER_ID)["media_sent"].keys() == {"fee:quoc_te:2026-10", "fee:song_ngu:2026-10"}
+
+
+def test_facilities_of_two_campuses_go_one_campus_a_turn(parent, catalog):
+    known(interested_campus="Mỹ Đình, Kim Mã")
+
+    first = parent.images(parent.say("trường có sân chơi không ạ", extracted={"topics": ["Cơ sở vật chất"]}))
+    second = parent.images(parent.say("cho em xem ảnh trường ạ", extracted={"topics": ["Cơ sở vật chất"]}))
+
+    assert first == [url(f"md-csvc-{i}") for i in range(1, 5)]
+    assert second == [url(f"km-csvc-{i}") for i in range(1, 5)]
 
 
 def test_daily_schedule_question_gets_the_timetable(parent, catalog):

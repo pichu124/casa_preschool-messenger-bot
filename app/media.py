@@ -100,6 +100,13 @@ def campus_in(text: str) -> str | None:
     return named[0] if len(named) == 1 else None
 
 
+def campuses_in(text: str) -> list[str]:
+    """Every campus key named in `text`, in the order named: "Chùa Láng và Kim Mã" -> ["Chùa Láng", "Kim Mã"]."""
+    folded = fold(str(text or ""))
+    found = {c: m.start() for c in CAMPUSES if (m := re.search(rf"\b{fold(c)}\b", folded))}
+    return sorted(found, key=found.get)
+
+
 def campus_key(name: str) -> str:
     folded = fold(name)
     return next((c for c in CAMPUSES if fold(c) == folded), " ".join(name.split()).title())

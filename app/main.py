@@ -655,6 +655,8 @@ TOPICS_OF_IMAGE = {"fee": FEE_TOPICS, "timetable": (PROGRAMME_TOPIC,), "faciliti
 # the extraction tags Cambridge as "Tiếng Anh/GV nước ngoài" and a timetable as "Giờ học/…". "lịch học thử" is the
 # trial week.
 TIMETABLE_WORDS = re.compile(r"\bcambridge\b|\bthoi (?:khoa|gian) bieu\b|\btkb\b|\blich hoc\b(?! thu)")
+# A message asking for both systems ("2 hệ", "cả hai hệ") or both campuses ("cả 2 cơ sở", "hai bên").
+BOTH_WORDS = re.compile(r"\b(?:ca )?(?:2|hai) (he|co so|ben|truong)\b")
 FACILITY_IMAGES = 4
 MAX_IMAGES = 5
 # The sample menu of the Q&A (data/qa_database.json): sent only while Drive has no menu image.
@@ -682,59 +684,110 @@ def _image_id(url: str) -> str:
     return url.rsplit("/", 1)[-1].removesuffix(".jpg")
 
 
+# Profile flag of a question waiting for an image -> the kind of that image.
+WAITING_FLAGS = {"fee_asked": "fee", "timetable_asked": "timetable", "facilities_asked": "facilities"}
+
+
+def _waiting(wanted: bool, missing: bool, offered: bool) -> str:
+    """A flag of WAITING_FLAGS: "missing" (waits for what the bot does not know), "offered" (waits until the images
+    offered this turn are delivered), "" (does not wait)."""
+    return ("missing" if missing else "offered" if offered else "") if wanted else ""
+
+
+def _campuses_of(system: str) -> list[str]:
+    return [c for c, s in media.CAMPUS_SYSTEMS.items() if s == system]
+
+
+def _campuses(profile: dict, extracted: dict, text: str) -> tuple[list[str], list[str]]:
+    """The campuses the reply to `text` is about: those the extraction, else `text`, else the profile names. A
+    message asking for both systems or both campuses ("2 hệ", "cả hai cơ sở") gets every campus the parent named in
+    the conversation, plus the one campus of a system none of them is in ("2 hệ": Kim Mã for Song ngữ); also returns
+    the systems with several campuses none of which is named (asked, not guessed)."""
+    campuses = (
+        media.campuses_in(extracted.get("interested_campus"))
+        or media.campuses_in(text)
+        or media.campuses_in(profile.get("interested_campus"))
+    )
+    both = BOTH_WORDS.search(media.fold(text))
+    if not both:
+        return campuses, []
+    said = [m.get("content", "") for m in profile.get("conversation_history") or [] if m.get("role") == "user"]
+    said += [str(v or "") for v in (profile.get("interested_campus"), extracted.get("interested_campus"), text)]
+    campuses, unknown = media.campuses_in(". ".join(said)), []
+    for system in media.SYSTEM_NAMES if both[1] == "he" else ():
+        if any(media.system_of(c) == system for c in campuses):
+            continue
+        if len(_campuses_of(system)) == 1:
+            campuses += _campuses_of(system)
+        else:
+            unknown.append(system)
+    return campuses, unknown
+
+
 def _plan_images(
     profile: dict, extracted: dict, text: str, topics, qa_images: list[str], last_bot_message: str, today: date
 ) -> tuple[list[str], list[Offer], dict, list[ImageNote]]:
     """Images to send after the reply to `text`: the Q&A ones the model gave (`qa_images`), without the old sample
-    menu when Drive has a menu; the Drive offers in sending order; the profile flags of questions waiting for what is
-    missing: fee_asked (the kid's age and the campus), timetable_asked (the campus and the kid's age),
-    facilities_asked (the campus); the notes of images waiting for what is missing. `extracted`: what the model
-    extracted from `text`, {} before it is known; a campus and an age named in `text` count as well."""
+    menu when Drive has a menu; the Drive offers in sending order (fee and timetable: one per system and campus,
+    facilities: one campus a turn); the profile flags of questions waiting for what is missing: fee_asked (the kid's
+    age and the campus), timetable_asked (the campus and the kid's age), facilities_asked (the campus); the notes of
+    images waiting for what is missing. `extracted`: what the model extracted from `text`, {} before it is known; a
+    campus and an age named in `text` count as well."""
     if not settings.MEDIA_SYNC_ENABLED:
         return qa_images, [], {}, []
     topics, sent = set(topics), profile.get("media_sent") or {}
-    campus = (
-        media.campus_in(extracted.get("interested_campus"))
-        or media.campus_in(text)
-        or media.campus_in(profile.get("interested_campus"))
-    )
+    campuses, unknown_systems = _campuses(profile, extracted, text)
     if extracted.get("kid_age"):
         age = str(extracted["kid_age"])
     elif media.age_months(text) in SAID_AGE_MONTHS:
         age = text
     else:
         age = str(profile.get("kid_age") or "")
-    system = media.system_of(campus) if campus else None
+    systems = list(dict.fromkeys(s for s in map(media.system_of, campuses) if s))
     program = media.fold(profile.get("interested_program") or "")
     wanted_system = next((s for s, name in media.SYSTEM_NAMES.items() if media.fold(name) in program), None)
     offers, notes = [], []
 
     asked_fee = bool(topics & set(FEE_TOPICS))
-    fee_key = f"fee:{system}:{today:%Y-%m}"
-    wants_fee = bool(asked_fee or profile.get("fee_asked")) and fee_key not in sent
+    fee_keys = {system: f"fee:{system}:{today:%Y-%m}" for system in systems}
+    unsent_fees = [system for system, key in fee_keys.items() if key not in sent]
+    wants_fee = bool(asked_fee or profile.get("fee_asked")) and (bool(unsent_fees) or not systems)
     has_phone = profile.get("phone") or extracted.get("phone") or _find_phone(text)
     asked_phone = any(word in last_bot_message.lower() for word in ASKS_PHONE)
     refused = not has_phone and (profile.get("phone_declined") or extracted.get("phone_declined") or asked_phone)
-    fee_ready = bool(system and (age or (refused and asked_fee)))
-    fee = media.fee_image(system, today) if wants_fee and fee_ready else None
-    if fee:
-        label = f"học phí hệ {media.SYSTEM_NAMES[system]} (cơ sở {campus})"
-        offers.append(Offer("fee", fee_key, [fee.url], label, stale=fee if fee.stale else None))
+    fee_ready = bool(systems and (age or (refused and asked_fee)))
+    fees_offered = False
+    for system in unsent_fees if wants_fee and fee_ready else ():
+        fee = media.fee_image(system, today)
+        if fee:
+            names = ", ".join(c for c in campuses if media.system_of(c) == system)
+            label = f"học phí hệ {media.SYSTEM_NAMES[system]} (cơ sở {names})"
+            offers.append(Offer("fee", fee_keys[system], [fee.url], label, stale=fee if fee.stale else None))
+            fees_offered = True
 
     asked_timetable = PROGRAMME_TOPIC in topics or bool(TIMETABLE_WORDS.search(media.fold(text)))
-    wants_timetable = (asked_timetable or bool(profile.get("timetable_asked"))) and media.has_timetables(campus)
+    timetable_campuses = [c for c in campuses if media.has_timetables(c)]
+    has_timetable = media.has_timetables() if unknown_systems or not campuses else bool(timetable_campuses)
+    wants_timetable = (asked_timetable or bool(profile.get("timetable_asked"))) and has_timetable
     months = media.age_months(age) if age else None
-    timetable_missing = ("cơ sở Ba/Mẹ quan tâm",) * (not campus) + ("tuổi bé",) * (months is None)
+    timetable_missing = tuple(
+        f"cơ sở hệ {media.SYSTEM_NAMES[s]} Ba/Mẹ quan tâm ({' hay '.join(_campuses_of(s))})" for s in unknown_systems
+    ) or ("cơ sở Ba/Mẹ quan tâm",) * (not campuses)
     timetable_offered = False
-    if wants_timetable and timetable_missing:
-        notes.append(ImageNote("timetable", "thời khoá biểu", timetable_missing, state="missing"))
+    if wants_timetable and months is None:
+        notes.append(ImageNote("timetable", "thời khoá biểu", (*timetable_missing, "tuổi bé"), state="missing"))
     elif wants_timetable:
-        timetable = media.timetable_image(campus, months)
-        timetable_offered = bool(timetable) and f"timetable:{_image_id(timetable)}" not in sent
-        if timetable_offered:
-            offers.append(Offer("timetable", f"timetable:{_image_id(timetable)}", [timetable], f"thời khoá biểu cơ sở {campus}"))
+        for campus in timetable_campuses:
+            timetable = media.timetable_image(campus, months)
+            if timetable and f"timetable:{_image_id(timetable)}" not in sent:
+                label = f"thời khoá biểu cơ sở {campus}"
+                offers.append(Offer("timetable", f"timetable:{_image_id(timetable)}", [timetable], label))
+                timetable_offered = True
+        if timetable_missing:
+            label = "thời khoá biểu" + "".join(f" hệ {media.SYSTEM_NAMES[s]}" for s in unknown_systems)
+            notes.append(ImageNote("timetable", label, timetable_missing, state="missing"))
 
-    menu_system = system or wanted_system or "quoc_te"
+    menu_system = (systems[0] if systems else None) or wanted_system or "quoc_te"
     menu = media.menu_image(menu_system)
     if menu:
         if QA_MENU_IMAGE in qa_images:
@@ -745,16 +798,19 @@ def _plan_images(
             offers.append(Offer("menu", f"menu:{_image_id(menu)}", [menu], label))
 
     wants_facilities = bool(FACILITIES_TOPIC in topics or profile.get("facilities_asked"))
-    facilities = media.facility_images(campus, FACILITY_IMAGES) if wants_facilities and campus else []
-    facilities_offered = bool(facilities) and f"facilities:{campus}" not in sent
-    if facilities_offered:
-        offers.append(Offer("facilities", f"facilities:{campus}", facilities, f"cơ sở vật chất cơ sở {campus}"))
+    unsent = (c for c in campuses if f"facilities:{c}" not in sent and media.facility_images(c, 1))
+    facilities_campus = next(unsent, None) if wants_facilities else None
+    if facilities_campus:
+        facilities = media.facility_images(facilities_campus, FACILITY_IMAGES)
+        label = f"cơ sở vật chất cơ sở {facilities_campus}"
+        offers.append(Offer("facilities", f"facilities:{facilities_campus}", facilities, label))
 
     # Waiting only for what is missing, or for an offer not delivered yet: never for an image already sent or absent
+    timetable_waits = months is None or bool(timetable_missing)
     waiting = {
-        "fee_asked": wants_fee and (not fee_ready or bool(fee)),
-        "timetable_asked": wants_timetable and (bool(timetable_missing) or timetable_offered),
-        "facilities_asked": wants_facilities and (not campus or facilities_offered),
+        "fee_asked": _waiting(wants_fee, not fee_ready, fees_offered),
+        "timetable_asked": _waiting(wants_timetable, timetable_waits, timetable_offered),
+        "facilities_asked": _waiting(wants_facilities, not campuses, bool(facilities_campus)),
     }
     return qa_images, offers, waiting, notes
 
@@ -770,8 +826,8 @@ def _media_note(profile: dict, text: str, last_bot_message: str, today: date) ->
     sure_keys = {o.key for o in sure}
     images = [ImageNote(o.kind, o.label, if_asked=o.key not in sure_keys) for o in offers]
     images += [n._replace(if_asked=n not in sure_notes) for n in notes]
-    campus = media.campus_in(text) or media.campus_in(profile.get("interested_campus"))
-    need_campus = not campus and any(media.facility_images(c, 1) for c in media.CAMPUSES)
+    campuses = media.campuses_in(text) or media.campuses_in(profile.get("interested_campus"))
+    need_campus = not campuses and any(media.facility_images(c, 1) for c in media.CAMPUSES)
     return media_note(images, facilities_need_campus=need_campus)
 
 
@@ -820,13 +876,11 @@ async def _send_reply_with_images(
 
 
 def _record_images(sender_id: str, profile: dict, delivered: list[Offer], waiting: dict) -> None:
-    """media_sent gets the offers delivered; fee_asked, timetable_asked and facilities_asked stay true only while
-    still waiting."""
+    """media_sent gets the offers delivered; the WAITING_FLAGS stay true only while still waiting."""
     kinds = {o.kind for o in delivered}
     fields = {
-        "fee_asked": waiting.get("fee_asked", False) and "fee" not in kinds,
-        "timetable_asked": waiting.get("timetable_asked", False) and "timetable" not in kinds,
-        "facilities_asked": waiting.get("facilities_asked", False) and "facilities" not in kinds,
+        flag: waiting.get(flag) == "missing" or (waiting.get(flag) == "offered" and kind not in kinds)
+        for flag, kind in WAITING_FLAGS.items()
     }
     fields = {k: v for k, v in fields.items() if bool(profile.get(k)) != v}
     if delivered:

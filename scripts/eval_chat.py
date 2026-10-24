@@ -645,12 +645,17 @@ async def run_upset_cases(engine: EvalEngine) -> bool | None:
 
 
 MEDIA_SUITE = "media"
-# Câu báo gửi ảnh: "em gửi", "em xin gửi", "em sẽ gửi", "bên dưới"… (không tính "để em gửi đúng …", lời hỏi để gửi).
+# Câu báo gửi ảnh: "em gửi", "em xin gửi", "em sẽ gửi", "bên dưới"… (không tính "để em gửi đúng …", lời hỏi để gửi),
+# chỉ khi câu nói tới ảnh (PROMISED_IMAGE): "em gửi Ba/Mẹ thông tin …" không hứa ảnh nào.
 PROMISES_IMAGE = re.compile(r"(?<!để )\bem (?:xin |sẽ )?gửi\b|bên dưới|dưới đây|ngay sau đây|gửi kèm", re.I)
 SAYS_SENT_BEFORE = ("ở trên", "phía trên", "bên trên", "đã gửi", "vừa gửi", "tin trước")
 ANNOUNCES_IMAGE = ("gửi", "đây là", "dưới đây", "bên dưới", "tham khảo")
 IMAGE_WORDS = r"ảnh|hình|thời kh(?:oá|óa) biểu|tkb|lịch học|cơ sở vật chất|thực đơn"
 FEE_WORDS = r"học phí|bảng phí"
+PROMISED_IMAGE = re.compile(
+    r"\bảnh\b(?! hưởng)|\bhình\b(?! thức)|\bbảng\b|thời kh(?:oá|óa) biểu|tkb|lịch học|cơ sở vật chất|thực đơn|học phí|"
+    r"bên dưới|dưới đây|ngay sau đây|gửi kèm", re.I
+)
 LEAKED_TOKEN = re.compile(r"\[(?:SEND|IMAGES|QUICK|ESCALATE)\b|\[đã gửi ảnh|chưa gửi được\]", re.I)
 ASKS_FOR = {
     "age": re.compile(r"mấy tuổi|bao nhiêu tuổi|tuổi (?:của )?(?:bé|con)|mấy tháng|bao nhiêu tháng|năm sinh|sinh năm|"
@@ -658,7 +663,10 @@ ASKS_FOR = {
     "campus": re.compile(r"cơ sở nào|quan tâm cơ sở|cơ sở ba/mẹ|(?:chùa láng|mỹ đình|kim mã) hay|"
                          r"hay (?:cơ sở )?(?:chùa láng|mỹ đình|kim mã)", re.I),
 }
-QUESTIONING = re.compile(r"\?|cho em (?:xin|biết|hỏi)|ba/mẹ (?:quan tâm|cho em)", re.I)
+# Một vế câu (tách ở "," ";") hỏi khi có dấu hỏi, lời xin, hay từ để hỏi: "Học phí tuỳ độ tuổi và cơ sở, Ba/Mẹ quan tâm
+# cơ sở nào ạ?" hỏi cơ sở, không hỏi tuổi (vế đầu chỉ kể).
+QUESTIONING = re.compile(r"\?|cho em (?:xin|biết|hỏi)|ba/mẹ (?:quan tâm|cho em)|\bmấy\b|bao nhiêu|\bnào\b", re.I)
+CLAUSE_END = re.compile(r"[,;]")
 # Trạng thái của từng dòng [HỆ THỐNG] (media_note trong app/ai_engine.py) theo câu chữ của dòng.
 NOTE_STATES = {
     "sure": "Sau câu trả lời này hệ thống gửi ảnh",
@@ -685,12 +693,14 @@ def media_image_id(url: str) -> str:
 
 
 def asks_for(what: str, text: str, quick_replies: list) -> bool:
-    """Câu trả lời hỏi tuổi bé/cơ sở: câu hỏi (hoặc "cho em xin …") nhắc tới nó, hoặc nút trả lời nhanh của nó."""
+    """Câu trả lời hỏi tuổi bé/cơ sở: một vế câu hỏi (hoặc "cho em xin …") nhắc tới nó, hoặc nút trả lời nhanh của nó;
+    vế câu kể nhắc tới nó ("Học phí tuỳ độ tuổi …") không tính."""
     from app.messenger import build_quick_replies
 
     if build_quick_replies(what) in quick_replies:
         return True
-    return any(ASKS_FOR[what].search(s) and QUESTIONING.search(s) for s in sentences(text))
+    clauses = [c for s in sentences(text) for c in CLAUSE_END.split(s)]
+    return any(ASKS_FOR[what].search(c) and QUESTIONING.search(c) for c in clauses)
 
 
 @dataclass
@@ -735,7 +745,8 @@ def grade_media_step(step: "media_cases.Step", out: MediaOutcome) -> list[str]:
     if not out.images:
         promised = [
             s for s in sentences(text)
-            if "?" not in s and PROMISES_IMAGE.search(s) and not any(w in s.lower() for w in SAYS_SENT_BEFORE)
+            if "?" not in s and PROMISES_IMAGE.search(s) and PROMISED_IMAGE.search(s)
+            and not any(w in s.lower() for w in SAYS_SENT_BEFORE)
         ]
         if promised:
             problems.append(f"hứa gửi ảnh mà không có ảnh đi: {promised[0]!r}")

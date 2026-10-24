@@ -202,8 +202,14 @@ def test_media_suite_passes_a_model_that_follows_the_rules_and_meets_every_statu
         ("Dạ vâng ạ.", "không hỏi campus"),
         ("Dạ em gửi ảnh ạ. [SEND:fee] [SEND:timetable] [SEND:facilities] [SEND:menu]", "ảnh đi ra"),
         ("[ESCALATE]", "mong đợi chuyển tư vấn viên=False"),
+        ("Dạ bé nhà mình năm nay mấy tuổi ạ?", "hỏi lại age đã biết"),
+        ("Dạ Ba/Mẹ cho em xin độ tuổi của bé ạ?", "hỏi lại age đã biết"),
+        ("Dạ học phí tuỳ độ tuổi, Ba/Mẹ cho em xin tuổi bé ạ?", "hỏi lại age đã biết"),
+        ("Dạ em gửi Ba/Mẹ ảnh trường ạ.", "hứa gửi ảnh mà không có ảnh đi"),
+        ("Dạ em gửi Ba/Mẹ thông tin học phí ạ.", "hứa gửi ảnh mà không có ảnh đi"),
     ],
-    ids=["promise", "consultant-sends", "money", "no-question", "every-token", "escalate"],
+    ids=["promise", "consultant-sends", "money", "no-question", "every-token", "escalate", "asks-age", "asks-age-range",
+         "asks-age-after-telling", "promises-photos", "promises-fee"],
 )
 def test_media_suite_grades_a_model_breaking_a_rule_as_a_violation(fake, capsys, reply, problem):
     fake.chat = lambda step, note: reply
@@ -213,6 +219,37 @@ def test_media_suite_grades_a_model_breaking_a_rule_as_a_violation(fake, capsys,
     out = capsys.readouterr().out
     assert code == 1, out
     assert f"✘ {problem}" in out, out
+
+
+def with_steps(fake, monkeypatch) -> None:
+    """The fake model knows the step being run (follows_the_rules needs it)."""
+    real = eval_chat.run_media_cases
+    monkeypatch.setattr(eval_chat, "run_media_cases", lambda: real(on_step=lambda code, step: setattr(fake, "step", step)))
+
+
+TELLS_INFORMATION = "Dạ em gửi Ba/Mẹ thông tin về chương trình học của Casa ạ."
+
+
+# Review 2026-10-24: bộ chấm báo sai câu đúng. "Học phí tuỳ độ tuổi và cơ sở, Ba/Mẹ quan tâm cơ sở nào ạ?" bị chấm hỏi
+# lại tuổi đã biết (chỉ nhắc tới độ tuổi trong câu kể); "em gửi Ba/Mẹ thông tin …" ở lượt không ảnh bị chấm hứa gửi ảnh.
+@pytest.mark.parametrize("right", ["campus-question-naming-the-age", "information-without-an-image"])
+def test_media_suite_does_not_flag_right_sentences_that_only_look_like_a_broken_rule(fake, monkeypatch, capsys, right):
+    with_steps(fake, monkeypatch)
+    if right == "campus-question-naming-the-age":
+        monkeypatch.setitem(ASK, "campus", "Học phí tuỳ độ tuổi và cơ sở, Ba/Mẹ quan tâm cơ sở nào ạ?")
+        fake.chat = follows_the_rules
+    else:
+        def tells_information(step, note):
+            told = "" if step.images or step.escalate else TELLS_INFORMATION + " "
+            return told + follows_the_rules(step, note)
+
+        fake.chat = tells_information
+
+    code = run(["media"])
+
+    out = capsys.readouterr().out
+    assert code == 0, out
+    assert "✘" not in out
 
 
 def test_media_suite_without_an_api_key_is_inconclusive(capsys):

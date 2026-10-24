@@ -42,6 +42,7 @@ def isolate(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "MEDIA_DIR", str(tmp_path / "media"))
     monkeypatch.setattr(media, "_catalog", media.load_catalog())
     monkeypatch.setattr(media, "_lock", asyncio.Lock())
+    monkeypatch.setattr(media, "_first_sync", None)  # no app started: ready, and no event left from another test
     monkeypatch.setattr(media, "_off_warned", False)
     monkeypatch.setattr(settings, "AI_MODEL_ORDER", [])
     monkeypatch.setattr(settings, "ANALYTICS_LOG_PATH", str(tmp_path / "analytics.jsonl"))

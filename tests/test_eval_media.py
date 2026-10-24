@@ -207,9 +207,14 @@ def test_media_suite_passes_a_model_that_follows_the_rules_and_meets_every_statu
         ("Dạ học phí tuỳ độ tuổi, Ba/Mẹ cho em xin tuổi bé ạ?", "hỏi lại age đã biết"),
         ("Dạ em gửi Ba/Mẹ ảnh trường ạ.", "hứa gửi ảnh mà không có ảnh đi"),
         ("Dạ em gửi Ba/Mẹ thông tin học phí ạ.", "hứa gửi ảnh mà không có ảnh đi"),
+        # Review 2026-10-24: câu hứa không nêu ảnh ("tham khảo", "ngay", "gửi lại … khi hệ thống ổn") vẫn là hứa ảnh
+        ("Dạ em gửi Ba/Mẹ tham khảo ạ.", "hứa gửi ảnh mà không có ảnh đi"),
+        ("Dạ em gửi Ba/Mẹ ngay ạ.", "hứa gửi ảnh mà không có ảnh đi"),
+        ("Em sẽ gửi lại Ba/Mẹ ngay khi hệ thống ổn ạ.", "hứa gửi ảnh mà không có ảnh đi"),
     ],
     ids=["promise", "consultant-sends", "money", "no-question", "every-token", "escalate", "asks-age", "asks-age-range",
-         "asks-age-after-telling", "promises-photos", "promises-fee"],
+         "asks-age-after-telling", "promises-photos", "promises-fee", "promises-for-reference", "promises-now",
+         "promises-again-later"],
 )
 def test_media_suite_grades_a_model_breaking_a_rule_as_a_violation(fake, capsys, reply, problem):
     fake.chat = lambda step, note: reply
@@ -227,7 +232,7 @@ def with_steps(fake, monkeypatch) -> None:
     monkeypatch.setattr(eval_chat, "run_media_cases", lambda: real(on_step=lambda code, step: setattr(fake, "step", step)))
 
 
-TELLS_INFORMATION = "Dạ em gửi Ba/Mẹ thông tin về chương trình học của Casa ạ."
+TELLS_INFORMATION = "Dạ em gửi Ba/Mẹ thông tin về chương trình học ạ."
 
 
 # Review 2026-10-24: bộ chấm báo sai câu đúng. "Học phí tuỳ độ tuổi và cơ sở, Ba/Mẹ quan tâm cơ sở nào ạ?" bị chấm hỏi

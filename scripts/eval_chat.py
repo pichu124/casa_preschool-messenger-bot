@@ -645,9 +645,16 @@ async def run_upset_cases(engine: EvalEngine) -> bool | None:
 
 
 MEDIA_SUITE = "media"
-# Câu báo gửi ảnh: "em gửi", "em xin gửi", "em sẽ gửi", "bên dưới"… (không tính "để em gửi đúng …", lời hỏi để gửi),
-# chỉ khi câu nói tới ảnh (PROMISED_IMAGE): "em gửi Ba/Mẹ thông tin …" không hứa ảnh nào.
-PROMISES_IMAGE = re.compile(r"(?<!để )\bem (?:xin |sẽ )?gửi\b|bên dưới|dưới đây|ngay sau đây|gửi kèm", re.I)
+# Câu báo gửi ảnh: "em gửi", "em xin gửi", "em sẽ gửi", "gửi Ba/Mẹ …", "bên dưới"… (không tính "để em gửi đúng …",
+# lời hỏi để gửi), dù câu không nêu ảnh ("Dạ em gửi Ba/Mẹ tham khảo ạ."). Chỉ bỏ qua khi thứ được gửi rõ ràng không
+# phải ảnh (NOT_AN_IMAGE: "em gửi Ba/Mẹ thông tin …") và câu không có từ chỉ ảnh (PROMISED_IMAGE).
+PROMISES_IMAGE = re.compile(
+    r"(?<!để )\bem (?:xin |sẽ )?gửi\b|(?<!để em )\bgửi (?:lại )?ba/mẹ\b|bên dưới|dưới đây|ngay sau đây|gửi kèm", re.I
+)
+NOT_AN_IMAGE = re.compile(
+    r"\bgửi (?:lại )?(?:cho )?(?:ba/mẹ )?(?:thông tin|lịch hẹn|địa chỉ|(?:số )?hotline|số điện thoại|link|đường dẫn)\b",
+    re.I,
+)
 SAYS_SENT_BEFORE = ("ở trên", "phía trên", "bên trên", "đã gửi", "vừa gửi", "tin trước")
 ANNOUNCES_IMAGE = ("gửi", "đây là", "dưới đây", "bên dưới", "tham khảo")
 IMAGE_WORDS = r"ảnh|hình|thời kh(?:oá|óa) biểu|tkb|lịch học|cơ sở vật chất|thực đơn"
@@ -746,7 +753,8 @@ def grade_media_step(step: "media_cases.Step", out: MediaOutcome) -> list[str]:
     if not out.images:
         promised = [
             s for s in sentences(text)
-            if "?" not in s and PROMISES_IMAGE.search(s) and PROMISED_IMAGE.search(s)
+            if "?" not in s and PROMISES_IMAGE.search(s)
+            and not (NOT_AN_IMAGE.search(s) and not PROMISED_IMAGE.search(s))
             and not any(w in s.lower() for w in SAYS_SENT_BEFORE)
         ]
         if promised:

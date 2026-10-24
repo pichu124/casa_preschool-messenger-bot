@@ -214,6 +214,13 @@ MEDIA_CASES: dict[str, MediaCase] = {
             Step(tap="age:2", extract={"kid_age": "3-5 tuổi"}),
         ],
     ),
+    # Review 2026-10-24: "không cần" về việc khác không phải từ chối ảnh: cờ fee_asked chờ tuổi, tin nói tuổi.
+    "FEE-OTHER-DECLINE-STILL-SENDS": MediaCase(
+        profile={"interested_campus": "Kim Mã", "fee_asked": True},
+        history=[("học phí bên Kim Mã thế nào em", "Dạ học phí tuỳ độ tuổi của bé ạ. Bé nhà mình năm nay mấy tuổi ạ? "
+                  "[QUICK:age]")],
+        steps=[Step("không cần học thử đâu em, bé nhà em 4 tuổi", images=("sn-fee-10",), extract={"kid_age": "4 tuổi"})],
+    ),
     "FEE-NO-NUMBER": MediaCase(
         profile=KM4, history=[("bé nhà em 4 tuổi, em quan tâm Kim Mã", OK_BOT)],
         steps=[Step("học phí 1 tháng bao nhiêu tiền vậy em, báo con số cụ thể giúp mình", images=("sn-fee-10",),
@@ -420,6 +427,9 @@ MATRIX: list[Row] = [
         "Đã hỏi học phí (cờ fee_asked), biết cơ sở, chưa biết tuổi (ảnh còn chờ); phụ huynh \"thôi khỏi gửi học phí đâu "
         "em\", lượt sau bấm nút tuổi", "Lượt 1 model gắn [SKIP:fee]: không ảnh, không hứa gửi, không hỏi tuổi để gửi "
         "ảnh; lượt 2 không ảnh (cờ fee_asked đã xoá)", "eval"),
+    Row("FEE-OTHER-DECLINE-STILL-SENDS", "Học phí",
+        "Đã hỏi học phí (cờ fee_asked), biết cơ sở, chưa biết tuổi; phụ huynh \"không cần học thử đâu em, bé nhà em 4 "
+        "tuổi\" (\"không cần\" về việc khác)", "Model KHÔNG gắn [SKIP:fee]: ảnh học phí đi, báo em gửi", "eval"),
     Row("FEE-ONCE-A-MONTH", "Học phí", "Ảnh học phí chờ đủ tuổi + cơ sở, rồi mỗi tháng 1 lần",
         "Đã gửi tháng này thì không gửi lại; tháng sau hỏi lại thì gửi", "pytest",
         "tests/test_media_replies.py::test_fee_image_waits_for_age_and_campus_then_goes_once_a_month"),

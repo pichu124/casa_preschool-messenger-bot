@@ -233,8 +233,8 @@ def test_media_suite_passes_a_model_that_follows_the_rules_and_meets_every_statu
     assert media_run.states == set(eval_chat.NOTE_STATES)
     assert "--- FEE-ASKED-READY ---" in out and "ảnh: qt-fee-10;" in out
     # Một lời gọi giám khảo mỗi lượt không chuyển tư vấn viên; mỗi lượt in phán quyết và lý do.
-    assert len(fake.judged) == media_run.steps - ESCALATED_STEPS == 51
-    assert out.count("  giám khảo (fake): ") == 51 and "lý do: theo bảng của test" in out
+    assert len(fake.judged) == media_run.steps - ESCALATED_STEPS == 52
+    assert out.count("  giám khảo (fake): ") == 52 and "lý do: theo bảng của test" in out
 
 
 def test_the_judge_reads_the_parent_message_the_images_that_went_and_the_reply_with_the_keys_of_the_turn(
@@ -383,9 +383,9 @@ def test_a_judge_without_a_proper_verdict_leaves_the_turns_inconclusive(fake, mo
 
     out = capsys.readouterr().out
     assert "✘" not in out
-    assert out.count("  ? giám khảo (") == 51
-    assert "INCONCLUSIVE: giám khảo không ra phán quyết ở 51 lượt của bộ media" in out
-    assert "Ảnh: 3/54 lượt đạt, 51 lượt chưa kết luận" in out
+    assert out.count("  ? giám khảo (") == 52
+    assert "INCONCLUSIVE: giám khảo không ra phán quyết ở 52 lượt của bộ media" in out
+    assert "Ảnh: 3/55 lượt đạt, 52 lượt chưa kết luận" in out
 
 
 def test_a_verdict_with_keys_that_were_not_asked_still_grades_the_turns(fake, monkeypatch, capsys):
@@ -397,7 +397,7 @@ def test_a_verdict_with_keys_that_were_not_asked_still_grades_the_turns(fake, mo
     assert run(["media"]) == 0
 
     out = capsys.readouterr().out
-    assert out.count("  giám khảo (fake): ") == 51 and "lich_su" not in out
+    assert out.count("  giám khảo (fake): ") == 52 and "lich_su" not in out
 
 
 def test_the_next_model_judges_when_the_first_answers_off_format(fake, monkeypatch, capsys):
@@ -412,9 +412,9 @@ def test_the_next_model_judges_when_the_first_answers_off_format(fake, monkeypat
     assert run(["media"]) == 0
 
     out = capsys.readouterr().out
-    assert len(fake.judged) == len(backup.judged) == 51
-    assert out.count("  ! giám khảo fake trả sai khuôn: 'Dạ câu này đúng luật ạ.'") == 51
-    assert out.count("  giám khảo (fake2): ") == 51 and "  ? giám khảo" not in out
+    assert len(fake.judged) == len(backup.judged) == 52
+    assert out.count("  ! giám khảo fake trả sai khuôn: 'Dạ câu này đúng luật ạ.'") == 52
+    assert out.count("  giám khảo (fake2): ") == 52 and "  ? giám khảo" not in out
 
 
 def test_a_violation_found_by_code_counts_even_when_the_judge_has_no_verdict(fake, capsys):

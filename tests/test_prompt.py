@@ -1247,7 +1247,8 @@ def test_media_note_says_which_images_follow_and_what_to_ask():
     assert lines[5:] == [
         "- [HỆ THỐNG] Phụ huynh nói không cần/không muốn ảnh nào (kể cả ảnh còn chờ thông tin) thì thêm token của ảnh "
         "đó ở cuối (trước [QUICK:]): học phí [SKIP:fee], thời khoá biểu [SKIP:timetable], cơ sở vật chất "
-        "[SKIP:facilities], thực đơn [SKIP:menu]; không báo gửi, không hỏi thêm để gửi ảnh đó."
+        "[SKIP:facilities], thực đơn [SKIP:menu]; không báo gửi, không hỏi thêm để gửi ảnh đó. Không cần việc khác (để số, "
+        "học thử, tư vấn viên gọi…) thì không thêm."
     ]
     assert media_note([]) == ""
 
@@ -1271,7 +1272,8 @@ def test_media_note_of_a_timetable_still_missing_the_age_only_asks_for_it():
         "- [HỆ THỐNG] Chưa biết tuổi bé nên chưa gửi ảnh thời khoá biểu: hỏi tuổi bé để em gửi đúng thời khoá biểu; "
         "không nói đã/sẽ gửi ảnh đó, không nói tư vấn viên sẽ gửi.",
         "- [HỆ THỐNG] Phụ huynh nói không cần/không muốn ảnh nào (kể cả ảnh còn chờ thông tin) thì thêm token của ảnh "
-        "đó ở cuối (trước [QUICK:]): thời khoá biểu [SKIP:timetable]; không báo gửi, không hỏi thêm để gửi ảnh đó.",
+        "đó ở cuối (trước [QUICK:]): thời khoá biểu [SKIP:timetable]; không báo gửi, không hỏi thêm để gửi ảnh đó. Không cần việc khác (để số, "
+        "học thử, tư vấn viên gọi…) thì không thêm.",
     ]
 
 
@@ -1280,7 +1282,8 @@ def test_media_note_of_a_timetable_still_missing_the_age_only_asks_for_it():
 def test_media_note_lets_the_parent_decline_an_image_waiting_without_a_line_of_its_own():
     assert media_note([], waiting=["fee"]) == (
         "- [HỆ THỐNG] Phụ huynh nói không cần/không muốn ảnh nào (kể cả ảnh còn chờ thông tin) thì thêm token của ảnh "
-        "đó ở cuối (trước [QUICK:]): học phí [SKIP:fee]; không báo gửi, không hỏi thêm để gửi ảnh đó."
+        "đó ở cuối (trước [QUICK:]): học phí [SKIP:fee]; không báo gửi, không hỏi thêm để gửi ảnh đó. Không cần việc khác (để số, "
+        "học thử, tư vấn viên gọi…) thì không thêm."
     )
 
 

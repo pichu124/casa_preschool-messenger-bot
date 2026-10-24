@@ -156,7 +156,8 @@ SEND_TOKEN_RULE = (
 IMAGE_NAMES = {"fee": "học phí", "timetable": "thời khoá biểu", "facilities": "cơ sở vật chất", "menu": "thực đơn"}
 SKIP_LINE = (
     "- [HỆ THỐNG] Phụ huynh nói không cần/không muốn ảnh nào (kể cả ảnh còn chờ thông tin) thì thêm token của ảnh đó "
-    "ở cuối (trước [QUICK:]): {tokens}; không báo gửi, không hỏi thêm để gửi ảnh đó."
+    "ở cuối (trước [QUICK:]): {tokens}; không báo gửi, không hỏi thêm để gửi ảnh đó. Không cần việc khác (để số, "
+    "học thử, tư vấn viên gọi…) thì không thêm."
 )
 # An image of the bot's last message that failed: only the model knows whether the parent asks for it again.
 FAILED_IMAGE_LINE = (

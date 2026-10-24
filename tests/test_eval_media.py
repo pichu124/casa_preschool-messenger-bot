@@ -266,10 +266,12 @@ def test_media_suite_is_inconclusive_when_every_model_fails(fake, capsys):
 
 def test_media_suite_leaves_the_app_as_it_found_it(fake):
     send_message, catalog, profiles = main.send_message, media._catalog, main.customer_memory._customers
+    # Another test's monkeypatch may leave a bound get_response on the instance: compare with before, not with none
+    get_response = vars(main.ai_engine).get("get_response")
 
     run(["media"])
 
     assert main.send_message is send_message and media._catalog is catalog
     assert main.customer_memory._customers is profiles and profiles == {}
     assert settings.MEDIA_SYNC_ENABLED is False
-    assert "get_response" not in vars(main.ai_engine)
+    assert vars(main.ai_engine).get("get_response") is get_response

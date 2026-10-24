@@ -4,7 +4,7 @@ import logging
 import re
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import NamedTuple
 
@@ -668,6 +668,9 @@ IMAGE_WORDS = {
 }
 FACILITY_IMAGES = 4
 MAX_IMAGES = 5
+# Sent after the reply when it said images follow and every Drive image of the turn failed.
+IMAGES_FAILED_MESSAGE = "Dạ ảnh em gửi đang bị lỗi, Ba/Mẹ đợi em chút, tư vấn viên sẽ gửi lại ạ."
+IMAGE_FAILURE_ALERT_EVERY = timedelta(hours=1)
 # The sample menu of the Q&A (data/qa_database.json): sent only while Drive has no menu image.
 QA_MENU_IMAGE = "static/thuc-don-mau.jpg"
 # A kid age read from the message text itself, never a fee period ("đóng 12 tháng", "3 tháng").
@@ -870,11 +873,32 @@ async def _remind_stale_fee(system: str, fee: media.FeeImage, today: date) -> No
     )
 
 
+_image_failure_alerted_at: datetime | None = None
+
+
+async def _alert_image_failure(offer: Offer, image_url: str, error: Exception) -> None:
+    """Tell the admin group, at most once every IMAGE_FAILURE_ALERT_EVERY, that a Drive image did not reach a parent:
+    which image and what Graph said (GraphError carries no access token); nothing of the parent. In memory."""
+    global _image_failure_alerted_at
+    now = datetime.now(timezone.utc)
+    if _image_failure_alerted_at and now - _image_failure_alerted_at < IMAGE_FAILURE_ALERT_EVERY:
+        return
+    _image_failure_alerted_at = now
+    status = getattr(error, "status", None)
+    said = f"HTTP {status}: {error.message}" if status else type(error).__name__
+    await _send_telegram(
+        f"⚠️ Gửi ảnh {offer.label} cho phụ huynh bị lỗi ({said}). Kiểm PUBLIC_BASE_URL trên Render "
+        f"({settings.PUBLIC_BASE_URL or 'chưa đặt'}) và mở thử URL ảnh: {image_url} . Báo tối đa 1 lần mỗi giờ."
+    )
+
+
 async def _send_reply_with_images(
     sender_id: str, text: str, quick_replies: list[dict] | None, qa_images: list[str], offers: list[Offer]
 ) -> list[Offer]:
     """The reply, then the images (at most MAX_IMAGES; an offer that does not fit waits for another turn), the quick
-    replies on the last message sent. Returns the offers delivered; an image Messenger refuses is logged, skipped."""
+    replies on the last message sent. Returns the offers delivered; an image Messenger refuses is logged and skipped,
+    a Drive one also told to the admin group; when the reply said images follow and none of the Drive ones went, the
+    parent gets IMAGES_FAILED_MESSAGE."""
     qa_images = qa_images[:MAX_IMAGES]
     chosen, room = [], MAX_IMAGES - len(qa_images)
     for offer in offers:
@@ -884,15 +908,20 @@ async def _send_reply_with_images(
     images = [(None, _public_image_url(u)) for u in qa_images] + [(o, u) for o in chosen for u in o.urls]
     if text:
         await send_message(sender_id, text, quick_replies=None if images else quick_replies)
-    delivered = set()
+    delivered, failed = set(), set()
     for n, (offer, image_url) in enumerate(images, 1):
         try:
             await send_image(sender_id, image_url, quick_replies=quick_replies if n == len(images) else None)
         except Exception as e:
             logger.warning(f"Image {offer.key if offer else image_url} not sent to {sender_id}: {type(e).__name__}")
+            if offer:
+                failed.add(offer.kind)
+                await _alert_image_failure(offer, image_url, e)
             continue
         if offer:
             delivered.add(offer.key)
+    if failed and not delivered and failed & _announced(text):
+        await send_message(sender_id, IMAGES_FAILED_MESSAGE, quick_replies=quick_replies)
     return [o for o in chosen if o.key in delivered]
 
 
@@ -1012,6 +1041,8 @@ async def _answer_message(sender_id: str, text: str, attribution: dict | None, p
                 existing_profile, extracted, text, image_topics, image_urls, last_bot_message, today
             )
 
+            if settings.MEDIA_SYNC_ENABLED:
+                logger.info(f"Drive images planned for {sender_id}: {[o.key for o in offers]}")
             # Messenger shows quick replies only under the latest message: they go on the last one sent
             delivered = await _send_reply_with_images(sender_id, clean_text, quick_replies, image_urls, offers)
             _record_images(sender_id, existing_profile, delivered, waiting)

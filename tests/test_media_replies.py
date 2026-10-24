@@ -5,14 +5,16 @@ cả dòng [HỆ THỐNG] mà code đưa vào khối nhắc nhở. process_messa
 """
 
 import asyncio
+import json
 import logging
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
 import app.main as main
-from app import customer_memory, escalation, media
+from app import customer_memory, escalation, media, messenger
 from app.ai_engine import AIResponse
 from app.config import settings
 
@@ -45,6 +47,9 @@ CATALOG = [
     item("km-tkb-36-72", "TKB 3-6 tuổi.png", SN, "CƠ SỞ KIM MÃ", TKB),
     *[item(f"km-csvc-{i}", f"IMG_{i:02}.jpg", SN, "CƠ SỞ KIM MÃ", CSVC) for i in range(1, 6)],
 ]
+
+
+GRAPH_FETCH_ERROR = "(#100) Failed to fetch the file from the url (code 100)"
 
 
 def url(file_id: str) -> str:
@@ -93,7 +98,7 @@ def parent(monkeypatch, today):
 
     async def send_image(recipient_id, image_url, quick_replies=None):
         if image_url in p.failing:
-            raise RuntimeError("Messenger image API error: 400")
+            raise messenger.GraphError("image", 400, GRAPH_FETCH_ERROR)
         p.sent.append(("image", image_url, quick_replies))
 
     async def nothing(*args, **kwargs):
@@ -123,6 +128,7 @@ def parent(monkeypatch, today):
     monkeypatch.setattr(escalation, "_send_telegram", send_telegram)
     monkeypatch.setattr(customer_memory, "sync_to_github", synced)
     monkeypatch.setattr(main, "_stale_fee_reminded", {})
+    monkeypatch.setattr(main, "_image_failure_alerted_at", None)
     return p
 
 
@@ -595,6 +601,95 @@ def test_a_failed_image_does_not_break_the_turn_and_is_tried_again_later(parent,
     assert parent.history()[-1] == REPLY
     parent.failing = set()
     assert parent.images(parent.say("học phí bao nhiêu ạ", extracted={"topics": ["Học phí"]})) == [url("sn-fee-10")]
+
+
+TIMETABLE_SENT = "Dạ em gửi Ba/Mẹ thời khoá biểu lớp của bé để tham khảo ạ. [QUICK:visit_invite]"
+
+
+def image_alerts(parent) -> list[str]:
+    return [t for t in parent.telegram if t.startswith("⚠️ Gửi ảnh")]
+
+
+# Hội thoại thật 2026-10-24: bot báo "em gửi ngay bên dưới" mà ảnh Drive không tới, không ai biết vì sao.
+def test_a_failed_image_tells_the_admin_group_once_an_hour_without_the_parents_message(parent, catalog, monkeypatch):
+    known(kid_age="4 tuổi", interested_campus="Kim Mã")
+    parent.failing = {url("km-tkb-36-72"), url("sn-fee-10")}
+
+    parent.say("Cho em xin thời khoá biểu ạ", reply=TIMETABLE_SENT)
+
+    (alert,) = image_alerts(parent)
+    assert "thời khoá biểu cơ sở Kim Mã" in alert and "HTTP 400" in alert and GRAPH_FETCH_ERROR in alert, alert
+    assert "PUBLIC_BASE_URL" in alert and url("km-tkb-36-72") in alert, alert
+    assert "Cho em xin" not in alert and CUSTOMER_ID not in alert
+
+    parent.say("học phí bao nhiêu ạ", extracted={"topics": ["Học phí"]})
+    assert len(image_alerts(parent)) == 1
+
+    main._image_failure_alerted_at = datetime.now(timezone.utc) - timedelta(minutes=61)
+    parent.say("cho em xin lại học phí ạ", extracted={"topics": ["Học phí"]})
+    assert len(image_alerts(parent)) == 2 and "học phí hệ Song ngữ" in image_alerts(parent)[-1]
+
+
+def test_parent_told_the_images_failed_when_every_drive_image_promised_failed(parent, catalog):
+    known(kid_age="4 tuổi", interested_campus="Kim Mã")
+    parent.failing = {url("km-tkb-36-72")}
+
+    sent = parent.say("Cho em xin thời khoá biểu ạ", reply=TIMETABLE_SENT)
+
+    assert sent == [
+        ("text", "Dạ em gửi Ba/Mẹ thời khoá biểu lớp của bé để tham khảo ạ.", None),
+        ("text", main.IMAGES_FAILED_MESSAGE, VISIT_BUTTONS),
+    ]
+    assert main.IMAGES_FAILED_MESSAGE == "Dạ ảnh em gửi đang bị lỗi, Ba/Mẹ đợi em chút, tư vấn viên sẽ gửi lại ạ."
+
+
+def test_no_apology_when_one_of_the_images_went(parent, catalog):
+    known(kid_age="4 tuổi", interested_campus="Chùa Láng, Kim Mã")
+    parent.failing = {url("km-tkb-36-72")}
+
+    sent = parent.say("Cho em xin thời khoá biểu ạ", reply=TIMETABLE_SENT)
+
+    assert parent.images(sent) == [url("cl-tkb-36-60")]
+    assert ("text", main.IMAGES_FAILED_MESSAGE, VISIT_BUTTONS) not in sent
+    assert len(image_alerts(parent)) == 1
+
+
+def test_every_turn_logs_the_drive_images_it_plans_to_send(parent, catalog, caplog):
+    known(kid_age="4 tuổi", interested_campus="Kim Mã")
+
+    with caplog.at_level(logging.INFO, logger="app.main"):
+        parent.say("Cho em xin thời khoá biểu ạ", reply=TIMETABLE_SENT)
+        parent.say("dạ vâng")
+
+    planned = [r.getMessage() for r in caplog.records if "Drive images planned" in r.getMessage()]
+    assert planned == [
+        f"Drive images planned for {CUSTOMER_ID}: ['timetable:km-tkb-36-72']",
+        f"Drive images planned for {CUSTOMER_ID}: []",
+    ]
+
+
+PAGE_TOKEN = "EAAG-page-token-media-replies"
+
+
+@pytest.mark.parametrize("send", ["image", "message"])
+def test_graph_errors_are_logged_and_raised_without_the_access_token(monkeypatch, caplog, send):
+    monkeypatch.setattr(settings, "FB_PAGE_ACCESS_TOKEN", PAGE_TOKEN)
+    error = {"error": {"message": f"(#100) Failed to fetch the file from the url access_token={PAGE_TOKEN}", "code": 100}}
+
+    async def graph(self, request):
+        assert request.url.params["access_token"] == PAGE_TOKEN
+        return httpx.Response(400, content=json.dumps(error))
+
+    monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", graph)
+    call = messenger.send_image(CUSTOMER_ID, url("x")) if send == "image" else messenger.send_message(CUSTOMER_ID, "Dạ")
+
+    with caplog.at_level(logging.ERROR), pytest.raises(messenger.GraphError) as raised:
+        asyncio.run(call)
+
+    assert raised.value.status == 400
+    assert raised.value.message == "(#100) Failed to fetch the file from the url access_token=*** (code 100)"
+    assert PAGE_TOKEN not in str(raised.value) and PAGE_TOKEN not in caplog.text
+    assert "Failed to fetch the file" in caplog.text
 
 
 def test_at_most_five_images_in_one_turn(parent, catalog):

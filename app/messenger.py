@@ -63,6 +63,24 @@ ICE_BREAKERS: dict[str, str] = {
 }
 
 
+class GraphError(Exception):
+    """The Graph API refused a send: its HTTP status and error message, without the access token."""
+
+    def __init__(self, what: str, status: int, message: str):
+        super().__init__(f"Messenger {what} API error: {status} {message}")
+        self.status, self.message = status, message
+
+
+def _graph_error(what: str, response: httpx.Response) -> GraphError:
+    try:
+        error = response.json()["error"]
+        message = f"{error['message']} (code {error.get('code')})"
+    except (ValueError, KeyError, TypeError):
+        message = response.text[:300]
+    token = settings.FB_PAGE_ACCESS_TOKEN
+    return GraphError(what, response.status_code, message.replace(token, "***") if token else message)
+
+
 def _quick_reply_payload(key: str, index: int) -> str:
     return f"{QUICK_REPLY_PREFIX}{key}:{index}"
 
@@ -112,8 +130,9 @@ async def send_message(recipient_id: str, text: str, quick_replies: list[dict] |
                 timeout=30,
             )
             if response.status_code != 200:
-                logger.error(f"Failed to send message: {response.status_code} {response.text}")
-                raise Exception(f"Messenger API error: {response.status_code}")
+                error = _graph_error("message", response)
+                logger.error(f"Failed to send message: {error}")
+                raise error
             logger.info(f"Message sent to {recipient_id}")
 
 
@@ -142,8 +161,9 @@ async def send_image(recipient_id: str, image_url: str, quick_replies: list[dict
             timeout=30,
         )
         if response.status_code != 200:
-            logger.error(f"Failed to send image: {response.status_code} {response.text}")
-            raise Exception(f"Messenger image API error: {response.status_code}")
+            error = _graph_error("image", response)
+            logger.error(f"Failed to send image: {error}")
+            raise error
         logger.info(f"Image sent to {recipient_id}: {image_url}")
 
 

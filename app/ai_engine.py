@@ -132,8 +132,8 @@ IMAGE_TOPICS = {
 }
 MEDIA_NOTE_HEADER = (
     "- [HỆ THỐNG] Ảnh dưới đây hệ thống tự gửi ngay sau câu trả lời: báo ngắn, tự nhiên kiểu \"em gửi Ba/Mẹ … để "
-    "gia đình tham khảo ạ\"; không nêu con số, không nói không gửi được bảng phí/ảnh, không thêm [IMAGES:] cho ảnh "
-    "đó, không [ESCALATE] chỉ vì câu hỏi đó."
+    "gia đình tham khảo ạ\"; chỉ nói em gửi ảnh có dòng dưới đây, không nói tư vấn viên sẽ gửi ảnh đó; không nêu con "
+    "số, không nói không gửi được bảng phí/ảnh, không thêm [IMAGES:] cho ảnh đó, không [ESCALATE] chỉ vì câu hỏi đó."
 )
 # How the reply answers once the image surely follows ("Sau câu trả lời này"): the timetable answers a schedule
 # question that the Q&A alone would escalate ("lịch chi tiết"). Not on "Nếu phụ huynh hỏi …" lines.
@@ -154,14 +154,18 @@ class ImageNote(NamedTuple):
     label: str  # what the image shows: "học phí hệ Song ngữ (cơ sở Kim Mã)"
     ask: tuple[str, ...] = ()  # state "missing": what the bot needs to know first ("tuổi bé")
     if_asked: bool = False  # only if this message asks about IMAGE_TOPICS[kind]
-    state: str = "send"  # "send": the image follows the reply; "missing": not sent until `ask` is known
+    # "send": the image follows the reply; "missing": not sent until `ask` is known; "sent": sent in an earlier turn
+    state: str = "send"
 
 
-def _missing_line(image: ImageNote) -> str:
+def _not_sending_line(image: ImageNote) -> str:
     ask = " và ".join(image.ask)
     rule = (
         f"chưa biết {ask} nên chưa gửi ảnh {image.label}: hỏi {ask} để em gửi đúng {image.label}; không nói đã/sẽ "
         "gửi ảnh đó, không nói tư vấn viên sẽ gửi."
+    ) if image.state == "missing" else (
+        f"ảnh {image.label} đã gửi ở tin trước ([đã gửi ảnh …] trong lịch sử): nói ngắn ảnh ở phía trên, không gửi "
+        "lại, không nói tư vấn viên sẽ gửi."
     )
     return f"- [HỆ THỐNG] Nếu phụ huynh hỏi {IMAGE_TOPICS[image.kind]}: {rule}" if image.if_asked else (
         f"- [HỆ THỐNG] {rule[0].upper()}{rule[1:]}"
@@ -169,8 +173,8 @@ def _missing_line(image: ImageNote) -> str:
 
 
 def media_note(images: list[ImageNote], facilities_need_campus: bool = False) -> str:
-    """The [HỆ THỐNG] lines of the reminders telling the model which images the bot sends after its reply, and
-    which wait for what the bot does not know yet."""
+    """The [HỆ THỐNG] lines of the reminders telling the model which images the bot sends after its reply, which
+    wait for what the bot does not know yet and which went in an earlier turn."""
     lines = []
     for image in (i for i in images if i.state == "send"):
         when = f"Nếu phụ huynh hỏi {IMAGE_TOPICS[image.kind]}: sau câu trả lời" if image.if_asked else "Sau câu trả lời này"
@@ -178,7 +182,7 @@ def media_note(images: list[ImageNote], facilities_need_campus: bool = False) ->
         lines.append(f"- [HỆ THỐNG] {when} hệ thống gửi ảnh {image.label}.{answer}")
     if lines:
         lines.insert(0, MEDIA_NOTE_HEADER)
-    lines += [_missing_line(i) for i in images if i.state == "missing"]
+    lines += [_not_sending_line(i) for i in images if i.state != "send"]
     if facilities_need_campus:
         lines.append(FACILITIES_NEED_CAMPUS)
     return "\n".join(lines)

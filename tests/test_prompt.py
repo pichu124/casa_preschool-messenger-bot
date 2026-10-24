@@ -1230,6 +1230,7 @@ def test_media_note_says_which_images_follow_and_what_to_ask():
 
     assert lines[0].startswith("- [HỆ THỐNG]") and "không nêu con số" in lines[0] and "không [ESCALATE]" in lines[0]
     assert "không nói không gửi được bảng phí" in lines[0]
+    assert "chỉ nói em gửi ảnh có dòng dưới đây" in lines[0] and "không nói tư vấn viên sẽ gửi ảnh đó" in lines[0]
     assert lines[1] == "- [HỆ THỐNG] Sau câu trả lời này hệ thống gửi ảnh học phí hệ Song ngữ (cơ sở Kim Mã)."
     assert lines[2] == "- [HỆ THỐNG] Nếu phụ huynh hỏi thực đơn/ăn uống: sau câu trả lời hệ thống gửi ảnh thực đơn hệ Quốc tế."
     assert lines[3] == (
@@ -1239,6 +1240,16 @@ def test_media_note_says_which_images_follow_and_what_to_ask():
     )
     assert "hỏi Ba/Mẹ quan tâm cơ sở nào" in lines[4] and "[QUICK:campus]" in lines[4]
     assert media_note([]) == ""
+
+
+def test_media_note_of_images_already_sent_says_so_without_the_sending_header():
+    note = media_note([ImageNote("timetable", "thời khoá biểu cơ sở Kim Mã", if_asked=True, state="sent")])
+
+    assert note == (
+        "- [HỆ THỐNG] Nếu phụ huynh hỏi chương trình học/Cambridge/thời khoá biểu: ảnh thời khoá biểu cơ sở Kim Mã đã "
+        "gửi ở tin trước ([đã gửi ảnh …] trong lịch sử): nói ngắn ảnh ở phía trên, không gửi lại, không nói tư vấn "
+        "viên sẽ gửi."
+    )
 
 
 # Người vận hành 2026-10-24: thiếu cơ sở/tuổi bé thì không có ảnh thời khoá biểu, nên dòng hỏi không mở bằng câu

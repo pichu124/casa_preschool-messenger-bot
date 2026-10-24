@@ -657,6 +657,15 @@ TOPICS_OF_IMAGE = {"fee": FEE_TOPICS, "timetable": (PROGRAMME_TOPIC,), "faciliti
 TIMETABLE_WORDS = re.compile(r"\bcambridge\b|\bthoi (?:khoa|gian) bieu\b|\btkb\b|\blich hoc\b(?! thu)")
 # A message asking for both systems ("2 hệ", "cả hai hệ") or both campuses ("cả 2 cơ sở", "hai bên").
 BOTH_WORDS = re.compile(r"\b(?:ca )?(?:2|hai) (he|co so|ben|truong)\b")
+# A reply saying the bot itself sends an image (as media.fold writes it: "em gửi", "em xin phép gửi", not "tư vấn
+# viên sẽ gửi" nor "em chưa gửi được"), and the words of each kind of image in that sentence.
+BOT_SENDS = re.compile(r"\bem(?: (?!chua\b|khong\b)\w+){0,2} gui\b")
+IMAGE_WORDS = {
+    "fee": re.compile(r"\b(?:hoc phi|bang phi)\b"),
+    "timetable": re.compile(r"\b(?:thoi (?:khoa|gian) bieu|tkb|lich hoc)\b"),
+    "facilities": re.compile(r"\b(?:co so vat chat|anh (?:truong|lop|co so))\b"),
+    "menu": re.compile(r"\bthuc don\b"),
+}
 FACILITY_IMAGES = 4
 MAX_IMAGES = 5
 # The sample menu of the Q&A (data/qa_database.json): sent only while Drive has no menu image.
@@ -682,6 +691,12 @@ def _today_vn() -> date:
 
 def _image_id(url: str) -> str:
     return url.rsplit("/", 1)[-1].removesuffix(".jpg")
+
+
+def _announced(reply: str) -> set[str]:
+    """The kinds of image a sentence of `reply` says the bot sends ("Thời khoá biểu em gửi ngay bên dưới ạ")."""
+    sentences = [s for s in re.split(r"[.!?\n]+", media.fold(reply)) if BOT_SENDS.search(s)]
+    return {kind for kind, words in IMAGE_WORDS.items() if any(words.search(s) for s in sentences)}
 
 
 # Profile flag of a question waiting for an image -> the kind of that image.
@@ -777,12 +792,17 @@ def _plan_images(
     if wants_timetable and months is None:
         notes.append(ImageNote("timetable", "thời khoá biểu", (*timetable_missing, "tuổi bé"), state="missing"))
     elif wants_timetable:
+        already = []
         for campus in timetable_campuses:
             timetable = media.timetable_image(campus, months)
-            if timetable and f"timetable:{_image_id(timetable)}" not in sent:
+            if timetable and f"timetable:{_image_id(timetable)}" in sent:
+                already.append(campus)
+            elif timetable:
                 label = f"thời khoá biểu cơ sở {campus}"
                 offers.append(Offer("timetable", f"timetable:{_image_id(timetable)}", [timetable], label))
                 timetable_offered = True
+        if already:
+            notes.append(ImageNote("timetable", f"thời khoá biểu cơ sở {', '.join(already)}", state="sent"))
         if timetable_missing:
             label = "thời khoá biểu" + "".join(f" hệ {media.SYSTEM_NAMES[s]}" for s in unknown_systems)
             notes.append(ImageNote("timetable", label, timetable_missing, state="missing"))
@@ -817,7 +837,8 @@ def _plan_images(
 
 def _media_note(profile: dict, text: str, last_bot_message: str, today: date) -> str:
     """The [HỆ THỐNG] lines for the reply to `text`, written before its extraction is known: the images sent whatever
-    the message asks, and those sent if it asks about their topic."""
+    the message asks, and those sent if it asks about their topic (or if the reply says the bot sends them); what an
+    image waits for; the images sent before that this message asks for again."""
     if not settings.MEDIA_SYNC_ENABLED:
         return ""
     _, sure, _, sure_notes = _plan_images(profile, {}, text, [], [], last_bot_message, today)
@@ -825,7 +846,7 @@ def _media_note(profile: dict, text: str, last_bot_message: str, today: date) ->
     _, offers, _, notes = _plan_images(profile, {}, text, every_topic, [], last_bot_message, today)
     sure_keys = {o.key for o in sure}
     images = [ImageNote(o.kind, o.label, if_asked=o.key not in sure_keys) for o in offers]
-    images += [n._replace(if_asked=n not in sure_notes) for n in notes]
+    images += [n._replace(if_asked=n not in sure_notes) for n in notes if n.state != "sent" or n in sure_notes]
     campuses = media.campuses_in(text) or media.campuses_in(profile.get("interested_campus"))
     need_campus = not campuses and any(media.facility_images(c, 1) for c in media.CAMPUSES)
     return media_note(images, facilities_need_campus=need_campus)
@@ -985,8 +1006,10 @@ async def _answer_message(sender_id: str, text: str, attribution: dict | None, p
             clean_text, quick_key = _extract_quick_reply(clean_text)
             quick_replies = build_quick_replies(quick_key)
             covered = topics_in_reply(response.text)
+            # An image of a "Nếu phụ huynh hỏi …" line goes when the reply says it does, whatever the extraction found
+            image_topics = [*topics, *(t for kind in _announced(clean_text) for t in TOPICS_OF_IMAGE[kind])]
             image_urls, offers, waiting, _ = _plan_images(
-                existing_profile, extracted, text, topics, image_urls, last_bot_message, today
+                existing_profile, extracted, text, image_topics, image_urls, last_bot_message, today
             )
 
             # Messenger shows quick replies only under the latest message: they go on the last one sent

@@ -442,6 +442,46 @@ def test_facilities_of_two_campuses_go_one_campus_a_turn(parent, catalog):
     assert second == [url(f"km-csvc-{i}") for i in range(1, 5)]
 
 
+def test_timetables_already_sent_are_not_promised_again_nor_left_to_a_consultant(parent, catalog):
+    known(kid_age="4 tuổi", interested_campus="Chùa Láng, Kim Mã")
+    assert parent.images(parent.say("Cho em xin thời khoá biểu ạ")) == [url("cl-tkb-36-60"), url("km-tkb-36-72")]
+
+    assert parent.images(parent.say("Gửi thời khoá biểu 2 hệ nhé")) == []
+
+    note = parent.notes[-1]
+    assert "[HỆ THỐNG] Ảnh thời khoá biểu cơ sở Chùa Láng, Kim Mã đã gửi ở tin trước" in note, note
+    assert "không gửi lại, không nói tư vấn viên sẽ gửi" in note and "gửi ảnh thời khoá biểu" not in note, note
+
+
+# Phản hồi 2026-10-24: dòng "Nếu phụ huynh hỏi …" cho model nói "em gửi …", nhưng ảnh chỉ đi khi trích xuất gắn đúng
+# chủ đề. Câu trả lời đã báo em gửi loại ảnh đó thì ảnh đi theo.
+@pytest.mark.parametrize(
+    ("reply", "goes"),
+    [
+        ("Dạ thời khoá biểu lớp của bé em gửi ngay bên dưới ạ.", True),
+        ("Dạ em xin phép gửi Ba/Mẹ thời khóa biểu để tham khảo ạ.", True),
+        ("Dạ thời khoá biểu tư vấn viên sẽ gửi Ba/Mẹ ạ.", False),
+        ("Dạ em chưa gửi được thời khoá biểu ạ.", False),
+        ("Dạ em gửi Ba/Mẹ thông tin chương trình ạ. Thời khoá biểu thì theo từng lớp ạ.", False),
+    ],
+)
+def test_an_image_the_reply_says_the_bot_sends_goes_even_if_the_extraction_missed_its_topic(parent, catalog, reply, goes):
+    known(kid_age="4 tuổi", interested_campus="Kim Mã")
+
+    sent = parent.say("Trường dạy chương trình gì ạ?", reply=reply)
+
+    assert "Nếu phụ huynh hỏi chương trình học/Cambridge/thời khoá biểu: sau câu trả lời" in parent.notes[-1]
+    assert parent.images(sent) == ([url("km-tkb-36-72")] if goes else [])
+
+
+def test_fee_image_the_reply_says_the_bot_sends_goes_without_the_fee_topic(parent, catalog):
+    known(kid_age="3 tuổi", interested_campus="Mỹ Đình")
+
+    sent = parent.say("vậy chi phí thế nào ạ", reply="Dạ em gửi Ba/Mẹ chính sách học phí cơ sở Mỹ Đình để tham khảo ạ.")
+
+    assert parent.images(sent) == [url("qt-fee-10")]
+
+
 def test_daily_schedule_question_gets_the_timetable(parent, catalog):
     known(interested_campus="Kim Mã", kid_age="4 tuổi")
 

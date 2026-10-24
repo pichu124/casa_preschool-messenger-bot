@@ -1,6 +1,9 @@
 import hashlib
 import hmac
+import json
 import logging
+import mimetypes
+from pathlib import Path
 
 import httpx
 
@@ -136,35 +139,72 @@ async def send_message(recipient_id: str, text: str, quick_replies: list[dict] |
             logger.info(f"Message sent to {recipient_id}")
 
 
-async def send_image(recipient_id: str, image_url: str, quick_replies: list[dict] | None = None):
-    """Send an image attachment via Facebook Messenger."""
-    url = f"{settings.FB_GRAPH_API_URL}/me/messages"
-    message = {
-        "attachment": {
-            "type": "image",
-            "payload": {"url": image_url, "is_reusable": True},
-        },
-        "metadata": BOT_MESSAGE_METADATA,
-    }
+UPLOAD_TIMEOUT = 60
+# Image file uploaded -> ((mtime_ns, size) of the file uploaded, the attachment_id Graph gave): the next parent gets
+# the same reusable attachment by its id, without uploading the file again. In memory: a restart uploads again.
+_attachment_ids: dict[Path, tuple[tuple[int, int], str]] = {}
+
+
+async def _post_image(
+    client: httpx.AsyncClient, recipient_id: str, payload: dict, quick_replies: list[dict] | None, file: Path | None = None
+) -> dict:
+    """POST one image message with this attachment payload, `file` as multipart `filedata` when given. Returns the
+    Graph JSON; raises GraphError when Graph refuses it."""
+    message = {"attachment": {"type": "image", "payload": payload}, "metadata": BOT_MESSAGE_METADATA}
     if quick_replies:
         message["quick_replies"] = quick_replies
-    payload = {
-        "recipient": {"id": recipient_id},
-        "message": message,
-        "messaging_type": "RESPONSE",
-    }
+    url = f"{settings.FB_GRAPH_API_URL}/me/messages"
+    params = {"access_token": settings.FB_PAGE_ACCESS_TOKEN}
+    if file is None:
+        body = {"recipient": {"id": recipient_id}, "message": message, "messaging_type": "RESPONSE"}
+        response = await client.post(url, json=body, params=params, timeout=30)
+    else:
+        fields = {
+            "recipient": json.dumps({"id": recipient_id}),
+            "message": json.dumps(message),  # ASCII: no charset to agree on for the form field
+            "messaging_type": "RESPONSE",
+        }
+        content_type = mimetypes.guess_type(file.name)[0] or "image/jpeg"
+        upload = {"filedata": (file.name, file.read_bytes(), content_type)}
+        response = await client.post(url, data=fields, files=upload, params=params, timeout=UPLOAD_TIMEOUT)
+    if response.status_code != 200:
+        raise _graph_error("image", response)
+    return response.json()
+
+
+async def _send_file(client: httpx.AsyncClient, recipient_id: str, file: Path, quick_replies: list[dict] | None) -> str:
+    """Send the image `file`: by the attachment_id of its last upload while the file is unchanged, else (or when
+    Graph refuses that id, e.g. expired) uploaded once more. Returns how it went, for the log."""
+    stat = file.stat()
+    stamp = (stat.st_mtime_ns, stat.st_size)
+    cached = _attachment_ids.get(file)
+    if cached and cached[0] == stamp:
+        try:
+            await _post_image(client, recipient_id, {"attachment_id": cached[1]}, quick_replies)
+            return f"attachment {cached[1]}"
+        except GraphError as e:
+            logger.warning(f"Attachment {cached[1]} of {file.name} refused ({e.status} {e.message}): uploading again")
+            del _attachment_ids[file]
+    sent = await _post_image(client, recipient_id, {"is_reusable": True}, quick_replies, file=file)
+    if sent.get("attachment_id"):
+        _attachment_ids[file] = (stamp, sent["attachment_id"])
+    return f"uploaded, attachment {sent.get('attachment_id')}"
+
+
+async def send_image(recipient_id: str, image: Path | str, quick_replies: list[dict] | None = None):
+    """Send an image via Facebook Messenger: a Path is an image file on disk, uploaded (multipart `filedata`); a str
+    is a URL Facebook downloads itself. Raises GraphError (without the access token) when Graph refuses it."""
     async with httpx.AsyncClient() as client:
-        response = await client.post(
-            url,
-            json=payload,
-            params={"access_token": settings.FB_PAGE_ACCESS_TOKEN},
-            timeout=30,
-        )
-        if response.status_code != 200:
-            error = _graph_error("image", response)
+        try:
+            if isinstance(image, Path):
+                how = await _send_file(client, recipient_id, image, quick_replies)
+            else:
+                await _post_image(client, recipient_id, {"url": image, "is_reusable": True}, quick_replies)
+                how = "by URL"
+        except GraphError as error:
             logger.error(f"Failed to send image: {error}")
-            raise error
-        logger.info(f"Image sent to {recipient_id}: {image_url}")
+            raise
+    logger.info(f"Image sent to {recipient_id}: {image.name if isinstance(image, Path) else image} ({how})")
 
 
 async def send_typing_indicator(recipient_id: str, action: str = "typing_on"):
